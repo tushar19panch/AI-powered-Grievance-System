@@ -97,18 +97,114 @@ export default function AdminProfile() {
     }
   };
 
-  const pickImage = async () => {
+  const applyProfilePhoto = async (photoUri: string | null) => {
+    try {
+      setAdmin((prev) => ({
+        ...prev,
+        profileImage: photoUri,
+      }));
+
+      const sessionData = await AsyncStorage.getItem('user_session');
+      const session = sessionData ? JSON.parse(sessionData) : null;
+      const currentMobile = admin.mobile || session?.mobile || '';
+
+      if (currentMobile && photoUri) {
+        await AsyncStorage.setItem(`profile_image_${currentMobile}`, photoUri);
+      } else if (currentMobile && !photoUri) {
+        await AsyncStorage.removeItem(`profile_image_${currentMobile}`);
+      }
+
+      if (photoUri) {
+        await AsyncStorage.setItem('profile_image', photoUri);
+      } else {
+        await AsyncStorage.removeItem('profile_image');
+      }
+
+      if (session) {
+        session.profileImage = photoUri;
+        await AsyncStorage.setItem('user_session', JSON.stringify(session));
+      }
+
+      if (admin.role === 'secretary') {
+        const secData = await AsyncStorage.getItem('secretary');
+        const prevSec = secData ? JSON.parse(secData) : {};
+        await AsyncStorage.setItem(
+          'secretary',
+          JSON.stringify({ ...prevSec, ...admin, profileImage: photoUri })
+        );
+      } else {
+        const adminData = await AsyncStorage.getItem('admin');
+        const prevAdmin = adminData ? JSON.parse(adminData) : {};
+        await AsyncStorage.setItem(
+          'admin',
+          JSON.stringify({ ...prevAdmin, ...admin, profileImage: photoUri })
+        );
+      }
+
+      Alert.alert(
+        isHindi ? 'सफल' : 'Success',
+        isHindi
+          ? 'प्रोफाइल फोटो सफलतापूर्वक अपडेट हो गई।'
+          : 'Profile photo updated successfully.'
+      );
+    } catch (err) {
+      console.log('Error saving official profile photo:', err);
+    }
+  };
+
+  const processOfficialAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (asset.base64) {
+      const uri = asset.base64.startsWith('data:')
+        ? asset.base64
+        : `data:image/jpeg;base64,${asset.base64}`;
+      await applyProfilePhoto(uri);
+      return;
+    }
+    if (asset.uri) {
+      await applyProfilePhoto(asset.uri);
+    }
+  };
+
+  const pickFromCamera = async () => {
     try {
       if (Platform.OS !== 'web') {
-        const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
-
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
           Alert.alert(
-            isHindi ? 'अनुमति आवश्यक' : 'Permission Required',
+            isHindi ? 'कैमरा अनुमति' : 'Camera Permission',
             isHindi
-              ? 'प्रोफाइल फोटो चुनने के लिए gallery की अनुमति दें।'
-              : 'Please allow gallery access to choose a profile photo.'
+              ? 'फोटो लेने के लिए कैमरे की अनुमति दें।'
+              : 'Please allow camera access to take a photo.'
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.6,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        await processOfficialAsset(result.assets[0]);
+      }
+    } catch (error) {
+      console.log('Camera error:', error);
+    }
+  };
+
+  const pickFromGallery = async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert(
+            isHindi ? 'गैलरी अनुमति' : 'Gallery Permission',
+            isHindi
+              ? 'फोटो चुनने के लिए गैलरी की अनुमति दें।'
+              : 'Please allow gallery access to select a photo.'
           );
           return;
         }
@@ -116,48 +212,47 @@ export default function AdminProfile() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
+        allowsEditing: false,
+        quality: 0.6,
         base64: true,
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        const photoUri = result.assets[0].base64
-          ? `data:image/jpeg;base64,${result.assets[0].base64}`
-          : result.assets[0].uri;
-
-        setAdmin((prev) => ({
-          ...prev,
-          profileImage: photoUri,
-        }));
-
-        // Auto persist immediately
-        const currentMobile = admin.mobile;
-        if (currentMobile) {
-          await AsyncStorage.setItem(`profile_image_${currentMobile}`, photoUri);
-        }
-
-        const sessionData = await AsyncStorage.getItem('user_session');
-        if (sessionData) {
-          const session = JSON.parse(sessionData);
-          session.profileImage = photoUri;
-          await AsyncStorage.setItem('user_session', JSON.stringify(session));
-        }
-
-        if (admin.role === 'secretary') {
-          const secData = await AsyncStorage.getItem('secretary');
-          const prevSec = secData ? JSON.parse(secData) : {};
-          await AsyncStorage.setItem('secretary', JSON.stringify({ ...prevSec, ...admin, profileImage: photoUri }));
-        } else {
-          const adminData = await AsyncStorage.getItem('admin');
-          const prevAdmin = adminData ? JSON.parse(adminData) : {};
-          await AsyncStorage.setItem('admin', JSON.stringify({ ...prevAdmin, ...admin, profileImage: photoUri }));
-        }
+        await processOfficialAsset(result.assets[0]);
       }
-    } catch (err) {
-      console.log('Official image pick error:', err);
+    } catch (error) {
+      console.log('Gallery error:', error);
     }
+  };
+
+  const pickImage = () => {
+    Alert.alert(
+      isHindi ? 'प्रोफाइल फोटो' : 'Profile Photo',
+      isHindi ? 'विकल्प चुनें' : 'Select an option',
+      [
+        {
+          text: isHindi ? '📷 कैमरे से फोटो लें' : '📷 Take Photo',
+          onPress: pickFromCamera,
+        },
+        {
+          text: isHindi ? '🖼️ गैलरी से चुनें' : '🖼️ Choose from Gallery',
+          onPress: pickFromGallery,
+        },
+        ...(admin.profileImage
+          ? [
+              {
+                text: isHindi ? '❌ फोटो हटाएं' : '❌ Remove Photo',
+                style: 'destructive' as const,
+                onPress: () => applyProfilePhoto(null),
+              },
+            ]
+          : []),
+        {
+          text: isHindi ? 'रद्द करें' : 'Cancel',
+          style: 'cancel' as const,
+        },
+      ]
+    );
   };
 
   const saveProfile = async () => {

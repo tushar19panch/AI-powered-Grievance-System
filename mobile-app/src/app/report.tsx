@@ -26,6 +26,8 @@ import {
 } from 'expo-audio';
 import { useLanguage } from '../i18n/LanguageContext';
 import { complaintApi } from '../services/api';
+import { queueOfflineComplaint } from '../services/offlineSyncService';
+import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 
 import {
   COLORS,
@@ -347,39 +349,56 @@ export default function ReportScreen() {
         }
       }
 
+      const payload = {
+        problemType: 'General Problem',
+        category: 'Village Issue',
+        description: description.trim(),
+        location: location || `Ward ${problemWard || ward || '1'}`,
+        photo: image || undefined,
+        audioUrl: audioUri || undefined,
+        latitude: lat,
+        longitude: lng,
+      };
+
       let backendId: string | null = null;
+      let isSavedOffline = false;
+
       try {
-        const apiRes = await complaintApi.createComplaint({
-          problemType: 'General Problem',
-          category: 'Village Issue',
-          description: description.trim(),
-          location: location || `Ward ${problemWard || ward || '1'}`,
-          photo: image || undefined,
-          audioUrl: audioUri || undefined,
-          latitude: lat,
-          longitude: lng,
-        });
+        const apiRes = await complaintApi.createComplaint(payload);
         if (apiRes?.id) {
           backendId = String(apiRes.id);
         }
       } catch (apiErr) {
-        console.log('Backend complaint submission failed:', apiErr);
+        console.log('Backend complaint submission failed, queuing offline:', apiErr);
+        // Queue for background sync
+        const offlineItem = await queueOfflineComplaint(payload, {
+          citizenName: userName,
+          ward: problemWard || ward,
+        });
+        backendId = offlineItem.id;
+        isSavedOffline = true;
       }
 
-      const newComplaintId =
-        backendId ||
-        String(Date.now());
-
+      const newComplaintId = backendId || String(Date.now());
       setComplaintId(newComplaintId);
 
-      Alert.alert(
-        isHindi
-          ? 'शिकायत सफलतापूर्वक दर्ज हुई'
-          : 'Complaint Submitted Successfully',
-        isHindi
-          ? `शिकायत आईडी: #${newComplaintId}`
-          : `Complaint ID: #${newComplaintId}`
-      );
+      if (isSavedOffline) {
+        Alert.alert(
+          isHindi ? '📶 शिकायत ऑफलाइन सुरक्षित' : '📶 Complaint Saved Offline',
+          isHindi
+            ? `इंटरनेट नेटवर्क न होने के कारण आपकी शिकायत फोटो सहित आपके फोन में सुरक्षित सेव कर ली गई है।\n\nजैसे ही इंटरनेट कनेक्ट होगा, यह अपने आप ग्राम पंचायत सर्वर पर सिंक हो जाएगी।\n\nअस्थायी आईडी: #${newComplaintId}`
+            : `Your complaint with photo has been saved offline on your device due to no/slow network.\n\nIt will automatically synchronize with the Gram Panchayat server when connected.\n\nOffline ID: #${newComplaintId}`
+        );
+      } else {
+        Alert.alert(
+          isHindi
+            ? 'शिकायत सफलतापूर्वक दर्ज हुई'
+            : 'Complaint Submitted Successfully',
+          isHindi
+            ? `शिकायत आईडी: #${newComplaintId}`
+            : `Complaint ID: #${newComplaintId}`
+        );
+      }
 
       setDescription('');
       setImage(null);
@@ -441,6 +460,9 @@ export default function ReportScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* OFFLINE SYNC BANNER */}
+        <OfflineSyncBanner isHindi={isHindi} />
 
         {/* INTRO */}
         <View style={styles.introCard}>

@@ -23,6 +23,7 @@ import {
 } from '../theme';
 
 import { complaintApi } from '../services/api';
+import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 
 type Complaint = {
   complaintId: string;
@@ -558,6 +559,47 @@ export default function SecretaryDashboard() {
                 {reopened}
               </Text>
             </View>
+          </TouchableOpacity>
+
+          {/* OFFLINE SYNC BANNER */}
+          <OfflineSyncBanner isHindi={isHindi} onSyncComplete={loadComplaints} />
+
+          {/* WARD DEVELOPMENT SCORECARD TILE */}
+          <TouchableOpacity
+            style={styles.scorecardCard}
+            onPress={() => router.push('/ward-scorecard' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.scorecardIconBox}>
+              <Ionicons
+                name="stats-chart"
+                size={22}
+                color={COLORS.navy}
+              />
+            </View>
+
+            <View style={styles.scorecardContent}>
+              <View style={styles.scorecardHeaderRow}>
+                <Text style={styles.scorecardTitle}>
+                  {isHindi ? '📊 वार्ड विकास स्कोरकार्ड' : '📊 Ward Scorecard'}
+                </Text>
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>LIVE</Text>
+                </View>
+              </View>
+
+              <Text style={styles.scorecardDesc}>
+                {isHindi
+                  ? 'सभी 10+ वार्डों की रैंकिंग, A+/A/B/C ग्रेड एवं समाधान दर देखें'
+                  : 'View ward rankings, A+/A/B/C grades & resolution rates'}
+              </Text>
+            </View>
+
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={COLORS.navy}
+            />
           </TouchableOpacity>
 
           {/* RECENT COMPLAINTS */}
@@ -1266,5 +1308,59 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: SPACING.sm,
     textAlign: 'center',
+  },
+  scorecardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1.5,
+    borderColor: '#D4E6DC',
+    elevation: 3,
+    shadowColor: COLORS.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+  },
+  scorecardIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  scorecardContent: {
+    flex: 1,
+  },
+  scorecardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  scorecardTitle: {
+    fontSize: TYPOGRAPHY.medium,
+    fontWeight: TYPOGRAPHY.black,
+    color: COLORS.navy,
+  },
+  newBadge: {
+    backgroundColor: '#23845F',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  newBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  scorecardDesc: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    marginTop: 3,
+    lineHeight: 16,
   },
 });

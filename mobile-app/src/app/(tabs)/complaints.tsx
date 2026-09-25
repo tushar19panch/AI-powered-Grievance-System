@@ -49,9 +49,10 @@ type Complaint = {
 export default function ComplaintsScreen() {
   const router = useRouter();
 
-  const { filter } =
+  const { filter, ward } =
     useLocalSearchParams<{
       filter?: string;
+      ward?: string;
     }>();
 
   const {
@@ -154,51 +155,106 @@ export default function ComplaintsScreen() {
   );
 
   // =====================================================
-  // SELECTED FILTER
+  // SELECTED FILTERS
   // =====================================================
 
   const selectedFilter =
     typeof filter === 'string'
-      ? filter
+      ? filter.trim()
       : '';
+
+  const selectedWard =
+    typeof ward === 'string'
+      ? ward.trim()
+      : '';
+
+  // =====================================================
+  // EXTRACT WARD NUMBER HELPER
+  // =====================================================
+  const extractWardNumber = (wardStr?: string | null, locStr?: string | null): string | null => {
+    const w = String(wardStr || '').trim();
+    const l = String(locStr || '').trim();
+
+    // 1. Direct ward patterns in ward string: "Ward 1", "वार्ड 1", "W1", "1"
+    const wMatch = w.match(/(?:ward|वार्ड|w)[\s\-:]*(\d+)/i);
+    if (wMatch) return wMatch[1];
+    if (/^\d+$/.test(w)) return w;
+
+    // 2. Direct ward patterns in location string
+    const lMatch = l.match(/(?:ward|वार्ड|w)[\s\-:]*(\d+)/i);
+    if (lMatch) return lMatch[1];
+
+    return null;
+  };
 
   // =====================================================
   // FILTER COMPLAINTS
   // =====================================================
 
-  const filteredComplaints =
-    selectedFilter === 'pending'
-      ? complaints.filter((c) => {
-          const s = String(c.status || '').toUpperCase();
-          return s === 'SUBMITTED' || s === 'UNDER REVIEW' || s === 'UNDER_REVIEW';
-        })
-      : selectedFilter === 'in-progress'
-        ? complaints.filter((c) => {
-            const s = String(c.status || '').toUpperCase();
-            return (
-              s === 'IN PROGRESS' ||
-              s === 'IN_PROGRESS' ||
-              s === 'ACTION TAKEN' ||
-              s === 'ACTION_TAKEN'
-            );
-          })
-        : selectedFilter === 'resolved'
-          ? complaints.filter((c) => {
-              const s = String(c.status || '').toUpperCase();
-              return s === 'RESOLVED' || s === 'CLOSED';
-            })
-          : selectedFilter === 'reopened'
-            ? complaints.filter((c) => {
-                const s = String(c.status || '').toUpperCase();
-                return s === 'REOPENED';
-              })
-            : complaints;
+  const filteredComplaints = complaints.filter((c) => {
+    // 1. Status Filter
+    if (selectedFilter === 'pending') {
+      const s = String(c.status || '').toUpperCase();
+      if (s !== 'SUBMITTED' && s !== 'UNDER REVIEW' && s !== 'UNDER_REVIEW') return false;
+    } else if (selectedFilter === 'in-progress') {
+      const s = String(c.status || '').toUpperCase();
+      if (
+        s !== 'IN PROGRESS' &&
+        s !== 'IN_PROGRESS' &&
+        s !== 'ACTION TAKEN' &&
+        s !== 'ACTION_TAKEN'
+      ) return false;
+    } else if (selectedFilter === 'resolved') {
+      const s = String(c.status || '').toUpperCase();
+      if (s !== 'RESOLVED' && s !== 'CLOSED') return false;
+    } else if (selectedFilter === 'reopened') {
+      const s = String(c.status || '').toUpperCase();
+      if (s !== 'REOPENED') return false;
+    }
+
+    // 2. Ward Filter
+    if (selectedWard) {
+      const targetNum = selectedWard.replace(/\D/g, '');
+      const complaintWardNum = extractWardNumber(c.ward, c.location);
+
+      if (targetNum) {
+        if (complaintWardNum) {
+          if (parseInt(complaintWardNum, 10) !== parseInt(targetNum, 10)) {
+            return false;
+          }
+        } else {
+          // If no ward number was cleanly extracted, check for strict explicit ward word match
+          const combined = `${String(c.ward || '')} ${String(c.location || '')}`.toLowerCase();
+          const hasExplicitWard =
+            combined.includes(`ward ${targetNum}`) ||
+            combined.includes(`ward${targetNum}`) ||
+            combined.includes(`वार्ड ${targetNum}`) ||
+            combined.includes(`वार्ड${targetNum}`);
+          if (!hasExplicitWard) {
+            return false;
+          }
+        }
+      } else {
+        const combined = `${String(c.ward || '')} ${String(c.location || '')}`.toLowerCase();
+        if (!combined.includes(selectedWard.toLowerCase())) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  });
 
   // =====================================================
   // TITLE
   // =====================================================
 
   const getTitle = () => {
+    if (selectedWard) {
+      return language === 'hi'
+        ? `वार्ड ${selectedWard} की शिकायतें`
+        : `Ward ${selectedWard} Complaints`;
+    }
     if (selectedFilter === 'pending') {
       return language === 'hi' ? 'लंबित शिकायतें' : 'Pending Complaints';
     }
@@ -432,7 +488,7 @@ export default function ComplaintsScreen() {
         </View>
 
         {/* =================================================
-            COUNT
+            COUNT & ACTIVE FILTER BADGE
         ================================================= */}
 
         <View
@@ -465,6 +521,28 @@ export default function ComplaintsScreen() {
                 : 'complaints'}
           </Text>
         </View>
+
+        {/* ACTIVE FILTER BADGE */}
+        {(selectedWard || selectedFilter) ? (
+          <View style={styles.filterChipRow}>
+            <View style={styles.filterChip}>
+              <Ionicons name="funnel" size={13} color={COLORS.primary} />
+              <Text style={styles.filterChipText}>
+                {selectedWard ? (language === 'hi' ? `वार्ड ${selectedWard}` : `Ward ${selectedWard}`) : ''}
+                {selectedWard && selectedFilter ? ' • ' : ''}
+                {selectedFilter ? selectedFilter.toUpperCase() : ''}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  router.setParams({ filter: undefined, ward: undefined });
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         {/* =================================================
             LOADING
@@ -537,19 +615,13 @@ export default function ComplaintsScreen() {
                 styles.emptyTitle
               }
             >
-              {selectedFilter ===
-                'in-progress'
-                ? language === 'hi'
-                  ? 'कोई शिकायत प्रगति में नहीं है'
-                  : 'No complaints in progress'
-                : selectedFilter ===
-                  'resolved'
-                  ? language === 'hi'
-                    ? 'कोई हल की गई शिकायत नहीं है'
-                    : 'No resolved complaints'
-                  : language === 'hi'
-                    ? 'कोई शिकायत नहीं मिली'
-                    : 'No Complaints Found'}
+              {selectedWard
+                ? (language === 'hi' ? `वार्ड ${selectedWard} में कोई शिकायत नहीं` : `No Complaints in Ward ${selectedWard}`)
+                : selectedFilter === 'in-progress'
+                  ? (language === 'hi' ? 'कोई शिकायत प्रगति में नहीं है' : 'No complaints in progress')
+                  : selectedFilter === 'resolved'
+                    ? (language === 'hi' ? 'कोई हल की गई शिकायत नहीं है' : 'No resolved complaints')
+                    : (language === 'hi' ? 'कोई शिकायत नहीं मिली' : 'No Complaints Found')}
             </Text>
 
             <Text
@@ -557,19 +629,13 @@ export default function ComplaintsScreen() {
                 styles.emptyText
               }
             >
-              {selectedFilter ===
-                'in-progress'
-                ? language === 'hi'
-                  ? 'अभी कोई शिकायत कार्रवाई में नहीं है।'
-                  : 'You currently have no complaints in progress.'
-                : selectedFilter ===
-                  'resolved'
-                  ? language === 'hi'
-                    ? 'अभी कोई शिकायत हल नहीं हुई है।'
-                    : 'You currently have no resolved complaints.'
-                  : language === 'hi'
-                    ? 'अभी कोई शिकायत उपलब्ध नहीं है।'
-                    : 'There are no complaints available right now.'}
+              {selectedWard
+                ? (language === 'hi' ? `वार्ड ${selectedWard} से संबंधित कोई शिकायत उपलब्ध नहीं है।` : `There are no complaints registered in Ward ${selectedWard}.`)
+                : selectedFilter === 'in-progress'
+                  ? (language === 'hi' ? 'अभी कोई शिकायत कार्रवाई में नहीं है।' : 'You currently have no complaints in progress.')
+                  : selectedFilter === 'resolved'
+                    ? (language === 'hi' ? 'अभी कोई शिकायत हल नहीं हुई है।' : 'You currently have no resolved complaints.')
+                    : (language === 'hi' ? 'वर्तमान में कोई शिकायत उपलब्ध नहीं है।' : 'No complaints are currently available.')}
             </Text>
 
             <TouchableOpacity
@@ -948,6 +1014,30 @@ const styles = StyleSheet.create({
       COLORS.textSecondary,
     fontWeight:
       TYPOGRAPHY.mediumWeight,
+  },
+
+  /* ================= FILTER CHIP ================= */
+  filterChipRow: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md,
+  },
+
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EDF7F2',
+    borderWidth: 1,
+    borderColor: '#DCE8E2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+  },
+
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
 
   /* ================= COMPLAINT CARD ================= */

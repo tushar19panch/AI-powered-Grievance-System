@@ -25,6 +25,7 @@ import {
 } from '../theme';
 
 import { complaintApi } from '../services/api';
+import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 
 type Complaint = {
   complaintId: string;
@@ -538,6 +539,51 @@ export default function AdminScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* OFFLINE SYNC BANNER */}
+        <OfflineSyncBanner isHindi={isHindi} onSyncComplete={loadData} />
+
+        {/* WARD DEVELOPMENT SCORECARD */}
+        <TouchableOpacity
+          style={styles.scorecardButton}
+          onPress={() => router.push('/ward-scorecard' as any)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.scorecardIconBox}>
+            <Ionicons
+              name="stats-chart"
+              size={24}
+              color={COLORS.primary}
+            />
+          </View>
+
+          <View style={styles.auditButtonText}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.auditButtonTitle}>
+                {isHindi
+                  ? '📊 वार्ड विकास स्कोरकार्ड'
+                  : '📊 Ward Performance Scorecard'}
+              </Text>
+              <View style={styles.newBadge}>
+                <Text style={styles.newBadgeText}>LIVE</Text>
+              </View>
+            </View>
+
+            <Text style={styles.auditButtonSubtitle}>
+              {isHindi
+                ? 'सभी 10+ वार्डों की रैंकिंग, A+/A/B/C ग्रेड एवं समाधान दर देखें'
+                : 'View ward rankings, grades (A+/A/B/C) & resolution rates'}
+            </Text>
+          </View>
+
+          <View style={styles.auditArrowBox}>
+            <Ionicons
+              name="arrow-forward-outline"
+              size={19}
+              color={COLORS.primary}
+            />
+          </View>
+        </TouchableOpacity>
+
         {/* ADMIN RESPONSIBILITY */}
         <View style={styles.infoBox}>
           <View style={styles.infoIconBox}>
@@ -971,6 +1017,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accentLight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  /* WARD SCORECARD */
+
+  scorecardButton: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: '#D4E6DC',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 17,
+    ...SHADOWS.small,
+  },
+
+  scorecardIconBox: {
+    width: 47,
+    height: 47,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#EDF7F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  newBadge: {
+    backgroundColor: '#23845F',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+
+  newBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
   },
 
   /* INFO */

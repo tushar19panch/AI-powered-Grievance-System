@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useLanguage } from '../i18n/LanguageContext';
 import { complaintApi } from '../services/api';
+import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 
 import {
   COLORS,
@@ -490,6 +491,15 @@ export default function CitizenDashboard() {
         }
       >
         {/* =================================================
+            TRICOLOR TOP BAR
+        ================================================= */}
+        <View style={styles.tricolorBar}>
+          <View style={styles.saffronStripe} />
+          <View style={styles.whiteStripe} />
+          <View style={styles.greenStripe} />
+        </View>
+
+        {/* =================================================
             HEADER
         ================================================= */}
 
@@ -612,6 +622,9 @@ export default function CitizenDashboard() {
             </TouchableOpacity>
           </View>
         </Animated.View>
+
+        {/* OFFLINE SYNC BANNER */}
+        <OfflineSyncBanner isHindi={isHindi} onSyncComplete={loadDashboardData} />
 
         {/* =================================================
             WELCOME
@@ -879,6 +892,46 @@ export default function CitizenDashboard() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* WARD TRANSPARENCY SCORECARD TILE */}
+        <TouchableOpacity
+          style={styles.wardScorecardBanner}
+          onPress={() => router.push('/ward-scorecard' as any)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.wardScorecardIcon}>
+            <Ionicons
+              name="stats-chart"
+              size={22}
+              color={COLORS.primary}
+            />
+          </View>
+
+          <View style={styles.wardScorecardContent}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.wardScorecardTitle}>
+                {isHindi
+                  ? '📊 वार्ड विकास रिपोर्ट कार्ड'
+                  : '📊 Ward Performance Scorecard'}
+              </Text>
+              <View style={styles.liveTag}>
+                <Text style={styles.liveTagText}>LIVE</Text>
+              </View>
+            </View>
+
+            <Text style={styles.wardScorecardSubtitle}>
+              {isHindi
+                ? 'अपने वार्ड का विकास ग्रेड (A+/A/B/C) व समाधान दर देखें'
+                : 'Check your ward ranking, grade & resolution progress'}
+            </Text>
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={COLORS.primary}
+          />
+        </TouchableOpacity>
 
         {/* =================================================
             REPORT PROBLEM
@@ -2029,5 +2082,52 @@ const styles = StyleSheet.create({
       TYPOGRAPHY.small,
     fontWeight:
       TYPOGRAPHY.semiBold,
+  },
+
+  /* WARD SCORECARD BANNER */
+  wardScorecardBanner: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: '#D4E6DC',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    ...SHADOWS.small,
+  },
+  wardScorecardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  wardScorecardContent: {
+    flex: 1,
+  },
+  wardScorecardTitle: {
+    fontSize: TYPOGRAPHY.medium,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+  liveTag: {
+    backgroundColor: '#23845F',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  liveTagText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  wardScorecardSubtitle: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    lineHeight: 16,
   },
 });

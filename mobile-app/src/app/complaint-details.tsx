@@ -36,6 +36,7 @@ export default function ComplaintDetailsScreen() {
   const [selectedStatus, setSelectedStatus] = useState<string>('IN_PROGRESS');
   const [remarks, setRemarks] = useState<string>('');
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
+  const [imageError, setImageError] = useState<boolean>(false);
 
   // --------------------------------------------------
   // LANGUAGE
@@ -54,6 +55,7 @@ export default function ComplaintDetailsScreen() {
       try {
         setLoading(true);
         setComplaint(null);
+        setImageError(false);
 
         const complaintId = Array.isArray(id) ? id[0] : id;
         if (!complaintId) return;
@@ -883,13 +885,28 @@ export default function ComplaintDetailsScreen() {
                 : 'Attached Photo'}
             </Text>
 
-            <Image
-              source={{
-                uri: String(complaint.photo).trim(),
-              }}
-              style={styles.photo}
-              resizeMode="cover"
-            />
+            {!imageError ? (
+              <Image
+                source={{
+                  uri: String(complaint.photo).trim(),
+                }}
+                style={styles.photo}
+                resizeMode="cover"
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <View style={styles.photoFallbackBox}>
+                <Ionicons name="image-outline" size={42} color={COLORS.primary} />
+                <Text style={styles.photoFallbackTitle}>
+                  {language === 'hi' ? 'फोटो संलग्न है' : 'Photo Attached'}
+                </Text>
+                <Text style={styles.photoFallbackSub}>
+                  {language === 'hi'
+                    ? 'स्थानीय डिवाइस फोटो (वेब पूर्वावलोकन सीमित)'
+                    : 'Local device attachment saved with complaint'}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1554,6 +1571,33 @@ const styles = StyleSheet.create({
     height: 230,
     borderRadius: 16,
     backgroundColor: '#F2F4F7',
+  },
+
+  photoFallbackBox: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    backgroundColor: '#F8F9FB',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#D0D5DD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+
+  photoFallbackTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#344054',
+    marginTop: 8,
+  },
+
+  photoFallbackSub: {
+    fontSize: 12,
+    color: '#667085',
+    marginTop: 4,
+    textAlign: 'center',
   },
 
   locationRow: {
