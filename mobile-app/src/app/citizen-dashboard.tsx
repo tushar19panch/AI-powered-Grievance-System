@@ -132,9 +132,10 @@ export default function CitizenDashboard() {
       }
 
       // Try loading live complaints from backend
+      // Load live complaints directly from Backend Database API
       try {
         const liveComplaints = await complaintApi.getCitizenComplaints();
-        if (liveComplaints && Array.isArray(liveComplaints) && liveComplaints.length > 0) {
+        if (liveComplaints && Array.isArray(liveComplaints)) {
           setTotalComplaints(liveComplaints.length);
           setInProgressComplaints(
             liveComplaints.filter(
@@ -147,88 +148,17 @@ export default function CitizenDashboard() {
           setResolvedComplaints(
             liveComplaints.filter((c) => c.status === 'RESOLVED' || c.status === 'CLOSED').length
           );
-          return;
+        } else {
+          setTotalComplaints(0);
+          setInProgressComplaints(0);
+          setResolvedComplaints(0);
         }
       } catch (backendErr) {
-        console.log('Using local complaint data fallback:', backendErr);
+        console.log('Error fetching citizen complaints from backend:', backendErr);
+        setTotalComplaints(0);
+        setInProgressComplaints(0);
+        setResolvedComplaints(0);
       }
-
-      const allKeys =
-        await AsyncStorage.getAllKeys();
-
-      const complaintKeys =
-        allKeys.filter((key) =>
-          key.startsWith('complaint_')
-        );
-
-      const citizenComplaints: Complaint[] = [];
-
-      for (const key of complaintKeys) {
-        try {
-          const data =
-            await AsyncStorage.getItem(key);
-
-          if (!data) continue;
-
-          const complaint: Complaint =
-            JSON.parse(data);
-
-          if (
-            String(
-              complaint.citizenMobile || ''
-            ).trim() === currentMobile
-          ) {
-            citizenComplaints.push(
-              complaint
-            );
-          }
-        } catch {
-          console.log(
-            'Invalid complaint data:',
-            key
-          );
-        }
-      }
-
-      const total =
-        citizenComplaints.length;
-
-      const inProgress =
-        citizenComplaints.filter(
-          (complaint) => {
-            const status = String(
-              complaint.status || ''
-            ).toUpperCase();
-
-            return (
-              status === 'IN PROGRESS' ||
-              status === 'IN_PROGRESS' ||
-              status === 'UNDER_REVIEW' ||
-              status === 'ACTION TAKEN' ||
-              status === 'ACTION_TAKEN'
-            );
-          }
-        ).length;
-
-      const resolved =
-        citizenComplaints.filter(
-          (complaint) => {
-            const status = String(
-              complaint.status || ''
-            ).toUpperCase();
-
-            return (
-              status === 'RESOLVED' ||
-              status === 'CLOSED'
-            );
-          }
-        ).length;
-
-      setTotalComplaints(total);
-      setInProgressComplaints(
-        inProgress
-      );
-      setResolvedComplaints(resolved);
     } catch (error) {
       console.log(
         'Dashboard load error:',

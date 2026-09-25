@@ -111,25 +111,28 @@ export default function ComplaintsScreen() {
 
       let fetchedList: Complaint[] = [];
 
-      // 1. Try fetching from Backend Spring Boot API
+      let apiSuccess = false;
+      // 1. Try fetching from Backend Spring Boot Database API
       try {
-        if (role === 'sarpanch' || role === 'secretary') {
+        if (role === 'sarpanch' || role === 'secretary' || (role as string) === 'admin') {
           const apiData = await complaintApi.getSarpanchComplaints();
-          if (Array.isArray(apiData) && apiData.length > 0) {
+          if (Array.isArray(apiData)) {
             fetchedList = apiData.map(mapBackendComplaint);
+            apiSuccess = true;
           }
         } else {
           const apiData = await complaintApi.getCitizenComplaints();
-          if (Array.isArray(apiData) && apiData.length > 0) {
+          if (Array.isArray(apiData)) {
             fetchedList = apiData.map(mapBackendComplaint);
+            apiSuccess = true;
           }
         }
       } catch (apiErr) {
         console.log('Backend complaint fetch error, falling back to local:', apiErr);
       }
 
-      // 2. If API returned data, use it!
-      if (fetchedList.length > 0) {
+      // 2. If API responded, use Database data!
+      if (apiSuccess) {
         fetchedList.sort(
           (a, b) =>
             new Date(b.dateTime || 0).getTime() -
@@ -213,41 +216,41 @@ export default function ComplaintsScreen() {
 
   const filteredComplaints =
     selectedFilter ===
-    'in-progress'
+      'in-progress'
       ? complaints.filter(
-          (complaint) => {
-            const status =
-              String(
-                complaint.status ||
-                  ''
-              ).toUpperCase();
+        (complaint) => {
+          const status =
+            String(
+              complaint.status ||
+              ''
+            ).toUpperCase();
 
-            return (
-              status ===
-                'IN PROGRESS' ||
-              status ===
-                'ACTION TAKEN'
-            );
-          }
-        )
+          return (
+            status ===
+            'IN PROGRESS' ||
+            status ===
+            'ACTION TAKEN'
+          );
+        }
+      )
       : selectedFilter ===
         'resolved'
-      ? complaints.filter(
+        ? complaints.filter(
           (complaint) => {
             const status =
               String(
                 complaint.status ||
-                  ''
+                ''
               ).toUpperCase();
 
             return (
               status ===
-                'RESOLVED' ||
+              'RESOLVED' ||
               status === 'CLOSED'
             );
           }
         )
-      : complaints;
+        : complaints;
 
   // =====================================================
   // TITLE
@@ -518,8 +521,8 @@ export default function ComplaintsScreen() {
                 : 'शिकायतें'
               : filteredComplaints.length ===
                 1
-              ? 'complaint'
-              : 'complaints'}
+                ? 'complaint'
+                : 'complaints'}
           </Text>
         </View>
 
@@ -595,18 +598,18 @@ export default function ComplaintsScreen() {
               }
             >
               {selectedFilter ===
-              'in-progress'
+                'in-progress'
                 ? language === 'hi'
                   ? 'कोई शिकायत प्रगति में नहीं है'
                   : 'No complaints in progress'
                 : selectedFilter ===
                   'resolved'
-                ? language === 'hi'
-                  ? 'कोई हल की गई शिकायत नहीं है'
-                  : 'No resolved complaints'
-                : language === 'hi'
-                ? 'कोई शिकायत नहीं मिली'
-                : 'No Complaints Found'}
+                  ? language === 'hi'
+                    ? 'कोई हल की गई शिकायत नहीं है'
+                    : 'No resolved complaints'
+                  : language === 'hi'
+                    ? 'कोई शिकायत नहीं मिली'
+                    : 'No Complaints Found'}
             </Text>
 
             <Text
@@ -615,18 +618,18 @@ export default function ComplaintsScreen() {
               }
             >
               {selectedFilter ===
-              'in-progress'
+                'in-progress'
                 ? language === 'hi'
                   ? 'अभी कोई शिकायत कार्रवाई में नहीं है।'
                   : 'You currently have no complaints in progress.'
                 : selectedFilter ===
                   'resolved'
-                ? language === 'hi'
-                  ? 'अभी कोई शिकायत हल नहीं हुई है।'
-                  : 'You currently have no resolved complaints.'
-                : language === 'hi'
-                ? 'अभी कोई शिकायत उपलब्ध नहीं है।'
-                : 'There are no complaints available right now.'}
+                  ? language === 'hi'
+                    ? 'अभी कोई शिकायत हल नहीं हुई है।'
+                    : 'You currently have no resolved complaints.'
+                  : language === 'hi'
+                    ? 'अभी कोई शिकायत उपलब्ध नहीं है।'
+                    : 'There are no complaints available right now.'}
             </Text>
 
             <TouchableOpacity
@@ -667,7 +670,7 @@ export default function ComplaintsScreen() {
               const status =
                 String(
                   complaint.status ||
-                    'SUBMITTED'
+                  'SUBMITTED'
                 ).toUpperCase();
 
               const statusStyle =
@@ -775,7 +778,7 @@ export default function ComplaintsScreen() {
                     >
                       {getCategoryLabel(
                         complaint.category ||
-                          'Other'
+                        'Other'
                       )}
                     </Text>
                   </View>
@@ -847,12 +850,12 @@ export default function ComplaintsScreen() {
                     >
                       {complaint.dateTime
                         ? new Date(
-                            complaint.dateTime
-                          ).toLocaleString()
+                          complaint.dateTime
+                        ).toLocaleString()
                         : language ===
                           'hi'
-                        ? 'दिनांक उपलब्ध नहीं'
-                        : 'Date not available'}
+                          ? 'दिनांक उपलब्ध नहीं'
+                          : 'Date not available'}
                     </Text>
                   </View>
 
@@ -869,7 +872,7 @@ export default function ComplaintsScreen() {
                       }
                     >
                       {language ===
-                      'hi'
+                        'hi'
                         ? 'विवरण देखें'
                         : 'View Details'}
                     </Text>

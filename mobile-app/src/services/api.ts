@@ -247,9 +247,30 @@ export const complaintApi = {
   },
 
   getSingleComplaint: async (id: number): Promise<ComplaintData> => {
-    return await request<ComplaintData>(`/api/citizen/complaints/${id}`, {
-      method: 'GET',
-    });
+    try {
+      const sessionData = await AsyncStorage.getItem('@village_user_session');
+      const fallbackSession = await AsyncStorage.getItem('user_session');
+      const session = sessionData ? JSON.parse(sessionData) : (fallbackSession ? JSON.parse(fallbackSession) : null);
+      const isOfficial = session?.role && session.role !== 'CITIZEN';
+
+      if (isOfficial) {
+        return await request<ComplaintData>(`/api/sarpanch/complaints/${id}`, {
+          method: 'GET',
+        });
+      }
+    } catch {
+      // fallback to citizen endpoint
+    }
+
+    try {
+      return await request<ComplaintData>(`/api/citizen/complaints/${id}`, {
+        method: 'GET',
+      });
+    } catch {
+      return await request<ComplaintData>(`/api/sarpanch/complaints/${id}`, {
+        method: 'GET',
+      });
+    }
   },
 
   getSarpanchComplaints: async (): Promise<ComplaintData[]> => {

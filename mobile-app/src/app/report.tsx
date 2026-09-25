@@ -299,7 +299,7 @@ export default function ReportScreen() {
         }
       }
 
-      let backendComplaintId: string | null = null;
+      let backendId: string | null = null;
       try {
         const apiRes = await complaintApi.createComplaint({
           problemType: 'General Problem',
@@ -312,40 +312,15 @@ export default function ReportScreen() {
           longitude: lng,
         });
         if (apiRes?.id) {
-          backendComplaintId = `GP-${new Date().getFullYear()}-${apiRes.id}`;
+          backendId = String(apiRes.id);
         }
       } catch (apiErr) {
-        console.log('Backend API failed, saving locally:', apiErr);
+        console.log('Backend complaint submission failed:', apiErr);
       }
 
       const newComplaintId =
-        backendComplaintId ||
-        `GP-${new Date().getFullYear()}-${Math.floor(
-          10000 + Math.random() * 90000
-        )}`;
-
-      const complaint = {
-        complaintId: newComplaintId,
-        citizenName: userName,
-        citizenWard: ward,
-        problemWard: problemWard,
-        ward: problemWard,
-        category: 'General',
-        priority: 'Normal',
-        department: null,
-        deadline: null,
-        description: description.trim(),
-        photo: image,
-        audio: audioUri,
-        location: location,
-        status: 'SUBMITTED',
-        dateTime: new Date().toISOString(),
-      };
-
-      await AsyncStorage.setItem(
-        `complaint_${newComplaintId}`,
-        JSON.stringify(complaint)
-      );
+        backendId ||
+        String(Date.now());
 
       setComplaintId(newComplaintId);
 
@@ -354,8 +329,8 @@ export default function ReportScreen() {
           ? 'शिकायत सफलतापूर्वक दर्ज हुई'
           : 'Complaint Submitted Successfully',
         isHindi
-          ? `शिकायत आईडी: ${newComplaintId}`
-          : `Complaint ID: ${newComplaintId}`
+          ? `शिकायत आईडी: #${newComplaintId}`
+          : `Complaint ID: #${newComplaintId}`
       );
 
       setDescription('');

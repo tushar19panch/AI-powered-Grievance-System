@@ -9,6 +9,7 @@ import grievance_management.complaint.entity.StatusHistory;
 import grievance_management.complaint.repository.StatusHistoryRepository;
 import grievance_management.complaint.service.ComplaintService;
 import grievance_management.notification.service.NotificationService;
+import grievance_management.user.entity.Role;
 import grievance_management.user.entity.User;
 import grievance_management.user.repository.UserRepository;
 
@@ -42,23 +43,33 @@ public class SarpanchComplaintController {
     }
 
     // =========================================================
-    // GET ALL COMPLAINTS FOR SARPANCH'S VILLAGE
+    // GET COMPLAINTS (VILLAGE FILTERED FOR SARPANCH/SECRETARY, ALL FOR SUPER ADMIN)
     // =========================================================
 
     @GetMapping
     public ResponseEntity<List<ComplaintResponse>> getComplaints(
+            @RequestParam(required = false) Long villageId,
             Authentication authentication) {
 
-        User sarpanch = getSarpanch(authentication);
+        User user = getSarpanch(authentication);
 
-        if (sarpanch.getVillage() == null) {
+        // Super Admin / District Officer can view all villages or filter by villageId
+        if (user.getRole() == Role.SUPER_ADMIN || user.getRole() == Role.DISTRICT_OFFICER) {
+            if (villageId != null) {
+                return ResponseEntity.ok(complaintService.getComplaintsByVillage(villageId));
+            }
+            return ResponseEntity.ok(complaintService.getAllComplaints());
+        }
+
+        // Sarpanch / Secretary are strictly restricted to their own village
+        if (user.getVillage() == null) {
             throw new RuntimeException(
-                    "Sarpanch is not assigned to a village");
+                    "Official is not assigned to a village");
         }
 
         List<ComplaintResponse> complaints =
                 complaintService.getComplaintsByVillage(
-                        sarpanch.getVillage().getId()
+                        user.getVillage().getId()
                 );
 
         return ResponseEntity.ok(complaints);
@@ -224,12 +235,17 @@ public class SarpanchComplaintController {
     // =========================================================
 
     private void checkVillageAccess(
-            User sarpanch,
+            User user,
             Complaint complaint) {
 
-        if (sarpanch.getVillage() == null) {
+        // Super Admin and District Officers have access to all villages
+        if (user.getRole() == Role.SUPER_ADMIN || user.getRole() == Role.DISTRICT_OFFICER) {
+            return;
+        }
+
+        if (user.getVillage() == null) {
             throw new RuntimeException(
-                    "Sarpanch is not assigned to a village");
+                    "Official is not assigned to a village");
         }
 
         if (complaint.getVillage() == null) {
@@ -237,7 +253,7 @@ public class SarpanchComplaintController {
                     "Complaint is not assigned to a village");
         }
 
-        if (!sarpanch.getVillage().getId()
+        if (!user.getVillage().getId()
                 .equals(complaint.getVillage().getId())) {
 
             throw new RuntimeException(

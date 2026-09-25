@@ -1,8 +1,9 @@
 package grievance_management.user.entity;
 
 public enum Role {
-      CITIZEN,
+    CITIZEN,
     SARPANCH,
-    SECRETARY
-    
+    SECRETARY,
+    SUPER_ADMIN,
+    DISTRICT_OFFICER
 }

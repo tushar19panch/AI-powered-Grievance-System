@@ -52,10 +52,10 @@ export default function SecretaryDashboard() {
     try {
       setLoading(true);
 
-      // 1. Try Backend API
+      // Fetch directly from Backend Spring Boot Database API
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
-        if (Array.isArray(apiComplaints) && apiComplaints.length > 0) {
+        if (Array.isArray(apiComplaints)) {
           const list: Complaint[] = apiComplaints.map((c) => ({
             complaintId: String(c.id),
             category: c.category || c.problemType || 'Village Issue',
@@ -72,49 +72,13 @@ export default function SecretaryDashboard() {
               new Date(a.dateTime).getTime()
           );
           setComplaints(list);
-          return;
+        } else {
+          setComplaints([]);
         }
       } catch (apiErr) {
-        console.log('Secretary backend complaint fetch error, using local fallback:', apiErr);
+        console.log('Secretary backend complaint fetch error:', apiErr);
+        setComplaints([]);
       }
-
-      // 2. Fallback: Local Storage
-      const keys = await AsyncStorage.getAllKeys();
-      const complaintKeys = keys.filter((key) =>
-        key.startsWith('complaint_')
-      );
-
-      const storedComplaints = await AsyncStorage.multiGet(
-        complaintKeys
-      );
-
-      const loadedComplaints: Complaint[] = [];
-
-      storedComplaints.forEach(([key, value]) => {
-        if (value) {
-          try {
-            const complaint = JSON.parse(value);
-            if (complaint.complaintId) {
-              loadedComplaints.push(complaint);
-            }
-          } catch (error) {
-            console.log('Invalid complaint data:', key);
-          }
-        }
-      });
-
-      loadedComplaints.sort(
-        (a, b) =>
-          new Date(b.dateTime).getTime() -
-          new Date(a.dateTime).getTime()
-      );
-
-      // Filter by village if specified on the logged-in secretary (unless SUPER_ADMIN)
-      const filteredComplaints = parsedSecretary?.village && parsedSecretary?.role !== 'SUPER_ADMIN'
-        ? loadedComplaints.filter((c: any) => !c.village || c.village === parsedSecretary.village)
-        : loadedComplaints;
-
-      setComplaints(filteredComplaints);
     } catch (error) {
       console.log('Unable to load complaints:', error);
       setComplaints([]);

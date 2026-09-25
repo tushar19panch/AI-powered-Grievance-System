@@ -64,10 +64,10 @@ export default function AdminScreen() {
         setAdmin(parsedAdmin);
       }
 
-      // 1. Try Backend Spring Boot API
+      // 1. Try Backend Spring Boot Database API
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
-        if (Array.isArray(apiComplaints) && apiComplaints.length > 0) {
+        if (Array.isArray(apiComplaints)) {
           setComplaints(
             apiComplaints.map((c) => ({
               complaintId: String(c.id),
@@ -178,10 +178,10 @@ export default function AdminScreen() {
     if (Platform.OS === 'web') {
       const confirmLogout = typeof window !== 'undefined'
         ? window.confirm(
-            isHindi
-              ? 'क्या आप लॉग आउट करना चाहते हैं?'
-              : 'Are you sure you want to logout?'
-          )
+          isHindi
+            ? 'क्या आप लॉग आउट करना चाहते हैं?'
+            : 'Are you sure you want to logout?'
+        )
         : true;
       if (confirmLogout) {
         await doLogout();
@@ -364,33 +364,6 @@ export default function AdminScreen() {
               </Text>
             </View>
           ) : null}
-
-          {/* My Profile */}
-          <TouchableOpacity
-            style={styles.profileLink}
-            onPress={openProfile}
-            activeOpacity={0.8}
-          >
-            <View style={styles.profileLinkLeft}>
-              <Ionicons
-                name="person-circle-outline"
-                size={19}
-                color={COLORS.primary}
-              />
-
-              <Text style={styles.profileLinkText}>
-                {isHindi
-                  ? 'मेरी प्रोफाइल'
-                  : 'My Profile'}
-              </Text>
-            </View>
-
-            <Ionicons
-              name="arrow-forward-outline"
-              size={18}
-              color={COLORS.primary}
-            />
-          </TouchableOpacity>
         </View>
 
         {/* COMPLAINT OVERVIEW */}
@@ -422,10 +395,14 @@ export default function AdminScreen() {
           </View>
         </View>
 
-        {/* STATISTICS */}
+        {/* STATISTICS (CLICKABLE FILTERS) */}
         <View style={styles.statsGrid}>
           {/* Total */}
-          <View style={styles.statCard}>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'all' } })}
+            activeOpacity={0.75}
+          >
             <View style={styles.statIconBox}>
               <Ionicons
                 name="documents-outline"
@@ -441,10 +418,14 @@ export default function AdminScreen() {
             <Text style={styles.statLabel}>
               {t.total}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Pending */}
-          <View style={styles.statCard}>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'pending' } })}
+            activeOpacity={0.75}
+          >
             <View
               style={[
                 styles.statIconBox,
@@ -465,10 +446,14 @@ export default function AdminScreen() {
             <Text style={styles.statLabel}>
               {isHindi ? 'लंबित' : 'Pending'}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           {/* In Progress */}
-          <View style={styles.statCard}>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'in-progress' } })}
+            activeOpacity={0.75}
+          >
             <View
               style={[
                 styles.statIconBox,
@@ -489,10 +474,14 @@ export default function AdminScreen() {
             <Text style={styles.statLabel}>
               {t.inProgress}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Resolved */}
-          <View style={styles.statCard}>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'resolved' } })}
+            activeOpacity={0.75}
+          >
             <View
               style={[
                 styles.statIconBox,
@@ -513,7 +502,7 @@ export default function AdminScreen() {
             <Text style={styles.statLabel}>
               {t.resolved}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* VIEW ALL COMPLAINTS */}

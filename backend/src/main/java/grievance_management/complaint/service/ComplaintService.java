@@ -200,6 +200,18 @@ public class ComplaintService {
     }
 
     // =========================================================
+    // SUPER ADMIN / DISTRICT OFFICER - GET ALL COMPLAINTS
+    // =========================================================
+
+    public List<ComplaintResponse> getAllComplaints() {
+        return complaintRepository
+                .findAll()
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    // =========================================================
     // SARPANCH - SAVE UPDATED COMPLAINT
     // =========================================================
 

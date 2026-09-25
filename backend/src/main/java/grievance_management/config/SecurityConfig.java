@@ -87,13 +87,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/citizen/**")
                         .hasRole("CITIZEN")
 
-                        // Sarpanch & Secretary APIs
+                        // Sarpanch, Secretary & District Super Admins
                         .requestMatchers("/api/sarpanch/**")
-                        .hasAnyRole("SARPANCH", "SECRETARY")
+                        .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
                         // Secretary APIs
                         .requestMatchers("/api/secretary/**")
-                        .hasRole("SECRETARY")
+                        .hasAnyRole("SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
                         // Everything else requires authentication
                         .anyRequest().authenticated()

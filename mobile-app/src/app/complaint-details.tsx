@@ -423,9 +423,9 @@ export default function ComplaintDetailsScreen() {
       Alert.alert(
         language === 'hi' ? 'अपडेट विफल' : 'Update Failed',
         error?.message ||
-          (language === 'hi'
-            ? 'स्थिति अपडेट करने में समस्या आई।'
-            : 'Could not update complaint status.')
+        (language === 'hi'
+          ? 'स्थिति अपडेट करने में समस्या आई।'
+          : 'Could not update complaint status.')
       );
     } finally {
       setUpdatingStatus(false);
@@ -529,22 +529,22 @@ export default function ComplaintDetailsScreen() {
 
   const formattedDate = complaint.dateTime
     ? new Date(
-        complaint.dateTime
-      ).toLocaleString(
-        language === 'hi'
-          ? 'hi-IN'
-          : 'en-IN',
-        {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }
-      )
+      complaint.dateTime
+    ).toLocaleString(
+      language === 'hi'
+        ? 'hi-IN'
+        : 'en-IN',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }
+    )
     : language === 'hi'
-    ? 'उपलब्ध नहीं'
-    : 'Not available';
+      ? 'उपलब्ध नहीं'
+      : 'Not available';
 
   // --------------------------------------------------
   // MAIN UI
@@ -663,16 +663,16 @@ export default function ComplaintDetailsScreen() {
                 ? 'कृपया नीचे दिए गए विकल्प से पुष्टि करें कि समस्या ठीक हुई या नहीं।'
                 : 'Please confirm below whether your problem has been fixed.'
               : normalizedStatus === 'CLOSED'
-              ? language === 'hi'
-                ? 'यह शिकायत बंद कर दी गई है।'
-                : 'This complaint has been closed.'
-              : normalizedStatus === 'REOPENED'
-              ? language === 'hi'
-                ? 'शिकायत को आगे की कार्रवाई के लिए फिर से खोला गया है।'
-                : 'The complaint has been reopened for further action.'
-              : language === 'hi'
-              ? 'आपकी शिकायत की स्थिति यहां दिखाई जाएगी।'
-              : 'Your complaint status is shown here.'}
+                ? language === 'hi'
+                  ? 'यह शिकायत बंद कर दी गई है।'
+                  : 'This complaint has been closed.'
+                : normalizedStatus === 'REOPENED'
+                  ? language === 'hi'
+                    ? 'शिकायत को आगे की कार्रवाई के लिए फिर से खोला गया है।'
+                    : 'The complaint has been reopened for further action.'
+                  : language === 'hi'
+                    ? 'आपकी शिकायत की स्थिति यहां दिखाई जाएगी।'
+                    : 'Your complaint status is shown here.'}
           </Text>
         </View>
 
@@ -712,7 +712,7 @@ export default function ComplaintDetailsScreen() {
                     style={[
                       styles.timelineDot,
                       completed &&
-                        styles.timelineDotCompleted,
+                      styles.timelineDotCompleted,
                     ]}
                   >
                     {completed && (
@@ -726,14 +726,14 @@ export default function ComplaintDetailsScreen() {
 
                   {index <
                     statuses.length - 1 && (
-                    <View
-                      style={[
-                        styles.timelineLine,
-                        completed &&
+                      <View
+                        style={[
+                          styles.timelineLine,
+                          completed &&
                           styles.timelineLineCompleted,
-                      ]}
-                    />
-                  )}
+                        ]}
+                      />
+                    )}
                 </View>
 
                 <View style={styles.timelineContent}>
@@ -741,7 +741,7 @@ export default function ComplaintDetailsScreen() {
                     style={[
                       styles.timelineStatus,
                       completed &&
-                        styles.timelineStatusCompleted,
+                      styles.timelineStatusCompleted,
                     ]}
                   >
                     {getStatusLabel(status)}
