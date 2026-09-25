@@ -98,7 +98,12 @@ export default function AdminScreen() {
         })
         .filter(Boolean) as Complaint[];
 
-      setComplaints(data);
+      // Filter by village if specified on the logged-in admin (unless SUPER_ADMIN)
+      const filteredData = parsedAdmin?.village && parsedAdmin?.role !== 'SUPER_ADMIN'
+        ? data.filter((c: any) => !c.village || c.village === parsedAdmin.village)
+        : data;
+
+      setComplaints(filteredData);
     } catch {
       console.log('Unable to load dashboard data');
     }

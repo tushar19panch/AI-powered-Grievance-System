@@ -109,7 +109,12 @@ export default function SecretaryDashboard() {
           new Date(a.dateTime).getTime()
       );
 
-      setComplaints(loadedComplaints);
+      // Filter by village if specified on the logged-in secretary (unless SUPER_ADMIN)
+      const filteredComplaints = parsedSecretary?.village && parsedSecretary?.role !== 'SUPER_ADMIN'
+        ? loadedComplaints.filter((c: any) => !c.village || c.village === parsedSecretary.village)
+        : loadedComplaints;
+
+      setComplaints(filteredComplaints);
     } catch (error) {
       console.log('Unable to load complaints:', error);
       setComplaints([]);
