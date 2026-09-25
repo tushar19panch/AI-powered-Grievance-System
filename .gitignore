@@ -1,0 +1,39 @@
+# Root Gitignore for VillageApp
+
+# Dependencies
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+**/target/
+**/dist/
+**/build/
+**/web-build/
+
+# Expo & Mobile
+**/.expo/
+expo-env.d.ts
+.kotlin/
+
+# Uploads & Temp
+**/uploads/
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# Environment files
+.env
+.env.local
+.env*.local
