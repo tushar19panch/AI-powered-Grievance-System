@@ -26,11 +26,12 @@ import {
   SHADOWS,
 } from '../theme';
 
-type Admin = {
+type OfficialProfile = {
   name: string;
   mobile: string;
   village: string;
-  adminId: string;
+  officialId: string;
+  role: 'sarpanch' | 'secretary' | 'admin';
   profileImage?: string | null;
 };
 
@@ -40,11 +41,12 @@ export default function AdminProfile() {
 
   const isHindi = language === 'hi';
 
-  const [admin, setAdmin] = useState<Admin>({
+  const [admin, setAdmin] = useState<OfficialProfile>({
     name: '',
     mobile: '',
     village: '',
-    adminId: '',
+    officialId: '',
+    role: 'sarpanch',
     profileImage: null,
   });
 
@@ -56,11 +58,35 @@ export default function AdminProfile() {
 
   const loadAdmin = async () => {
     try {
-      const data = await AsyncStorage.getItem('admin');
+      const sessionData = await AsyncStorage.getItem('user_session');
+      const adminData = await AsyncStorage.getItem('admin');
+      const secretaryData = await AsyncStorage.getItem('secretary');
 
-      if (data) {
-        setAdmin(JSON.parse(data));
+      const session = sessionData ? JSON.parse(sessionData) : null;
+      const adminParsed = adminData ? JSON.parse(adminData) : null;
+      const secretaryParsed = secretaryData ? JSON.parse(secretaryData) : null;
+
+      const isSec = session?.role === 'secretary' || (!adminParsed && !!secretaryParsed);
+
+      const activeData = isSec
+        ? { ...(secretaryParsed || {}), ...(session || {}) }
+        : { ...(adminParsed || {}), ...(session || {}) };
+
+      const currentMobile = activeData.mobile || session?.mobile || '';
+      let photoUri = activeData.profileImage || null;
+      if (currentMobile) {
+        const savedPhoto = await AsyncStorage.getItem(`profile_image_${currentMobile}`);
+        if (savedPhoto) photoUri = savedPhoto;
       }
+
+      setAdmin({
+        name: activeData.name || '',
+        mobile: activeData.mobile || currentMobile || '',
+        village: activeData.village || '',
+        officialId: activeData.secretaryId || activeData.adminId || activeData.officialId || '',
+        role: isSec ? 'secretary' : 'sarpanch',
+        profileImage: photoUri,
+      });
     } catch {
       Alert.alert(
         isHindi ? 'त्रुटि' : 'Error',
@@ -72,33 +98,65 @@ export default function AdminProfile() {
   };
 
   const pickImage = async () => {
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      if (Platform.OS !== 'web') {
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      Alert.alert(
-        isHindi ? 'अनुमति आवश्यक' : 'Permission Required',
-        isHindi
-          ? 'प्रोफाइल फोटो चुनने के लिए gallery की अनुमति दें।'
-          : 'Please allow gallery access to choose a profile photo.'
-      );
-      return;
-    }
+        if (!permission.granted) {
+          Alert.alert(
+            isHindi ? 'अनुमति आवश्यक' : 'Permission Required',
+            isHindi
+              ? 'प्रोफाइल फोटो चुनने के लिए gallery की अनुमति दें।'
+              : 'Please allow gallery access to choose a profile photo.'
+          );
+          return;
+        }
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        base64: true,
+      });
 
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
+      if (!result.canceled && result.assets.length > 0) {
+        const photoUri = result.assets[0].base64
+          ? `data:image/jpeg;base64,${result.assets[0].base64}`
+          : result.assets[0].uri;
 
-      setAdmin((prev) => ({
-        ...prev,
-        profileImage: uri,
-      }));
+        setAdmin((prev) => ({
+          ...prev,
+          profileImage: photoUri,
+        }));
+
+        // Auto persist immediately
+        const currentMobile = admin.mobile;
+        if (currentMobile) {
+          await AsyncStorage.setItem(`profile_image_${currentMobile}`, photoUri);
+        }
+
+        const sessionData = await AsyncStorage.getItem('user_session');
+        if (sessionData) {
+          const session = JSON.parse(sessionData);
+          session.profileImage = photoUri;
+          await AsyncStorage.setItem('user_session', JSON.stringify(session));
+        }
+
+        if (admin.role === 'secretary') {
+          const secData = await AsyncStorage.getItem('secretary');
+          const prevSec = secData ? JSON.parse(secData) : {};
+          await AsyncStorage.setItem('secretary', JSON.stringify({ ...prevSec, ...admin, profileImage: photoUri }));
+        } else {
+          const adminData = await AsyncStorage.getItem('admin');
+          const prevAdmin = adminData ? JSON.parse(adminData) : {};
+          await AsyncStorage.setItem('admin', JSON.stringify({ ...prevAdmin, ...admin, profileImage: photoUri }));
+        }
+      }
+    } catch (err) {
+      console.log('Official image pick error:', err);
     }
   };
 
@@ -124,16 +182,43 @@ export default function AdminProfile() {
     }
 
     try {
-      await AsyncStorage.setItem(
-        'admin',
-        JSON.stringify({
-          ...admin,
-          name: admin.name.trim(),
-          mobile: admin.mobile.trim(),
-          village: admin.village.trim(),
-          adminId: admin.adminId.trim(),
-        })
-      );
+      const cleanName = admin.name.trim();
+      const cleanMobile = admin.mobile.trim();
+      const cleanVillage = admin.village.trim();
+      const cleanId = admin.officialId.trim();
+
+      const sessionData = await AsyncStorage.getItem('user_session');
+      if (sessionData) {
+        const session = JSON.parse(sessionData);
+        session.name = cleanName;
+        session.mobile = cleanMobile;
+        session.village = cleanVillage;
+        await AsyncStorage.setItem('user_session', JSON.stringify(session));
+      }
+
+      if (admin.role === 'secretary') {
+        await AsyncStorage.setItem(
+          'secretary',
+          JSON.stringify({
+            name: cleanName,
+            mobile: cleanMobile,
+            village: cleanVillage,
+            secretaryId: cleanId,
+            profileImage: admin.profileImage,
+          })
+        );
+      } else {
+        await AsyncStorage.setItem(
+          'admin',
+          JSON.stringify({
+            name: cleanName,
+            mobile: cleanMobile,
+            village: cleanVillage,
+            adminId: cleanId,
+            profileImage: admin.profileImage,
+          })
+        );
+      }
 
       setEditing(false);
 
@@ -151,6 +236,59 @@ export default function AdminProfile() {
           : 'Unable to save profile.'
       );
     }
+  };
+
+  const logout = async () => {
+    const doLogout = async () => {
+      try {
+        await AsyncStorage.removeItem('admin');
+        await AsyncStorage.removeItem('secretary');
+        await AsyncStorage.removeItem('user_session');
+        await AsyncStorage.removeItem('@village_jwt_token');
+        await AsyncStorage.removeItem('@village_user_session');
+        await AsyncStorage.removeItem('token');
+        router.replace('/(tabs)');
+      } catch (error) {
+        console.log('Logout error:', error);
+        router.replace('/(tabs)');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmLogout = typeof window !== 'undefined'
+        ? window.confirm(
+            isHindi
+              ? 'क्या आप लॉग आउट करना चाहते हैं?'
+              : 'Are you sure you want to logout?'
+          )
+        : true;
+      if (confirmLogout) {
+        await doLogout();
+      }
+      return;
+    }
+
+    Alert.alert(
+      isHindi ? 'लॉग आउट' : 'Logout',
+      isHindi
+        ? 'क्या आप लॉग आउट करना चाहते हैं?'
+        : 'Are you sure you want to logout?',
+      [
+        {
+          text: isHindi ? 'रद्द करें' : 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: isHindi ? 'लॉग आउट' : 'Logout',
+          style: 'destructive',
+          onPress: doLogout,
+        },
+      ]
+    );
+  };
+
+  const switchAccount = () => {
+    router.push('/role-selection');
   };
 
   return (
@@ -228,8 +366,8 @@ export default function AdminProfile() {
             <Text style={styles.profileName}>
               {admin.name ||
                 (isHindi
-                  ? 'सरपंच / एडमिन'
-                  : 'Sarpanch / Admin')}
+                  ? (admin.role === 'secretary' ? 'ग्राम पंचायत सचिव' : 'सरपंच / एडमिन')
+                  : (admin.role === 'secretary' ? 'Panchayat Secretary' : 'Sarpanch / Admin'))}
             </Text>
 
             <View style={styles.roleBadge}>
@@ -240,9 +378,9 @@ export default function AdminProfile() {
               />
 
               <Text style={styles.roleText}>
-                {isHindi
-                  ? 'सरपंच / एडमिन'
-                  : 'Sarpanch / Admin'}
+                {admin.role === 'secretary'
+                  ? (isHindi ? 'ग्राम पंचायत सचिव / सुपरवाइजर' : 'Secretary / Supervisor')
+                  : (isHindi ? 'ग्राम प्रधान / सरपंच' : 'Village Head / Sarpanch')}
               </Text>
             </View>
 
@@ -323,7 +461,7 @@ export default function AdminProfile() {
 
                 <TextInput
                   style={styles.input}
-                  value={admin.name}
+                  value={admin.name || ''}
                   onChangeText={(text) =>
                     setAdmin({
                       ...admin,
@@ -361,7 +499,7 @@ export default function AdminProfile() {
 
                 <TextInput
                   style={styles.input}
-                  value={admin.mobile}
+                  value={admin.mobile || ''}
                   onChangeText={(text) =>
                     setAdmin({
                       ...admin,
@@ -400,7 +538,7 @@ export default function AdminProfile() {
 
                 <TextInput
                   style={styles.input}
-                  value={admin.village}
+                  value={admin.village || ''}
                   onChangeText={(text) =>
                     setAdmin({
                       ...admin,
@@ -421,7 +559,9 @@ export default function AdminProfile() {
             {/* ADMIN ID */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                {isHindi ? 'एडमिन आईडी' : 'Admin ID'}
+                {admin.role === 'secretary'
+                  ? (isHindi ? 'सचिव आईडी' : 'Secretary ID')
+                  : (isHindi ? 'एडमिन आईडी' : 'Admin ID')}
               </Text>
 
               <View
@@ -438,9 +578,9 @@ export default function AdminProfile() {
 
                 <TextInput
                   style={styles.input}
-                  value={admin.adminId}
+                  value={admin.officialId || ''}
                   editable={false}
-                  placeholder="Admin ID"
+                  placeholder={admin.role === 'secretary' ? 'Secretary ID' : 'Admin ID'}
                   placeholderTextColor={COLORS.textMuted}
                 />
 
@@ -452,9 +592,9 @@ export default function AdminProfile() {
               </View>
 
               <Text style={styles.helperText}>
-                {isHindi
-                  ? 'एडमिन आईडी बदली नहीं जा सकती।'
-                  : 'Admin ID cannot be changed.'}
+                {admin.role === 'secretary'
+                  ? (isHindi ? 'सचिव आईडी बदली नहीं जा सकती।' : 'Secretary ID cannot be changed.')
+                  : (isHindi ? 'एडमिन आईडी बदली नहीं जा सकती।' : 'Admin ID cannot be changed.')}
               </Text>
             </View>
           </View>
@@ -491,6 +631,114 @@ export default function AdminProfile() {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* ACCOUNT SETTINGS SECTION */}
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {isHindi ? 'खाता एवं सेटिंग्स' : 'Account & Settings'}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {isHindi ? 'खाता विकल्प और प्रबंधन' : 'Account options and management'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.accountCard}>
+            {/* SWITCH / ADD ACCOUNT */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={switchAccount}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accountIconBox}>
+                <Ionicons
+                  name="people-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={styles.accountTitle}>
+                  {isHindi ? 'खाता बदलें / जोड़ें' : 'Switch / Add Account'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'नागरिक, सचिव या अन्य रोल चुनें' : 'Select citizen, secretary or other role'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* LANGUAGE */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={() => setLanguage(isHindi ? 'en' : 'hi')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accountIconBox}>
+                <Ionicons
+                  name="language-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={styles.accountTitle}>
+                  {isHindi ? 'भाषा (Language)' : 'Language'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'वर्तमान: हिंदी' : 'Current: English'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* LOGOUT */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={logout}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.accountIconBox, styles.logoutIconBox]}>
+                <Ionicons
+                  name="log-out-outline"
+                  size={20}
+                  color={COLORS.error}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={[styles.accountTitle, { color: COLORS.error }]}>
+                  {isHindi ? 'लॉग आउट' : 'Logout'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'सुरक्षित रूप से बाहर निकलें' : 'Sign out securely'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.error}
+              />
+            </TouchableOpacity>
+          </View>
 
           {/* SECURITY INFO */}
           <View style={styles.infoBox}>
@@ -805,5 +1053,60 @@ const styles = StyleSheet.create({
     lineHeight: TYPOGRAPHY.lineSmall,
     color: COLORS.textSecondary,
     marginTop: 3,
+  },
+
+  /* ACCOUNT CARD */
+
+  accountCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
+  },
+
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.card,
+    paddingVertical: 14,
+  },
+
+  accountIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  logoutIconBox: {
+    backgroundColor: COLORS.errorLight,
+  },
+
+  accountTextWrapper: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  accountTitle: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+
+  accountSubtitle: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.borderLight,
+    marginLeft: 62,
   },
 });

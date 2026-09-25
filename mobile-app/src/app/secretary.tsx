@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,17 +36,46 @@ type Complaint = {
   location?: string;
 };
 
+type Secretary = {
+  name?: string;
+  mobile?: string;
+  village?: string;
+  profileImage?: string | null;
+};
+
 export default function SecretaryDashboard() {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
 
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [secretary, setSecretary] = useState<Secretary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const isHindi = language === 'hi';
 
   const toggleLanguage = () => {
     setLanguage(language === 'hi' ? 'en' : 'hi');
+  };
+
+  const loadSecretaryData = async () => {
+    try {
+      const sessionData = await AsyncStorage.getItem('user_session');
+      const secData = await AsyncStorage.getItem('secretary');
+      const session = sessionData ? JSON.parse(sessionData) : null;
+      const sec = secData ? JSON.parse(secData) : null;
+      let parsed: any = { ...(session || {}), ...(sec || {}) };
+
+      const currentMobile = parsed.mobile || session?.mobile || sec?.mobile;
+      if (currentMobile) {
+        const photo = await AsyncStorage.getItem(`profile_image_${currentMobile}`);
+        parsed = { ...parsed, profileImage: photo || parsed.profileImage || null };
+      }
+      if (parsed.name || parsed.mobile || parsed.village) {
+        setSecretary(parsed);
+      }
+    } catch (err) {
+      console.log('Error loading secretary data:', err);
+    }
   };
 
   const loadComplaints = async () => {
@@ -89,6 +119,7 @@ export default function SecretaryDashboard() {
 
   useFocusEffect(
     useCallback(() => {
+      loadSecretaryData();
       loadComplaints();
     }, [])
   );
@@ -96,21 +127,21 @@ export default function SecretaryDashboard() {
   const total = complaints.length;
 
   const pending = complaints.filter(
-    (complaint) =>
-      complaint.status === 'SUBMITTED' ||
-      complaint.status === 'UNDER REVIEW' ||
-      complaint.status === 'ACTION TAKEN' ||
-      complaint.status === 'IN PROGRESS'
+    (complaint) => {
+      const st = String(complaint.status || '').toUpperCase();
+      return st === 'SUBMITTED' || st === 'UNDER REVIEW' || st === 'UNDER_REVIEW';
+    }
   ).length;
 
   const resolved = complaints.filter(
-    (complaint) =>
-      complaint.status === 'RESOLVED' ||
-      complaint.status === 'CLOSED'
+    (complaint) => {
+      const st = String(complaint.status || '').toUpperCase();
+      return st === 'RESOLVED' || st === 'CLOSED';
+    }
   ).length;
 
   const reopened = complaints.filter(
-    (complaint) => complaint.status === 'REOPENED'
+    (complaint) => String(complaint.status || '').toUpperCase() === 'REOPENED'
   ).length;
 
   const getCategory = (category: string) => {
@@ -166,6 +197,10 @@ export default function SecretaryDashboard() {
     });
   };
 
+  const openProfile = () => {
+    router.push('/admin-profile');
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -179,7 +214,7 @@ export default function SecretaryDashboard() {
               <View style={styles.headerIcon}>
                 <Ionicons
                   name="shield-checkmark-outline"
-                  size={25}
+                  size={24}
                   color={COLORS.navy}
                 />
               </View>
@@ -199,20 +234,42 @@ export default function SecretaryDashboard() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.languageButton}
-              onPress={toggleLanguage}
-            >
-              <Ionicons
-                name="language-outline"
-                size={18}
-                color={COLORS.navy}
-              />
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.languageButton}
+                onPress={toggleLanguage}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="language-outline"
+                  size={16}
+                  color={COLORS.navy}
+                />
 
-              <Text style={styles.languageText}>
-                {isHindi ? 'EN' : 'हि'}
-              </Text>
-            </TouchableOpacity>
+                <Text style={styles.languageText}>
+                  {isHindi ? 'EN' : 'हि'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.headerProfile}
+                onPress={openProfile}
+                activeOpacity={0.8}
+              >
+                {secretary?.profileImage ? (
+                  <Image
+                    source={{ uri: secretary.profileImage }}
+                    style={styles.headerProfileImage}
+                  />
+                ) : (
+                  <Ionicons
+                    name="person-outline"
+                    size={20}
+                    color={COLORS.navy}
+                  />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* NATIONAL STRIPE */}
@@ -226,9 +283,93 @@ export default function SecretaryDashboard() {
             <View style={styles.greenStripe} />
           </View>
 
-          {/* STATS */}
+          {/* SECRETARY PROFILE / WELCOME CARD */}
+          <TouchableOpacity
+            style={styles.secretaryCard}
+            onPress={openProfile}
+            activeOpacity={0.85}
+          >
+            <View style={styles.secretaryTop}>
+              <View style={styles.avatar}>
+                {secretary?.profileImage ? (
+                  <Image
+                    source={{ uri: secretary.profileImage }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Ionicons
+                    name="person-outline"
+                    size={24}
+                    color={COLORS.navy}
+                  />
+                )}
+              </View>
+
+              <View style={styles.secretaryInfo}>
+                <Text style={styles.welcomeText}>
+                  {isHindi ? 'स्वागत है' : 'Welcome'}
+                </Text>
+
+                <Text style={styles.secretaryName}>
+                  {secretary?.name ||
+                    (isHindi
+                      ? 'ग्राम पंचायत सचिव'
+                      : 'Panchayat Secretary')}
+                </Text>
+
+                <View style={styles.roleRow}>
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={13}
+                    color={COLORS.accent}
+                  />
+
+                  <Text style={styles.roleText}>
+                    {isHindi
+                      ? 'ग्राम पंचायत सचिव / सुपरवाइजर'
+                      : 'Panchayat Secretary / Supervisor'}
+                  </Text>
+                </View>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </View>
+          </TouchableOpacity>
+
+          {/* COMPLAINT OVERVIEW SECTION HEADER */}
+          <View style={styles.sectionHeaderStats}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
+              </Text>
+              <Text style={styles.sectionSubtitleText}>
+                {isHindi ? 'वर्तमान स्थिति के अनुसार शिकायतें' : 'Complaints by current status'}
+              </Text>
+            </View>
+
+            <View style={styles.totalBadge}>
+              <Ionicons
+                name="documents-outline"
+                size={14}
+                color={COLORS.navy}
+              />
+              <Text style={styles.totalBadgeText}>
+                {total}
+              </Text>
+            </View>
+          </View>
+
+          {/* STATS GRID (ALL CLICKABLE) */}
           <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'all' } })}
+              activeOpacity={0.75}
+            >
               <View
                 style={[
                   styles.statIcon,
@@ -247,9 +388,13 @@ export default function SecretaryDashboard() {
               <Text style={styles.statLabel}>
                 {isHindi ? 'कुल शिकायतें' : 'Total Complaints'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'pending' } })}
+              activeOpacity={0.75}
+            >
               <View
                 style={[
                   styles.statIcon,
@@ -270,9 +415,13 @@ export default function SecretaryDashboard() {
               <Text style={styles.statLabel}>
                 {isHindi ? 'लंबित' : 'Pending'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'resolved' } })}
+              activeOpacity={0.75}
+            >
               <View
                 style={[
                   styles.statIcon,
@@ -293,9 +442,13 @@ export default function SecretaryDashboard() {
               <Text style={styles.statLabel}>
                 {isHindi ? 'हल की गई' : 'Resolved'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.statCard}>
+            <TouchableOpacity
+              style={styles.statCard}
+              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'reopened' } })}
+              activeOpacity={0.75}
+            >
               <View
                 style={[
                   styles.statIcon,
@@ -316,17 +469,21 @@ export default function SecretaryDashboard() {
               <Text style={styles.statLabel}>
                 {isHindi ? 'फिर से खोली गई' : 'Reopened'}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
-          {/* MONITORING */}
-          <Text style={styles.sectionTitle}>
+          {/* MONITORING SECTION */}
+          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>
             {isHindi
               ? 'सरपंच कार्य निगरानी'
               : 'Sarpanch Work Monitoring'}
           </Text>
 
-          <View style={styles.monitorCard}>
+          <TouchableOpacity
+            style={styles.monitorCard}
+            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'pending' } })}
+            activeOpacity={0.8}
+          >
             <View style={styles.monitorIcon}>
               <Ionicons
                 name="eye-outline"
@@ -352,9 +509,13 @@ export default function SecretaryDashboard() {
             <View style={styles.monitorCount}>
               <Text style={styles.monitorCountText}>{pending}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.monitorCard}>
+          <TouchableOpacity
+            style={styles.monitorCard}
+            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'reopened' } })}
+            activeOpacity={0.8}
+          >
             <View
               style={[
                 styles.monitorIcon,
@@ -397,7 +558,7 @@ export default function SecretaryDashboard() {
                 {reopened}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* RECENT COMPLAINTS */}
           <View style={styles.sectionHeader}>
@@ -516,6 +677,16 @@ export default function SecretaryDashboard() {
                   {complaint.description}
                 </Text>
 
+                {Boolean(complaint.photo && complaint.photo !== 'null' && complaint.photo !== 'undefined' && String(complaint.photo).trim() !== '') && (
+                  <View style={styles.cardPhotoWrapper}>
+                    <Image
+                      source={{ uri: String(complaint.photo).trim() }}
+                      style={styles.cardPhotoImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                )}
+
                 <View style={styles.bottomRow}>
                   <View style={styles.metaItem}>
                     <Ionicons
@@ -608,21 +779,72 @@ const styles = StyleSheet.create({
     lineHeight: TYPOGRAPHY.lineSmall,
   },
 
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
   languageButton: {
-    minWidth: 48,
-    height: 40,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: RADIUS.round,
+    height: 38,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 5,
+    gap: 4,
   },
 
   languageText: {
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.navy,
+  },
+
+  headerProfile: {
+    width: 38,
+    height: 38,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  headerProfileImage: {
+    width: 38,
+    height: 38,
+  },
+
+  sectionHeaderStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+
+  sectionSubtitleText: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+
+  totalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: RADIUS.round,
+    gap: 4,
+  },
+
+  totalBadgeText: {
     fontSize: TYPOGRAPHY.small,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.navy,
@@ -633,7 +855,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.round,
     overflow: 'hidden',
     flexDirection: 'row',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
 
   saffronStripe: {
@@ -667,6 +889,97 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: COLORS.white,
+  },
+
+  secretaryCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.small,
+  },
+
+  secretaryTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.round,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  avatarImage: {
+    width: 48,
+    height: 48,
+  },
+
+  secretaryInfo: {
+    flex: 1,
+  },
+
+  welcomeText: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    fontWeight: TYPOGRAPHY.mediumWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  secretaryName: {
+    fontSize: TYPOGRAPHY.large,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.navy,
+    marginTop: 1,
+  },
+
+  roleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+
+  roleText: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.accent,
+    fontWeight: TYPOGRAPHY.semiBold,
+  },
+
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+  },
+
+  metaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    gap: 4,
+  },
+
+  metaText: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.mediumWeight,
   },
 
   statsGrid: {
@@ -868,6 +1181,21 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: SPACING.sm,
     lineHeight: TYPOGRAPHY.lineBody,
+  },
+
+  cardPhotoWrapper: {
+    height: 140,
+    borderRadius: RADIUS.md,
+    overflow: 'hidden',
+    marginTop: SPACING.sm,
+    backgroundColor: '#F2F4F7',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+
+  cardPhotoImage: {
+    width: '100%',
+    height: '100%',
   },
 
   bottomRow: {

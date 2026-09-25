@@ -94,31 +94,37 @@ export default function Profile() {
 
   const chooseImage = async () => {
     try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (Platform.OS !== 'web') {
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-      if (!permission.granted) {
-        Alert.alert(
-          language === 'hi'
-            ? 'अनुमति आवश्यक है'
-            : 'Permission Required',
-          language === 'hi'
-            ? 'प्रोफाइल फोटो चुनने के लिए Gallery की अनुमति दें।'
-            : 'Please allow Gallery access to select a profile photo.'
-        );
-        return;
+        if (!permission.granted) {
+          Alert.alert(
+            language === 'hi'
+              ? 'अनुमति आवश्यक है'
+              : 'Permission Required',
+            language === 'hi'
+              ? 'प्रोफाइल फोटो चुनने के लिए Gallery की अनुमति दें।'
+              : 'Please allow Gallery access to select a profile photo.'
+          );
+          return;
+        }
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        const newUri = result.assets[0].uri;
-        setProfileImage(newUri);
+        const photoUri = result.assets[0].base64
+          ? `data:image/jpeg;base64,${result.assets[0].base64}`
+          : result.assets[0].uri;
+
+        setProfileImage(photoUri);
 
         // Auto-persist immediately strictly for this user's mobile number
         const sessionData = await AsyncStorage.getItem('user_session');
@@ -126,7 +132,7 @@ export default function Profile() {
         const currentMobile = session?.mobile || mobile || '';
 
         if (currentMobile) {
-          await AsyncStorage.setItem(`profile_image_${currentMobile}`, newUri);
+          await AsyncStorage.setItem(`profile_image_${currentMobile}`, photoUri);
         }
 
         const updatedUser = {
@@ -135,12 +141,12 @@ export default function Profile() {
           mobile: currentMobile,
           village: village || user?.village || '',
           ward: ward || user?.ward || '',
-          profileImage: newUri,
+          profileImage: photoUri,
         };
 
         await AsyncStorage.setItem('citizen', JSON.stringify(updatedUser));
         if (session) {
-          session.profileImage = newUri;
+          session.profileImage = photoUri;
           await AsyncStorage.setItem('user_session', JSON.stringify(session));
         }
 

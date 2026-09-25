@@ -1088,8 +1088,8 @@ export default function CitizenDashboard() {
             </Text>
             <Text style={styles.helpLineSubtitle}>
               {isHindi
-                ? 'पुलिस • एम्बुलेंस • आपातकाल • सरपंच • सचिव'
-                : 'Police • Ambulance • Emergency • Sarpanch • Secretary'}
+                ? 'सीएम हेल्पलाइन (181) • आपातकाल (112) • एम्बुलेंस • सरपंच • सचिव'
+                : 'CM Helpline (181) • Emergency (112) • Ambulance • Sarpanch • Secretary'}
             </Text>
           </View>
 

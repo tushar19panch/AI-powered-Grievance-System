@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -91,31 +92,71 @@ export default function ReportScreen() {
   }, []);
 
   // ==========================================
+  // IMAGE CONVERSION HELPER
+  // ==========================================
+
+  const processImageUri = async (asset: ImagePicker.ImagePickerAsset): Promise<string> => {
+    if (asset.base64) {
+      return asset.base64.startsWith('data:')
+        ? asset.base64
+        : `data:image/jpeg;base64,${asset.base64}`;
+    }
+    const uri = asset.uri;
+    if (uri && uri.startsWith('data:')) {
+      return uri;
+    }
+    // Convert blob: or file: uri into Base64 Data URI
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      return await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.onerror = () => resolve(uri);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.log('Error converting image to data URL:', e);
+      return uri;
+    }
+  };
+
+  // ==========================================
   // CAMERA
   // ==========================================
 
   const takePhoto = async () => {
-    const permission =
-      await ImagePicker.requestCameraPermissionsAsync();
+    try {
+      if (Platform.OS !== 'web') {
+        const permission =
+          await ImagePicker.requestCameraPermissionsAsync();
 
-    if (!permission.granted) {
-      Alert.alert(
-        isHindi ? 'कैमरा अनुमति' : 'Camera Permission',
-        isHindi
-          ? 'फोटो लेने के लिए कैमरा अनुमति आवश्यक है।'
-          : 'Camera permission is required to take a photo.'
-      );
-      return;
-    }
+        if (!permission.granted) {
+          Alert.alert(
+            isHindi ? 'कैमरा अनुमति' : 'Camera Permission',
+            isHindi
+              ? 'फोटो लेने के लिए कैमरा अनुमति आवश्यक है।'
+              : 'Camera permission is required to take a photo.'
+          );
+          return;
+        }
+      }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.6,
+        base64: true,
+      });
 
-    if (!result.canceled && result.assets.length > 0) {
-      setImage(result.assets[0].uri);
+      if (!result.canceled && result.assets.length > 0) {
+        const photoUri = await processImageUri(result.assets[0]);
+        setImage(photoUri);
+      }
+    } catch (err) {
+      console.log('Camera error:', err);
     }
   };
 
@@ -124,28 +165,35 @@ export default function ReportScreen() {
   // ==========================================
 
   const pickFromGallery = async () => {
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      if (Platform.OS !== 'web') {
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      Alert.alert(
-        isHindi ? 'गैलरी अनुमति' : 'Gallery Permission',
-        isHindi
-          ? 'फोटो चुनने के लिए गैलरी अनुमति आवश्यक है।'
-          : 'Gallery permission is required to select a photo.'
-      );
-      return;
-    }
+        if (!permission.granted) {
+          Alert.alert(
+            isHindi ? 'गैलरी अनुमति' : 'Gallery Permission',
+            isHindi
+              ? 'फोटो चुनने के लिए गैलरी अनुमति आवश्यक है।'
+              : 'Gallery permission is required to select a photo.'
+          );
+          return;
+        }
+      }
 
-    const result =
-      await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.6,
+        base64: true,
       });
 
-    if (!result.canceled && result.assets.length > 0) {
-      setImage(result.assets[0].uri);
+      if (!result.canceled && result.assets.length > 0) {
+        const photoUri = await processImageUri(result.assets[0]);
+        setImage(photoUri);
+      }
+    } catch (err) {
+      console.log('Gallery picker error:', err);
     }
   };
 

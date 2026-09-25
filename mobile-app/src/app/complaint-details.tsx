@@ -63,52 +63,57 @@ export default function ComplaintDetailsScreen() {
         const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
         setUserRole(role);
 
-        // 1. Try fetching single complaint from Backend API
+        // 1. Fetch complaint from Backend Database API
+        let foundComplaint: any = null;
         if (/^\d+$/.test(String(complaintId))) {
           try {
             const apiComplaint = await complaintApi.getSingleComplaint(Number(complaintId));
-            if (apiComplaint && apiComplaint.id) {
-              setComplaint({
-                complaintId: String(apiComplaint.id),
-                category: apiComplaint.category || apiComplaint.problemType || 'Village Issue',
-                ward: apiComplaint.wardNumber ? `Ward ${apiComplaint.wardNumber}` : apiComplaint.location || '',
-                priority: apiComplaint.priority || 'MEDIUM',
-                department: apiComplaint.department || '',
-                deadline: apiComplaint.deadline || null,
-                description: apiComplaint.description || '',
-                photo: apiComplaint.photo || null,
-                audioUrl: apiComplaint.audioUrl || null,
-                location: apiComplaint.location || (apiComplaint.villageName ? apiComplaint.villageName : ''),
-                status: apiComplaint.status || 'SUBMITTED',
-                dateTime: apiComplaint.createdAt || new Date().toISOString(),
-                statusTimeline: [],
-              });
-              return;
+            if (apiComplaint && (apiComplaint.id || (apiComplaint as any).complaintNumber)) {
+              foundComplaint = apiComplaint;
             }
           } catch (apiErr) {
-            console.log('Single complaint fetch error, falling back to local:', apiErr);
+            console.log('Single complaint fetch error, checking list endpoints:', apiErr);
           }
         }
 
-        // 2. Fallback: Load from local AsyncStorage
-        const data = await AsyncStorage.getItem(`complaint_${complaintId}`);
-        if (data) {
-          const complaintData = JSON.parse(data);
-          setComplaint(complaintData);
-          return;
+        // If not found by direct ID, check role-specific complaints list from backend DB
+        if (!foundComplaint) {
+          try {
+            const list = role === 'citizen' 
+              ? await complaintApi.getCitizenComplaints()
+              : await complaintApi.getSarpanchComplaints();
+            if (Array.isArray(list)) {
+              foundComplaint = list.find((c: any) => 
+                String(c.id) === String(complaintId) || 
+                String(c.complaintNumber) === String(complaintId)
+              );
+            }
+          } catch (listErr) {
+            console.log('Error finding complaint in database list:', listErr);
+          }
         }
 
-        // 3. Search all local storage keys in case key format differs
-        const allKeys = await AsyncStorage.getAllKeys();
-        const cKey = allKeys.find((k) => k.includes(String(complaintId)));
-        if (cKey) {
-          const raw = await AsyncStorage.getItem(cKey);
-          if (raw) {
-            setComplaint(JSON.parse(raw));
-          }
+        if (foundComplaint) {
+          setComplaint({
+            complaintId: String(foundComplaint.id || foundComplaint.complaintNumber || complaintId),
+            citizenName: foundComplaint.citizenName || 'Citizen',
+            citizenMobile: foundComplaint.citizenMobile || '',
+            category: foundComplaint.category || foundComplaint.problemType || 'Village Issue',
+            ward: foundComplaint.wardNumber ? `Ward ${foundComplaint.wardNumber}` : foundComplaint.location || '',
+            priority: foundComplaint.priority || 'MEDIUM',
+            department: foundComplaint.department || '',
+            deadline: foundComplaint.deadline || null,
+            description: foundComplaint.description || '',
+            photo: foundComplaint.photo || null,
+            audioUrl: foundComplaint.audioUrl || null,
+            location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
+            status: foundComplaint.status || 'SUBMITTED',
+            dateTime: foundComplaint.createdAt || new Date().toISOString(),
+            statusTimeline: [],
+          });
         }
       } catch (error) {
-        console.log('Unable to load complaint:', error);
+        console.log('Unable to load complaint from database:', error);
       } finally {
         setLoading(false);
       }
@@ -313,62 +318,63 @@ export default function ComplaintDetailsScreen() {
   };
 
   // --------------------------------------------------
-  // PROBLEM FIXED
+  // PROBLEM FIXED (Citizen confirmation)
   // --------------------------------------------------
 
   const handleProblemFixed = async () => {
     try {
-      if (!complaint?.complaintId) {
-        return;
+      if (!complaint?.complaintId) return;
+
+      const complaintNumId = Number(complaint.complaintId);
+      if (!isNaN(complaintNumId)) {
+        await complaintApi.updateStatus(
+          complaintNumId,
+          'RESOLVED',
+          'नागरिक द्वारा पुष्टि की गई कि समस्या ठीक हो गई है (Citizen confirmed problem is resolved)'
+        );
       }
 
       const updatedComplaint = {
         ...complaint,
-        status: 'CLOSED',
+        status: 'RESOLVED',
       };
-
-      await AsyncStorage.setItem(
-        `complaint_${complaint.complaintId}`,
-        JSON.stringify(updatedComplaint)
-      );
 
       setComplaint(updatedComplaint);
 
       Alert.alert(
         language === 'hi'
-          ? 'शिकायत बंद कर दी गई'
-          : 'Complaint Closed',
+          ? 'शिकायत सफलतापूर्वक हल हुई'
+          : 'Complaint Resolved',
         language === 'hi'
           ? 'यह पुष्टि करने के लिए धन्यवाद कि आपकी समस्या ठीक हो गई है।'
           : 'Thank you for confirming that your problem has been fixed.'
       );
     } catch (error) {
-      console.log(
-        'Unable to close complaint:',
-        error
-      );
+      console.log('Unable to resolve complaint in backend:', error);
     }
   };
 
   // --------------------------------------------------
-  // PROBLEM NOT FIXED
+  // PROBLEM NOT FIXED (Citizen reopening)
   // --------------------------------------------------
 
   const handleProblemNotFixed = async () => {
     try {
-      if (!complaint?.complaintId) {
-        return;
+      if (!complaint?.complaintId) return;
+
+      const complaintNumId = Number(complaint.complaintId);
+      if (!isNaN(complaintNumId)) {
+        await complaintApi.updateStatus(
+          complaintNumId,
+          'REOPENED',
+          'नागरिक द्वारा सूचित किया गया कि समस्या ठीक नहीं हुई (Citizen reported problem is not fixed)'
+        );
       }
 
       const updatedComplaint = {
         ...complaint,
         status: 'REOPENED',
       };
-
-      await AsyncStorage.setItem(
-        `complaint_${complaint.complaintId}`,
-        JSON.stringify(updatedComplaint)
-      );
 
       setComplaint(updatedComplaint);
 
@@ -381,7 +387,7 @@ export default function ComplaintDetailsScreen() {
           : 'Your complaint has been reopened for further action.'
       );
     } catch (error) {
-      console.log('Unable to reopen complaint:', error);
+      console.log('Unable to reopen complaint in backend:', error);
     }
   };
 
@@ -404,11 +410,6 @@ export default function ComplaintDetailsScreen() {
         status: selectedStatus,
       };
 
-      await AsyncStorage.setItem(
-        `complaint_${complaint.complaintId}`,
-        JSON.stringify(updatedComplaint)
-      );
-
       setComplaint(updatedComplaint);
       setRemarks('');
 
@@ -419,7 +420,7 @@ export default function ComplaintDetailsScreen() {
           : `Complaint status changed to '${getStatusLabel(selectedStatus)}'.`
       );
     } catch (error: any) {
-      console.log('Unable to update complaint status:', error);
+      console.log('Unable to update complaint status in backend:', error);
       Alert.alert(
         language === 'hi' ? 'अपडेट विफल' : 'Update Failed',
         error?.message ||
@@ -566,9 +567,15 @@ export default function ComplaintDetailsScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() =>
-              router.replace('/citizen-dashboard')
-            }
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else if (userRole === 'sarpanch' || userRole === 'secretary') {
+                router.replace('/admin');
+              } else {
+                router.replace('/citizen-dashboard');
+              }
+            }}
             activeOpacity={0.8}
           >
             <Ionicons
@@ -659,9 +666,13 @@ export default function ComplaintDetailsScreen() {
 
           <Text style={styles.statusHint}>
             {normalizedStatus === 'RESOLVED'
-              ? language === 'hi'
-                ? 'कृपया नीचे दिए गए विकल्प से पुष्टि करें कि समस्या ठीक हुई या नहीं।'
-                : 'Please confirm below whether your problem has been fixed.'
+              ? userRole === 'citizen'
+                ? language === 'hi'
+                  ? 'कृपया नीचे दिए गए विकल्प से पुष्टि करें कि समस्या ठीक हुई या नहीं।'
+                  : 'Please confirm below whether your problem has been fixed.'
+                : language === 'hi'
+                  ? 'समाधान दर्ज हो चुका है, नागरिक द्वारा पुष्टि/सत्यापन की प्रतीक्षा है।'
+                  : 'Resolved by official, awaiting citizen confirmation and closure.'
               : normalizedStatus === 'CLOSED'
                 ? language === 'hi'
                   ? 'यह शिकायत बंद कर दी गई है।'
@@ -864,7 +875,7 @@ export default function ComplaintDetailsScreen() {
         </View>
 
         {/* PHOTO */}
-        {complaint.photo && (
+        {Boolean(complaint.photo && complaint.photo !== 'null' && complaint.photo !== 'undefined' && String(complaint.photo).trim() !== '') && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>
               {language === 'hi'
@@ -874,7 +885,7 @@ export default function ComplaintDetailsScreen() {
 
             <Image
               source={{
-                uri: complaint.photo,
+                uri: String(complaint.photo).trim(),
               }}
               style={styles.photo}
               resizeMode="cover"
@@ -905,8 +916,8 @@ export default function ComplaintDetailsScreen() {
           </View>
         )}
 
-        {/* CITIZEN VERIFICATION */}
-        {normalizedStatus === 'RESOLVED' && (
+        {/* CITIZEN VERIFICATION (ONLY FOR CITIZEN) */}
+        {userRole === 'citizen' && normalizedStatus === 'RESOLVED' && (
           <View style={styles.verificationCard}>
             <Ionicons
               name="help-circle-outline"
@@ -972,6 +983,52 @@ export default function ComplaintDetailsScreen() {
                   : 'No, Problem Not Fixed'}
               </Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* OFFICIAL NOTICE: AWAITING CITIZEN CONFIRMATION */}
+        {(userRole === 'sarpanch' || userRole === 'secretary') && normalizedStatus === 'RESOLVED' && (
+          <View style={styles.officialNoticeCard}>
+            <Ionicons
+              name="hourglass-outline"
+              size={24}
+              color={COLORS.warning}
+            />
+            <View style={styles.officialNoticeContent}>
+              <Text style={styles.officialNoticeTitle}>
+                {language === 'hi'
+                  ? 'समाधान दर्ज - नागरिक सत्यापन प्रतीक्षित'
+                  : 'Resolved - Awaiting Citizen Confirmation'}
+              </Text>
+              <Text style={styles.officialNoticeText}>
+                {language === 'hi'
+                  ? 'आपने इस समस्या का समाधान दर्ज कर दिया है। नागरिक द्वारा पुष्टि किए जाने पर यह शिकायत बंद (Closed) हो जाएगी।'
+                  : 'Status is marked as Resolved. Once the citizen verifies satisfaction, this complaint will be marked as Closed.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* NOTICE: COMPLAINT CLOSED */}
+        {normalizedStatus === 'CLOSED' && (
+          <View style={[styles.officialNoticeCard, styles.closedNoticeCard]}>
+            <Ionicons
+              name="checkmark-done-circle-outline"
+              size={24}
+              color={COLORS.indiaGreen}
+            />
+            <View style={styles.officialNoticeContent}>
+              <Text style={[styles.officialNoticeTitle, { color: COLORS.indiaGreen }]}>
+                {language === 'hi'
+                  ? 'शिकायत सफलतापूर्वक बंद (Closed)'
+                  : 'Complaint Successfully Closed'}
+              </Text>
+              <Text style={styles.officialNoticeText}>
+                {language === 'hi'
+                  ? 'नागरिक द्वारा समस्या समाधान की पुष्टि के बाद यह शिकायत बंद कर दी गई है।'
+                  : 'This complaint has been verified and officially closed by the citizen.'}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -1696,5 +1753,48 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14.5,
     fontWeight: '800',
+  },
+
+  officialNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF8E6',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    gap: 12,
+  },
+
+  closedNoticeCard: {
+    backgroundColor: '#EDF7F2',
+    borderColor: '#23845F',
+  },
+
+  officialNoticeContent: {
+    flex: 1,
+  },
+
+  officialNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#B78103',
+  },
+
+  officialNoticeText: {
+    fontSize: 12.5,
+    color: '#475467',
+    marginTop: 3,
+    lineHeight: 18,
+  },
+
+  photoContainer: {
+    marginTop: 10,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+    backgroundColor: '#F9FAFB',
   },
 });

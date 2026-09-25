@@ -64,48 +64,30 @@ export default function AdminScreen() {
         setAdmin(parsedAdmin);
       }
 
-      // 1. Try Backend Spring Boot Database API
+      // Load complaints directly from Backend Spring Boot Database API
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
         if (Array.isArray(apiComplaints)) {
+          // Filter by village if specified on the logged-in admin (unless SUPER_ADMIN)
+          const filtered = parsedAdmin?.village && parsedAdmin?.role !== 'SUPER_ADMIN'
+            ? apiComplaints.filter((c: any) => !c.villageName || c.villageName === parsedAdmin.village)
+            : apiComplaints;
+
           setComplaints(
-            apiComplaints.map((c) => ({
-              complaintId: String(c.id),
+            filtered.map((c: any) => ({
+              complaintId: String(c.id || c.complaintNumber),
               status: c.status,
             }))
           );
           return;
         }
       } catch (apiErr) {
-        console.log('Admin backend complaints fetch error, using local fallback:', apiErr);
+        console.log('Admin backend complaints fetch error:', apiErr);
       }
 
-      // 2. Fallback: Load complaints from local storage
-      const keys = await AsyncStorage.getAllKeys();
-      const complaintKeys = keys.filter((key) =>
-        key.startsWith('complaint_')
-      );
-
-      const values = await AsyncStorage.multiGet(complaintKeys);
-      const data: Complaint[] = values
-        .map(([_, value]) => {
-          if (!value) return null;
-          try {
-            return JSON.parse(value);
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean) as Complaint[];
-
-      // Filter by village if specified on the logged-in admin (unless SUPER_ADMIN)
-      const filteredData = parsedAdmin?.village && parsedAdmin?.role !== 'SUPER_ADMIN'
-        ? data.filter((c: any) => !c.village || c.village === parsedAdmin.village)
-        : data;
-
-      setComplaints(filteredData);
-    } catch {
-      console.log('Unable to load dashboard data');
+      setComplaints([]);
+    } catch (err) {
+      console.log('Unable to load dashboard data:', err);
     }
   };
 
@@ -221,92 +203,77 @@ export default function AdminScreen() {
           />
         }
       >
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View style={styles.headerTextContainer}>
-            <View style={styles.headLabel}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={14}
-                color={COLORS.accent}
-              />
-
-              <Text style={styles.headLabelText}>
-                HEAD • SARPANCH / ADMIN
-              </Text>
-            </View>
-
-            <Text style={styles.title}>
-              {isHindi
-                ? 'एडमिन डैशबोर्ड'
-                : 'Admin Dashboard'}
-            </Text>
-
-            <Text style={styles.subtitle}>
-              {isHindi
-                ? 'गांव की शिकायतों और समस्याओं का प्रबंधन'
-                : 'Manage village complaints and problems'}
+        {/* TOP BAR / ACTIONS */}
+        <View style={styles.topBar}>
+          <View style={styles.headLabel}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={13}
+              color={COLORS.accent}
+            />
+            <Text style={styles.headLabelText}>
+              HEAD • SARPANCH / ADMIN
             </Text>
           </View>
 
-          {/* Profile Image */}
-          <TouchableOpacity
-            style={styles.headerProfile}
-            onPress={openProfile}
-            activeOpacity={0.8}
-          >
-            {admin?.profileImage ? (
-              <Image
-                source={{ uri: admin.profileImage }}
-                style={styles.headerProfileImage}
-              />
-            ) : (
+          <View style={styles.topActions}>
+            <TouchableOpacity
+              style={styles.languageButton}
+              onPress={toggleLanguage}
+              activeOpacity={0.8}
+            >
               <Ionicons
-                name="person-outline"
-                size={23}
+                name="language-outline"
+                size={16}
                 color={COLORS.primary}
               />
-            )}
-          </TouchableOpacity>
+              <Text style={styles.languageText}>
+                {isHindi ? 'English' : 'हिंदी'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.headerProfile}
+              onPress={openProfile}
+              activeOpacity={0.8}
+            >
+              {admin?.profileImage ? (
+                <Image
+                  source={{ uri: admin.profileImage }}
+                  style={styles.headerProfileImage}
+                />
+              ) : (
+                <Ionicons
+                  name="person-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* ACTION BUTTONS */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={styles.languageButton}
-            onPress={toggleLanguage}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="language-outline"
-              size={18}
-              color={COLORS.primary}
-            />
+        {/* HEADER TITLE */}
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.title}>
+            {isHindi
+              ? 'एडमिन डैशबोर्ड'
+              : 'Admin Dashboard'}
+          </Text>
 
-            <Text style={styles.languageText}>
-              {isHindi ? 'English' : 'हिंदी'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={logout}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="log-out-outline"
-              size={18}
-              color={COLORS.error}
-            />
-
-            <Text style={styles.logoutText}>
-              {t.logout}
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.subtitle}>
+            {isHindi
+              ? 'गांव की शिकायतों और समस्याओं का प्रबंधन'
+              : 'Manage village complaints and problems'}
+          </Text>
         </View>
 
         {/* ADMIN PROFILE CARD */}
-        <View style={styles.adminCard}>
+        <TouchableOpacity
+          style={styles.adminCard}
+          onPress={openProfile}
+          activeOpacity={0.85}
+        >
           <View style={styles.adminTop}>
             <View style={styles.avatar}>
               {admin?.profileImage ? (
@@ -317,7 +284,7 @@ export default function AdminScreen() {
               ) : (
                 <Ionicons
                   name="person-outline"
-                  size={32}
+                  size={24}
                   color={COLORS.primary}
                 />
               )}
@@ -338,7 +305,7 @@ export default function AdminScreen() {
               <View style={styles.roleRow}>
                 <Ionicons
                   name="shield-checkmark-outline"
-                  size={14}
+                  size={13}
                   color={COLORS.accent}
                 />
 
@@ -349,22 +316,14 @@ export default function AdminScreen() {
                 </Text>
               </View>
             </View>
+
+            <Ionicons
+              name="chevron-forward-outline"
+              size={20}
+              color={COLORS.textMuted}
+            />
           </View>
-
-          {admin?.village ? (
-            <View style={styles.villageRow}>
-              <Ionicons
-                name="location-outline"
-                size={17}
-                color={COLORS.indiaGreen}
-              />
-
-              <Text style={styles.villageText}>
-                {admin.village}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        </TouchableOpacity>
 
         {/* COMPLAINT OVERVIEW */}
         <View style={styles.sectionHeader}>
@@ -636,32 +595,38 @@ const styles = StyleSheet.create({
     paddingBottom: 35,
   },
 
-  /* HEADER */
+  /* TOP BAR & ACTIONS */
 
-  header: {
+  topBar: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.md,
-  },
-
-  headerTextContainer: {
-    flex: 1,
-    paddingRight: SPACING.md,
+    marginBottom: SPACING.xs,
+    paddingTop: 2,
   },
 
   headLabel: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
   },
 
   headLabelText: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: TYPOGRAPHY.black,
     color: COLORS.accent,
-    letterSpacing: 0.7,
-    marginLeft: 5,
+    letterSpacing: 0.6,
+    marginLeft: 4,
+  },
+
+  topActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  headerTextContainer: {
+    marginBottom: SPACING.md,
+    marginTop: 4,
   },
 
   title: {
@@ -675,12 +640,12 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.small,
     lineHeight: TYPOGRAPHY.lineSmall + 2,
     color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
+    marginTop: 2,
   },
 
   headerProfile: {
-    width: 49,
-    height: 49,
+    width: 36,
+    height: 36,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primaryLight,
     borderWidth: 1,
@@ -691,52 +656,25 @@ const styles = StyleSheet.create({
   },
 
   headerProfileImage: {
-    width: 49,
-    height: 49,
-  },
-
-  /* ACTIONS */
-
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 9,
-    marginBottom: SPACING.md,
+    width: 36,
+    height: 36,
   },
 
   languageButton: {
-    height: 38,
-    paddingHorizontal: SPACING.md,
+    height: 34,
+    paddingHorizontal: 10,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
 
   languageText: {
     color: COLORS.primary,
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-
-  logoutButton: {
-    height: 38,
-    paddingHorizontal: SPACING.md,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.errorLight,
-    borderWidth: 1,
-    borderColor: COLORS.errorLight,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  logoutText: {
-    color: COLORS.error,
-    fontSize: TYPOGRAPHY.small,
+    fontSize: TYPOGRAPHY.xs + 1,
     fontWeight: TYPOGRAPHY.bold,
   },
 
@@ -744,12 +682,12 @@ const styles = StyleSheet.create({
 
   adminCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    padding: 13,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.section,
-    ...SHADOWS.medium,
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
   },
 
   adminTop: {
@@ -758,11 +696,11 @@ const styles = StyleSheet.create({
   },
 
   avatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: COLORS.primaryLight,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: COLORS.navy,
     alignItems: 'center',
     justifyContent: 'center',
@@ -770,37 +708,37 @@ const styles = StyleSheet.create({
   },
 
   avatarImage: {
-    width: 68,
-    height: 68,
+    width: 48,
+    height: 48,
   },
 
   adminInfo: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 12,
   },
 
   welcomeText: {
-    fontSize: TYPOGRAPHY.small,
+    fontSize: TYPOGRAPHY.xs + 1,
     color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.mediumWeight,
   },
 
   adminName: {
-    fontSize: TYPOGRAPHY.subtitle + 2,
+    fontSize: TYPOGRAPHY.subtitle,
     color: COLORS.textPrimary,
     fontWeight: TYPOGRAPHY.black,
-    marginTop: 2,
+    marginTop: 1,
   },
 
   roleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    marginTop: 5,
+    gap: 4,
+    marginTop: 3,
   },
 
   roleText: {
-    fontSize: TYPOGRAPHY.small,
+    fontSize: TYPOGRAPHY.xs,
     color: COLORS.accent,
     fontWeight: TYPOGRAPHY.bold,
   },
@@ -809,17 +747,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.successLight,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    marginTop: 15,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    marginTop: 9,
   },
 
   villageText: {
     fontSize: TYPOGRAPHY.small,
     color: COLORS.textPrimary,
     fontWeight: TYPOGRAPHY.bold,
-    marginLeft: 6,
+    marginLeft: 5,
   },
 
   profileLink: {

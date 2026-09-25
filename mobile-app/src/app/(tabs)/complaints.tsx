@@ -9,6 +9,7 @@ import { useCallback, useState } from 'react';
 
 import {
   ActivityIndicator,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -111,80 +112,31 @@ export default function ComplaintsScreen() {
 
       let fetchedList: Complaint[] = [];
 
-      let apiSuccess = false;
-      // 1. Try fetching from Backend Spring Boot Database API
+      // Load complaints directly from Backend Spring Boot Database API
       try {
-        if (role === 'sarpanch' || role === 'secretary' || (role as string) === 'admin') {
+        if (role === 'sarpanch' || role === 'secretary') {
           const apiData = await complaintApi.getSarpanchComplaints();
           if (Array.isArray(apiData)) {
             fetchedList = apiData.map(mapBackendComplaint);
-            apiSuccess = true;
           }
         } else {
           const apiData = await complaintApi.getCitizenComplaints();
           if (Array.isArray(apiData)) {
             fetchedList = apiData.map(mapBackendComplaint);
-            apiSuccess = true;
           }
         }
       } catch (apiErr) {
-        console.log('Backend complaint fetch error, falling back to local:', apiErr);
+        console.log('Backend complaint fetch error:', apiErr);
       }
 
-      // 2. If API responded, use Database data!
-      if (apiSuccess) {
-        fetchedList.sort(
-          (a, b) =>
-            new Date(b.dateTime || 0).getTime() -
-            new Date(a.dateTime || 0).getTime()
-        );
-        setComplaints(fetchedList);
-        return;
-      }
-
-      // 3. Fallback: Load from local AsyncStorage
-      const allKeys = await AsyncStorage.getAllKeys();
-      const complaintKeys = allKeys.filter((key) =>
-        key.startsWith('complaint_')
-      );
-
-      const localList: Complaint[] = [];
-
-      let currentMobile = '';
-      if (role === 'citizen') {
-        const citizenData = await AsyncStorage.getItem('citizen');
-        if (citizenData) {
-          const c = JSON.parse(citizenData);
-          currentMobile = String(c.mobile || '').trim();
-        }
-      }
-
-      for (const key of complaintKeys) {
-        try {
-          const data = await AsyncStorage.getItem(key);
-          if (!data) continue;
-
-          const complaint: Complaint = JSON.parse(data);
-          const complaintMobile = String(complaint.citizenMobile || '').trim();
-
-          // For Sarpanch/Secretary, show all complaints. For Citizen, show own complaints.
-          if (role !== 'citizen' || !currentMobile || complaintMobile === currentMobile) {
-            localList.push(complaint);
-          }
-        } catch (error) {
-          console.log('Invalid complaint data:', key);
-        }
-      }
-
-      localList.sort(
+      fetchedList.sort(
         (a, b) =>
           new Date(b.dateTime || 0).getTime() -
           new Date(a.dateTime || 0).getTime()
       );
-
-      setComplaints(localList);
+      setComplaints(fetchedList);
     } catch (error) {
-      console.log('Unable to load complaints:', error);
+      console.log('Unable to load complaints from backend:', error);
       setComplaints([]);
     } finally {
       setLoading(false);
@@ -215,62 +167,50 @@ export default function ComplaintsScreen() {
   // =====================================================
 
   const filteredComplaints =
-    selectedFilter ===
-      'in-progress'
-      ? complaints.filter(
-        (complaint) => {
-          const status =
-            String(
-              complaint.status ||
-              ''
-            ).toUpperCase();
-
-          return (
-            status ===
-            'IN PROGRESS' ||
-            status ===
-            'ACTION TAKEN'
-          );
-        }
-      )
-      : selectedFilter ===
-        'resolved'
-        ? complaints.filter(
-          (complaint) => {
-            const status =
-              String(
-                complaint.status ||
-                ''
-              ).toUpperCase();
-
+    selectedFilter === 'pending'
+      ? complaints.filter((c) => {
+          const s = String(c.status || '').toUpperCase();
+          return s === 'SUBMITTED' || s === 'UNDER REVIEW' || s === 'UNDER_REVIEW';
+        })
+      : selectedFilter === 'in-progress'
+        ? complaints.filter((c) => {
+            const s = String(c.status || '').toUpperCase();
             return (
-              status ===
-              'RESOLVED' ||
-              status === 'CLOSED'
+              s === 'IN PROGRESS' ||
+              s === 'IN_PROGRESS' ||
+              s === 'ACTION TAKEN' ||
+              s === 'ACTION_TAKEN'
             );
-          }
-        )
-        : complaints;
+          })
+        : selectedFilter === 'resolved'
+          ? complaints.filter((c) => {
+              const s = String(c.status || '').toUpperCase();
+              return s === 'RESOLVED' || s === 'CLOSED';
+            })
+          : selectedFilter === 'reopened'
+            ? complaints.filter((c) => {
+                const s = String(c.status || '').toUpperCase();
+                return s === 'REOPENED';
+              })
+            : complaints;
 
   // =====================================================
   // TITLE
   // =====================================================
 
   const getTitle = () => {
-    if (
-      selectedFilter ===
-      'in-progress'
-    ) {
+    if (selectedFilter === 'pending') {
+      return language === 'hi' ? 'लंबित शिकायतें' : 'Pending Complaints';
+    }
+    if (selectedFilter === 'in-progress') {
       return t.inProgress;
     }
-
-    if (
-      selectedFilter ===
-      'resolved'
-    ) {
+    if (selectedFilter === 'resolved') {
       return t.resolved;
     }
-
+    if (selectedFilter === 'reopened') {
+      return language === 'hi' ? 'फिर से खोली गई शिकायतें' : 'Reopened Complaints';
+    }
     return language === 'hi'
       ? 'सभी शिकायतें'
       : 'All Complaints';
@@ -828,6 +768,17 @@ export default function ComplaintsScreen() {
                         : 'No description available')}
                   </Text>
 
+                  {/* ================= ATTACHED PHOTO ================= */}
+                  {Boolean(complaint.photo && complaint.photo !== 'null' && complaint.photo !== 'undefined' && String(complaint.photo).trim() !== '') && (
+                    <View style={styles.thumbnailWrapper}>
+                      <Image
+                        source={{ uri: String(complaint.photo).trim() }}
+                        style={styles.thumbnailImage}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  )}
+
                   {/* ================= DATE ================= */}
 
                   <View
@@ -1113,6 +1064,21 @@ const styles = StyleSheet.create({
       TYPOGRAPHY.lineBody,
     marginBottom:
       SPACING.md,
+  },
+
+  thumbnailWrapper: {
+    height: 150,
+    borderRadius: RADIUS.md,
+    overflow: 'hidden',
+    marginBottom: SPACING.md,
+    backgroundColor: '#F2F4F7',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
   },
 
   dateRow: {
