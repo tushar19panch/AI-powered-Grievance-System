@@ -28,12 +28,13 @@ public class AuthService {
 
     public LoginResponse login(LoginRequest request) {
 
-        // Find user using mobile number
+        // Find user using mobile number OR official ID (for Sarpanch / Secretary)
         User user = userRepository
                 .findByMobileNumber(request.getMobileNumber())
+                .or(() -> userRepository.findByOfficialId(request.getMobileNumber()))
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Invalid mobile number or password"
+                                "Invalid ID / Mobile number or password"
                         )
                 );
 
@@ -67,5 +68,26 @@ public class AuthService {
                 villageName,
                 wardNumber
         );
+    }
+
+    public void resetPassword(grievance_management.user.dto.ResetPasswordRequest request) {
+        String identifier = request.getIdentifier() != null ? request.getIdentifier().trim() : "";
+        if (identifier.isEmpty()) {
+            throw new RuntimeException("Mobile number or Official ID is required");
+        }
+
+        // Find user by mobile number OR official ID
+        User user = userRepository
+                .findByMobileNumber(identifier)
+                .or(() -> userRepository.findByOfficialId(identifier))
+                .orElseThrow(() -> new RuntimeException("User not found with this Mobile Number / Official ID"));
+
+        if (request.getNewPassword() == null || request.getNewPassword().trim().length() < 4) {
+            throw new RuntimeException("Password must be at least 4 characters long");
+        }
+
+        // Encode and update password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword().trim()));
+        userRepository.save(user);
     }
 }

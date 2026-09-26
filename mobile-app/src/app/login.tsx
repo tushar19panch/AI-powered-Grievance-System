@@ -81,22 +81,26 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!mobile.trim() || !password) {
+      const fieldName = selectedRole === 'CITIZEN'
+        ? (isHindi ? 'मोबाइल नंबर' : 'mobile number')
+        : (isHindi ? 'आईडी' : 'ID');
       showAlert(
         isHindi ? 'जानकारी अधूरी है' : 'Missing Information',
         isHindi
-          ? 'कृपया मोबाइल नंबर और पासवर्ड दर्ज करें।'
-          : 'Please enter your mobile number and password.'
+          ? `कृपया अपना ${fieldName} और पासवर्ड दर्ज करें।`
+          : `Please enter your ${fieldName} and password.`
       );
       return;
     }
 
-    const cleanMobile = mobile.trim();
+    const cleanIdentifier = mobile.trim();
 
-    if (!/^\d{10}$/.test(cleanMobile)) {
+    // Strict 10-digit check only for Citizens
+    if (selectedRole === 'CITIZEN' && !/^\d{10}$/.test(cleanIdentifier)) {
       showAlert(
         isHindi ? 'मोबाइल नंबर गलत है' : 'Invalid Mobile Number',
         isHindi
-          ? 'कृपया 10 अंकों का मोबाइल नंबर दर्ज करें।'
+          ? 'कृपया 10 अंकों का मान्य मोबाइल नंबर दर्ज करें।'
           : 'Please enter a valid 10-digit mobile number.'
       );
       return;
@@ -109,7 +113,7 @@ export default function LoginScreen() {
       let loginData;
       try {
         loginData = await authApi.login({
-          mobileNumber: cleanMobile,
+          mobileNumber: cleanIdentifier,
           password: password,
         });
       } catch (apiErr: any) {
@@ -122,31 +126,41 @@ export default function LoginScreen() {
 
         if (savedCitizen) {
           const c = JSON.parse(savedCitizen);
-          if (String(c.mobile || '').trim() === cleanMobile && c.password === password) {
-            loginData = { name: c.name, mobileNumber: cleanMobile, role: 'CITIZEN' as const };
+          if (String(c.mobile || '').trim() === cleanIdentifier && c.password === password) {
+            loginData = { name: c.name, mobileNumber: cleanIdentifier, role: 'CITIZEN' as const };
           }
         }
         if (!loginData && savedAdmin) {
           const a = JSON.parse(savedAdmin);
-          if (String(a.mobile || '').trim() === cleanMobile && a.password === password) {
-            loginData = { name: a.name, mobileNumber: cleanMobile, role: 'SARPANCH' as const };
+          const idMatches =
+            String(a.adminId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(a.officialId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(a.mobile || '').trim() === cleanIdentifier;
+          if (idMatches && a.password === password) {
+            loginData = { name: a.name, mobileNumber: cleanIdentifier, role: 'SARPANCH' as const };
           }
         }
         if (!loginData && savedSecretary) {
           const s = JSON.parse(savedSecretary);
-          if (String(s.mobile || '').trim() === cleanMobile && s.password === password) {
-            loginData = { name: s.name, mobileNumber: cleanMobile, role: 'SECRETARY' as const };
+          const idMatches =
+            String(s.secretaryId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(s.officialId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(s.mobile || '').trim() === cleanIdentifier;
+          if (idMatches && s.password === password) {
+            loginData = { name: s.name, mobileNumber: cleanIdentifier, role: 'SECRETARY' as const };
           }
         }
 
         if (!loginData) {
-          throw new Error(apiErr?.message || 'Login failed. Invalid mobile number or password.');
+          throw new Error(apiErr?.message || 'Login failed. Invalid ID/Mobile number or password.');
         }
       }
 
       // Determine role from backend response or current selection
       const userRole = (loginData?.role || selectedRole).toUpperCase();
       const roleStr = userRole === 'SARPANCH' ? 'sarpanch' : userRole === 'SECRETARY' ? 'secretary' : 'citizen';
+
+      const userMobileOrId = loginData?.mobileNumber || cleanIdentifier;
 
       // Save user session
       await AsyncStorage.setItem(
@@ -155,7 +169,7 @@ export default function LoginScreen() {
           isLoggedIn: true,
           role: roleStr,
           name: loginData?.name || '',
-          mobile: cleanMobile,
+          mobile: userMobileOrId,
           village: loginData?.villageName || '',
           ward: loginData?.wardNumber || '',
           token: loginData?.token || '',
@@ -169,9 +183,9 @@ export default function LoginScreen() {
           'admin',
           JSON.stringify({
             name: loginData?.name || '',
-            mobile: cleanMobile,
+            mobile: userMobileOrId,
             village: loginData?.villageName || '',
-            adminId: '',
+            adminId: cleanIdentifier,
           })
         );
         router.replace('/admin');
@@ -180,9 +194,9 @@ export default function LoginScreen() {
           'secretary',
           JSON.stringify({
             name: loginData?.name || '',
-            mobile: cleanMobile,
+            mobile: userMobileOrId,
             village: loginData?.villageName || '',
-            secretaryId: '',
+            secretaryId: cleanIdentifier,
           })
         );
         router.replace('/secretary');
@@ -191,7 +205,7 @@ export default function LoginScreen() {
           'citizen',
           JSON.stringify({
             name: loginData?.name || '',
-            mobile: cleanMobile,
+            mobile: userMobileOrId,
             village: loginData?.villageName || '',
             ward: loginData?.wardNumber || '',
             role: 'citizen',
@@ -420,15 +434,25 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* MOBILE */}
+            {/* IDENTIFIER: MOBILE NUMBER (CITIZEN) OR OFFICIAL ID / MOBILE (SARPANCH/SECRETARY) */}
             <Text style={styles.label}>
-              {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'}
+              {selectedRole === 'CITIZEN'
+                ? (isHindi ? 'मोबाइल नंबर' : 'Mobile Number')
+                : selectedRole === 'SARPANCH'
+                  ? (isHindi ? 'सरपंच आईडी या मोबाइल नंबर' : 'Sarpanch ID or Mobile Number')
+                  : (isHindi ? 'ग्राम सचिव आईडी या मोबाइल नंबर' : 'Secretary ID or Mobile Number')}
             </Text>
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconBox}>
                 <Ionicons
-                  name="call-outline"
+                  name={
+                    selectedRole === 'CITIZEN'
+                      ? 'call-outline'
+                      : selectedRole === 'SARPANCH'
+                        ? 'ribbon-outline'
+                        : 'briefcase-outline'
+                  }
                   size={20}
                   color={COLORS.navy}
                 />
@@ -437,15 +461,18 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={
-                  isHindi
-                    ? '10 अंकों का मोबाइल नंबर'
-                    : '10-digit mobile number'
+                  selectedRole === 'CITIZEN'
+                    ? (isHindi ? '10 अंकों का मोबाइल नंबर' : '10-digit mobile number')
+                    : selectedRole === 'SARPANCH'
+                      ? (isHindi ? 'सरपंच आईडी (उदा. SAR101) या मोबाइल' : 'Sarpanch ID or Mobile Number')
+                      : (isHindi ? 'सचिव आईडी (उदा. SEC201) या मोबाइल' : 'Secretary ID or Mobile Number')
                 }
                 placeholderTextColor={COLORS.textMuted}
                 value={mobile}
                 onChangeText={setMobile}
-                keyboardType="phone-pad"
-                maxLength={10}
+                keyboardType={selectedRole === 'CITIZEN' ? 'phone-pad' : 'default'}
+                maxLength={30}
+                autoCapitalize={selectedRole === 'CITIZEN' ? 'none' : 'characters'}
               />
             </View>
 
@@ -486,6 +513,18 @@ export default function LoginScreen() {
                   size={21}
                   color={COLORS.textSecondary}
                 />
+              </TouchableOpacity>
+            </View>
+
+            {/* FORGOT PASSWORD LINK */}
+            <View style={styles.forgotPasswordContainer}>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/forgot-password', params: { role: selectedRole } } as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.forgotPasswordText}>
+                  {isHindi ? '🔑 पासवर्ड भूल गए?' : '🔑 Forgot Password?'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -870,6 +909,18 @@ const styles = StyleSheet.create({
     height: 45,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+
+  forgotPasswordText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.navy,
   },
 
   infoBox: {

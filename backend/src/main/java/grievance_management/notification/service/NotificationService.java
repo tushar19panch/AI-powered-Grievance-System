@@ -45,6 +45,38 @@ public class NotificationService {
         notificationRepository.save(notification);
     }
 
+    public void notifyOfficialsOnNewComplaint(
+            Complaint complaint,
+            List<User> officials) {
+
+        String problem = complaint.getProblemType() != null ? complaint.getProblemType() : "Grievance";
+        String wardInfo = complaint.getWard() != null ? "Ward " + complaint.getWard().getWardNumber() : "Village";
+        String citizenName = complaint.getCitizen() != null ? complaint.getCitizen().getName() : "Citizen";
+
+        String message = "📢 New Complaint #" + complaint.getId() + " (" + problem + ") submitted by " + citizenName + " in " + wardInfo + ".";
+
+        for (User official : officials) {
+            if (official != null) {
+                Notification notification = Notification.builder()
+                        .user(official)
+                        .message(message)
+                        .isRead(false)
+                        .build();
+                notificationRepository.save(notification);
+            }
+        }
+    }
+
+    public void createNotification(User user, String message) {
+        if (user == null || message == null) return;
+        Notification notification = Notification.builder()
+                .user(user)
+                .message(message)
+                .isRead(false)
+                .build();
+        notificationRepository.save(notification);
+    }
+
     public List<NotificationResponse> getUserNotifications(
             Long userId) {
 

@@ -26,19 +26,22 @@ public class ComplaintService {
     private final UserRepository userRepository;
     private final VillageRepository villageRepository;
     private final WardRepository wardRepository;
+    private final grievance_management.notification.service.NotificationService notificationService;
 
     public ComplaintService(
             ComplaintRepository complaintRepository,
             StatusHistoryRepository statusHistoryRepository,
             UserRepository userRepository,
             VillageRepository villageRepository,
-            WardRepository wardRepository) {
+            WardRepository wardRepository,
+            grievance_management.notification.service.NotificationService notificationService) {
 
         this.complaintRepository = complaintRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.userRepository = userRepository;
         this.villageRepository = villageRepository;
         this.wardRepository = wardRepository;
+        this.notificationService = notificationService;
     }
 
     // =========================================================
@@ -150,6 +153,22 @@ public class ComplaintService {
                 .build();
 
         statusHistoryRepository.save(history);
+
+        // ---------------------------------------------------------
+        // Notify Sarpanch and Secretary of the village
+        // ---------------------------------------------------------
+        try {
+            List<User> officials = userRepository.findAll().stream()
+                    .filter(u -> (u.getRole() == grievance_management.user.entity.Role.SARPANCH ||
+                            u.getRole() == grievance_management.user.entity.Role.SECRETARY)
+                            && (u.getVillage() == null || citizen.getVillage() == null ||
+                            u.getVillage().getId().equals(citizen.getVillage().getId())))
+                    .toList();
+
+            notificationService.notifyOfficialsOnNewComplaint(savedComplaint, officials);
+        } catch (Exception e) {
+            System.err.println("Failed to send official notifications: " + e.getMessage());
+        }
 
         return convertToResponse(savedComplaint);
     }

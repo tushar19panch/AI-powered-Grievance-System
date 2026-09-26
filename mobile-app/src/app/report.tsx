@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import {
@@ -37,10 +38,26 @@ import {
   TYPOGRAPHY,
 } from '../theme';
 
+const CATEGORY_NAMES: Record<string, { hi: string; en: string }> = {
+  water: { hi: '💧 पानी की समस्या', en: '💧 Water Supply Issue' },
+  electricity: { hi: '💡 स्ट्रीट लाइट / बिजली', en: '💡 Street Light & Power' },
+  road: { hi: '🛣️ सड़क व नाली मरम्मत', en: '🛣️ Road & Drainage' },
+  cleanliness: { hi: '🧹 सफाई व कचरा प्रबंधन', en: '🧹 Sanitation & Waste' },
+  school: { hi: '🏫 स्कूल व आंगनवाड़ी', en: '🏫 School & Anganwadi' },
+  health: { hi: '🏥 स्वास्थ्य व चिकित्सा', en: '🏥 Health & Clinic' },
+  other: { hi: '📝 अन्य समस्या', en: '📝 Other Problem' },
+};
+
 export default function ReportScreen() {
   const { language, setLanguage } = useLanguage();
+  const params = useLocalSearchParams<{ initialCategory?: string }>();
+  const isHindi = language === 'hi';
 
-  const [description, setDescription] = useState('');
+  const defaultDesc = params.initialCategory && CATEGORY_NAMES[params.initialCategory]
+    ? `[${isHindi ? CATEGORY_NAMES[params.initialCategory].hi : CATEGORY_NAMES[params.initialCategory].en}]: `
+    : '';
+
+  const [description, setDescription] = useState(defaultDesc);
   const [location, setLocation] = useState<string | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [complaintId, setComplaintId] = useState<string | null>(null);
@@ -49,6 +66,8 @@ export default function ReportScreen() {
   const [ward, setWard] = useState('');
   const [problemWard, setProblemWard] = useState('');
   const [differentWard, setDifferentWard] = useState(false);
+  const [citizenId, setCitizenId] = useState<number | undefined>(undefined);
+  const [villageId, setVillageId] = useState<number | undefined>(undefined);
 
   const audioRecorder = useAudioRecorder({
     ...RecordingPresets.HIGH_QUALITY,
@@ -57,8 +76,6 @@ export default function ReportScreen() {
   const recorderState = useAudioRecorderState(audioRecorder);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const audioPlayer = useAudioPlayer(audioUri);
-
-  const isHindi = language === 'hi';
 
   const wardOptions = Array.from(
     { length: 20 },
@@ -84,6 +101,8 @@ export default function ReportScreen() {
           setUserName(user.name || '');
           setWard(user.ward || '');
           setProblemWard(user.ward || '');
+          if (user.id) setCitizenId(Number(user.id));
+          if (user.villageId) setVillageId(Number(user.villageId));
         }
       } catch (error) {
         console.log('Unable to load user:', error);
@@ -92,6 +111,8 @@ export default function ReportScreen() {
 
     loadUser();
   }, []);
+
+
 
   // ==========================================
   // IMAGE CONVERSION HELPER
@@ -488,6 +509,7 @@ export default function ReportScreen() {
             </Text>
           </View>
         </View>
+
 
         {/* CITIZEN */}
         {userName ? (
@@ -1196,6 +1218,7 @@ export default function ReportScreen() {
 }
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

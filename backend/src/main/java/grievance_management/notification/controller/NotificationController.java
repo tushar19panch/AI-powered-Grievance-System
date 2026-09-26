@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/citizen/notifications")
+@RequestMapping({"/api/notifications", "/api/citizen/notifications", "/api/sarpanch/notifications", "/api/secretary/notifications"})
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -30,19 +30,20 @@ public class NotificationController {
     public ResponseEntity<List<NotificationResponse>>
     getNotifications(Authentication authentication) {
 
-        String mobileNumber = authentication.getName();
+        String identifier = authentication.getName();
 
-        User citizen = userRepository
-                .findByMobileNumber(mobileNumber)
+        User user = userRepository
+                .findByMobileNumber(identifier)
+                .or(() -> userRepository.findByOfficialId(identifier))
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Citizen not found"
+                                "User not found"
                         )
                 );
 
         List<NotificationResponse> notifications =
                 notificationService
-                        .getUserNotifications(citizen.getId());
+                        .getUserNotifications(user.getId());
 
         return ResponseEntity.ok(notifications);
     }
@@ -52,19 +53,20 @@ public class NotificationController {
             @PathVariable Long notificationId,
             Authentication authentication) {
 
-        String mobileNumber = authentication.getName();
+        String identifier = authentication.getName();
 
-        User citizen = userRepository
-                .findByMobileNumber(mobileNumber)
+        User user = userRepository
+                .findByMobileNumber(identifier)
+                .or(() -> userRepository.findByOfficialId(identifier))
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Citizen not found"
+                                "User not found"
                         )
                 );
 
         notificationService.markAsRead(
                 notificationId,
-                citizen.getId()
+                user.getId()
         );
 
         return ResponseEntity.ok(

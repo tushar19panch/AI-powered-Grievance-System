@@ -27,4 +27,16 @@ public class AuthController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(
+            @Valid @RequestBody grievance_management.user.dto.ResetPasswordRequest request) {
+
+        authService.resetPassword(request);
+
+        return ResponseEntity.ok(java.util.Map.of(
+                "success", true,
+                "message", "Password reset successfully"
+        ));
+    }
 }

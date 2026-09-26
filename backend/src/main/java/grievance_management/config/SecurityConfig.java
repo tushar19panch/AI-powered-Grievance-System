@@ -95,9 +95,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/sarpanch/**")
                         .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
-                        // Secretary APIs
-                        .requestMatchers("/api/secretary/**")
-                        .hasAnyRole("SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
+                        // Notifications for all authenticated users
+                        .requestMatchers("/api/notifications/**")
+                        .authenticated()
 
                         // Everything else requires authentication
                         .anyRequest().authenticated()

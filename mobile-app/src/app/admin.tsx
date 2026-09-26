@@ -1,14 +1,16 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
+  Easing,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -26,6 +28,18 @@ import {
 
 import { complaintApi } from '../services/api';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
+import { DashboardBottomBar } from '../components/DashboardBottomBar';
+import { VillageInfoModal } from '../components/VillageInfoModal';
+
+const INDIA = {
+  saffron: '#FF9933',
+  white: '#FFFFFF',
+  green: '#138808',
+  navy: '#000080',
+  lightGreen: '#EAF6EA',
+};
 
 type Complaint = {
   complaintId: string;
@@ -37,6 +51,7 @@ type Admin = {
   mobile: string;
   village: string;
   adminId: string;
+  role?: string;
   profileImage?: string | null;
 };
 
@@ -47,16 +62,40 @@ export default function AdminScreen() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [villageInfoVisible, setVillageInfoVisible] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(25)).current;
 
   const isHindi = language === 'hi';
 
+  // Animation trigger on mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
   const loadData = async () => {
     try {
-      // Load admin
+      // Load admin details
       const adminData = await AsyncStorage.getItem('admin');
       const sessionData = await AsyncStorage.getItem('user_session');
       const session = sessionData ? JSON.parse(sessionData) : null;
       let parsedAdmin = adminData ? JSON.parse(adminData) : session;
+
       if (parsedAdmin) {
         const photo = parsedAdmin.mobile
           ? await AsyncStorage.getItem(`profile_image_${parsedAdmin.mobile}`)
@@ -65,11 +104,10 @@ export default function AdminScreen() {
         setAdmin(parsedAdmin);
       }
 
-      // Load complaints directly from Backend Spring Boot Database API
+      // Load live complaints directly from Backend Database API
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
         if (Array.isArray(apiComplaints)) {
-          // Filter by village if specified on the logged-in admin (unless SUPER_ADMIN)
           const filtered = parsedAdmin?.village && parsedAdmin?.role !== 'SUPER_ADMIN'
             ? apiComplaints.filter((c: any) => !c.villageName || c.villageName === parsedAdmin.village)
             : apiComplaints;
@@ -107,18 +145,15 @@ export default function AdminScreen() {
   // Statistics
   const total = complaints.length;
 
-  const pending = complaints.filter((item) => {
-    const st = String(item.status || '').toUpperCase();
-    return st === 'SUBMITTED' || st === 'UNDER REVIEW' || st === 'UNDER_REVIEW';
-  }).length;
-
   const inProgress = complaints.filter((item) => {
     const st = String(item.status || '').toUpperCase();
     return (
       st === 'ACTION TAKEN' ||
       st === 'ACTION_TAKEN' ||
       st === 'IN PROGRESS' ||
-      st === 'IN_PROGRESS'
+      st === 'IN_PROGRESS' ||
+      st === 'UNDER REVIEW' ||
+      st === 'UNDER_REVIEW'
     );
   }).length;
 
@@ -135,64 +170,58 @@ export default function AdminScreen() {
     router.push('/admin-profile');
   };
 
-  const openComplaints = () => {
-    router.push('/complaints');
+  const openComplaints = (filter?: string) => {
+    router.push({
+      pathname: '/(tabs)/complaints',
+      params: filter ? { filter } : {},
+    });
   };
 
-  const openAuditReport = () => {
-    router.push('/audit-report');
+  const openNotifications = () => {
+    router.push('/notifications');
   };
 
-  const logout = async () => {
-    const doLogout = async () => {
-      try {
-        await AsyncStorage.removeItem('admin');
-        await AsyncStorage.removeItem('user_session');
-        await AsyncStorage.removeItem('@village_jwt_token');
-        await AsyncStorage.removeItem('@village_user_session');
-        await AsyncStorage.removeItem('token');
-        router.replace('/(tabs)');
-      } catch (error) {
-        console.log('Logout error:', error);
-        router.replace('/(tabs)');
-      }
-    };
-
-    if (Platform.OS === 'web') {
-      const confirmLogout = typeof window !== 'undefined'
-        ? window.confirm(
-          isHindi
-            ? 'क्या आप लॉग आउट करना चाहते हैं?'
-            : 'Are you sure you want to logout?'
-        )
-        : true;
-      if (confirmLogout) {
-        await doLogout();
-      }
-      return;
-    }
-
-    Alert.alert(
-      isHindi ? 'लॉग आउट' : 'Logout',
-      isHindi
-        ? 'क्या आप लॉग आउट करना चाहते हैं?'
-        : 'Are you sure you want to logout?',
-      [
-        {
-          text: isHindi ? 'रद्द करें' : 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: isHindi ? 'लॉग आउट' : 'Logout',
-          style: 'destructive',
-          onPress: doLogout,
-        },
-      ]
-    );
+  const openHelpLine = () => {
+    router.push('/help-line');
   };
+
+  // Quick Action Tile Component (matching Citizen Category Tile style)
+  const ActionCard = ({
+    icon,
+    label,
+    onPress,
+    backgroundColor,
+    iconColor,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    onPress: () => void;
+    backgroundColor: string;
+    iconColor: string;
+  }) => (
+    <TouchableOpacity
+      style={styles.categoryCard}
+      onPress={onPress}
+      activeOpacity={0.82}
+    >
+      <View
+        style={[
+          styles.categoryIcon,
+          {
+            backgroundColor,
+          },
+        ]}
+      >
+        <Ionicons name={icon} size={27} color={iconColor} />
+      </View>
+      <Text style={styles.categoryText} numberOfLines={2}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -204,20 +233,45 @@ export default function AdminScreen() {
           />
         }
       >
-        {/* TOP BAR / ACTIONS */}
-        <View style={styles.topBar}>
-          <View style={styles.headLabel}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={13}
-              color={COLORS.accent}
-            />
-            <Text style={styles.headLabelText}>
-              HEAD • SARPANCH / ADMIN
+        {/* =================================================
+            TRICOLOR TOP BAR
+        ================================================= */}
+        <View style={styles.tricolorBar}>
+          <View style={styles.saffronStripe} />
+          <View style={styles.whiteStripe} />
+          <View style={styles.greenStripe} />
+        </View>
+
+        {/* =================================================
+            HEADER
+        ================================================= */}
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.headerLeft}>
+            <View style={styles.logoRow}>
+              <View style={styles.logoIcon}>
+                <Ionicons
+                  name="home-outline"
+                  size={21}
+                  color={COLORS.white}
+                />
+              </View>
+              <Text style={styles.appTitle}>VillageApp</Text>
+            </View>
+            <Text style={styles.headerSubtitle}>
+              {isHindi ? 'सरपंच / एडमिन डैशबोर्ड' : 'Sarpanch Dashboard'}
             </Text>
           </View>
 
-          <View style={styles.topActions}>
+          <View style={styles.headerActions}>
+            {/* LANGUAGE TOGGLE */}
             <TouchableOpacity
               style={styles.languageButton}
               onPress={toggleLanguage}
@@ -229,799 +283,556 @@ export default function AdminScreen() {
                 color={COLORS.primary}
               />
               <Text style={styles.languageText}>
-                {isHindi ? 'English' : 'हिंदी'}
+                {isHindi ? 'EN' : 'हि'}
               </Text>
             </TouchableOpacity>
 
+            {/* PROFILE PHOTO */}
             <TouchableOpacity
-              style={styles.headerProfile}
+              style={styles.headerProfileButton}
               onPress={openProfile}
               activeOpacity={0.8}
             >
               {admin?.profileImage ? (
                 <Image
                   source={{ uri: admin.profileImage }}
-                  style={styles.headerProfileImage}
+                  style={[styles.profileImage, { width: 40, height: 40, borderRadius: 20 }]}
                 />
               ) : (
-                <Ionicons
-                  name="person-outline"
-                  size={20}
-                  color={COLORS.primary}
-                />
+                <View style={[styles.profilePlaceholder, { width: 40, height: 40, borderRadius: 20 }]}>
+                  <Ionicons
+                    name="person-outline"
+                    size={19}
+                    color={COLORS.primary}
+                  />
+                </View>
               )}
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* HEADER TITLE */}
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.title}>
-            {isHindi
-              ? 'एडमिन डैशबोर्ड'
-              : 'Admin Dashboard'}
-          </Text>
-
-          <Text style={styles.subtitle}>
-            {isHindi
-              ? 'गांव की शिकायतों और समस्याओं का प्रबंधन'
-              : 'Manage village complaints and problems'}
-          </Text>
-        </View>
-
-        {/* ADMIN PROFILE CARD */}
-        <TouchableOpacity
-          style={styles.adminCard}
-          onPress={openProfile}
-          activeOpacity={0.85}
-        >
-          <View style={styles.adminTop}>
-            <View style={styles.avatar}>
-              {admin?.profileImage ? (
-                <Image
-                  source={{ uri: admin.profileImage }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <Ionicons
-                  name="person-outline"
-                  size={24}
-                  color={COLORS.primary}
-                />
-              )}
-            </View>
-
-            <View style={styles.adminInfo}>
-              <Text style={styles.welcomeText}>
-                {isHindi ? 'स्वागत है' : 'Welcome'}
-              </Text>
-
-              <Text style={styles.adminName}>
-                {admin?.name ||
-                  (isHindi
-                    ? 'सरपंच / एडमिन'
-                    : 'Sarpanch / Admin')}
-              </Text>
-
-              <View style={styles.roleRow}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={13}
-                  color={COLORS.accent}
-                />
-
-                <Text style={styles.roleText}>
-                  {isHindi
-                    ? 'सरपंच / एडमिन'
-                    : 'Sarpanch / Admin'}
-                </Text>
-              </View>
-            </View>
-
-            <Ionicons
-              name="chevron-forward-outline"
-              size={20}
-              color={COLORS.textMuted}
-            />
-          </View>
-        </TouchableOpacity>
-
-        {/* COMPLAINT OVERVIEW */}
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
-              {isHindi
-                ? 'शिकायतों का अवलोकन'
-                : 'Complaint Overview'}
-            </Text>
-
-            <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'वर्तमान शिकायत स्थिति'
-                : 'Current complaint status'}
-            </Text>
-          </View>
-
-          <View style={styles.totalBadge}>
-            <Ionicons
-              name="documents-outline"
-              size={15}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.totalBadgeText}>
-              {total}
-            </Text>
-          </View>
-        </View>
-
-        {/* STATISTICS (CLICKABLE FILTERS) */}
-        <View style={styles.statsGrid}>
-          {/* Total */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'all' } })}
-            activeOpacity={0.75}
-          >
-            <View style={styles.statIconBox}>
-              <Ionicons
-                name="documents-outline"
-                size={23}
-                color={COLORS.primary}
-              />
-            </View>
-
-            <Text style={styles.statNumber}>
-              {total}
-            </Text>
-
-            <Text style={styles.statLabel}>
-              {t.total}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Pending */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'pending' } })}
-            activeOpacity={0.75}
-          >
-            <View
-              style={[
-                styles.statIconBox,
-                styles.pendingIconBox,
-              ]}
-            >
-              <Ionicons
-                name="time-outline"
-                size={23}
-                color={COLORS.warning}
-              />
-            </View>
-
-            <Text style={styles.statNumber}>
-              {pending}
-            </Text>
-
-            <Text style={styles.statLabel}>
-              {isHindi ? 'लंबित' : 'Pending'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* In Progress */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'in-progress' } })}
-            activeOpacity={0.75}
-          >
-            <View
-              style={[
-                styles.statIconBox,
-                styles.progressIconBox,
-              ]}
-            >
-              <Ionicons
-                name="sync-outline"
-                size={23}
-                color={COLORS.info}
-              />
-            </View>
-
-            <Text style={styles.statNumber}>
-              {inProgress}
-            </Text>
-
-            <Text style={styles.statLabel}>
-              {t.inProgress}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Resolved */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'resolved' } })}
-            activeOpacity={0.75}
-          >
-            <View
-              style={[
-                styles.statIconBox,
-                styles.resolvedIconBox,
-              ]}
-            >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={23}
-                color={COLORS.indiaGreen}
-              />
-            </View>
-
-            <Text style={styles.statNumber}>
-              {resolved}
-            </Text>
-
-            <Text style={styles.statLabel}>
-              {t.resolved}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* VIEW ALL COMPLAINTS */}
-        <TouchableOpacity
-          style={styles.complaintsButton}
-          onPress={openComplaints}
-          activeOpacity={0.85}
-        >
-          <View style={styles.complaintsIconBox}>
-            <Ionicons
-              name="list-outline"
-              size={24}
-              color={COLORS.primary}
-            />
-          </View>
-
-          <View style={styles.complaintsButtonText}>
-            <Text style={styles.complaintsButtonTitle}>
-              {isHindi
-                ? 'सभी शिकायतें देखें'
-                : 'View All Complaints'}
-            </Text>
-
-            <Text style={styles.complaintsButtonSubtitle}>
-              {isHindi
-                ? 'सभी शिकायतों की पूरी सूची देखें'
-                : 'View the complete complaint list'}
-            </Text>
-          </View>
-
-          <View style={styles.arrowBox}>
-            <Ionicons
-              name="arrow-forward-outline"
-              size={19}
-              color={COLORS.primary}
-            />
-          </View>
-        </TouchableOpacity>
-
-        {/* PDF AUDIT REPORT */}
-        <TouchableOpacity
-          style={styles.auditButton}
-          onPress={openAuditReport}
-          activeOpacity={0.85}
-        >
-          <View style={styles.auditIconBox}>
-            <Ionicons
-              name="document-text-outline"
-              size={24}
-              color={COLORS.primary}
-            />
-          </View>
-
-          <View style={styles.auditButtonText}>
-            <Text style={styles.auditButtonTitle}>
-              {isHindi
-                ? 'PDF ऑडिट रिपोर्ट'
-                : 'PDF Audit Report'}
-            </Text>
-
-            <Text style={styles.auditButtonSubtitle}>
-              {isHindi
-                ? 'शिकायतों की ऑडिट रिपोर्ट बनाएं'
-                : 'Generate complaint audit report'}
-            </Text>
-          </View>
-
-          <View style={styles.auditArrowBox}>
-            <Ionicons
-              name="arrow-forward-outline"
-              size={19}
-              color={COLORS.primary}
-            />
-          </View>
-        </TouchableOpacity>
+        </Animated.View>
 
         {/* OFFLINE SYNC BANNER */}
         <OfflineSyncBanner isHindi={isHindi} onSyncComplete={loadData} />
 
-        {/* WARD DEVELOPMENT SCORECARD */}
-        <TouchableOpacity
-          style={styles.scorecardButton}
-          onPress={() => router.push('/ward-scorecard' as any)}
-          activeOpacity={0.85}
+        {/* =================================================
+            WELCOME / GRAM PANCHAYAT SHOWCASE BANNER
+        ================================================= */}
+        <Animated.View
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          }}
         >
-          <View style={styles.scorecardIconBox}>
+          <PanchayatShowcaseCard
+            userName={admin?.name || (isHindi ? 'सरपंच जी' : 'Sarpanch')}
+            villageName={admin?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+            isHindi={isHindi}
+          />
+        </Animated.View>
+
+        {/* =================================================
+            COMPLAINT OVERVIEW / STATS
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {isHindi ? 'गाँव की शिकायतों की वर्तमान स्थिति' : 'Current village complaint status'}
+            </Text>
+          </View>
+
+          <View style={styles.sectionIcon}>
             <Ionicons
-              name="stats-chart"
-              size={24}
+              name="stats-chart-outline"
+              size={21}
               color={COLORS.primary}
             />
           </View>
+        </View>
 
-          <View style={styles.auditButtonText}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.auditButtonTitle}>
-                {isHindi
-                  ? '📊 वार्ड विकास स्कोरकार्ड'
-                  : '📊 Ward Performance Scorecard'}
-              </Text>
-              <View style={styles.newBadge}>
-                <Text style={styles.newBadgeText}>LIVE</Text>
-              </View>
+        {/* 3 STAT CARDS MATCHING CITIZEN */}
+        <View style={styles.statsRow}>
+          {/* TOTAL */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('all')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={COLORS.primary}
+              />
             </View>
+            <Text style={styles.statNumber}>{total}</Text>
+            <Text style={styles.statLabel}>{t.total}</Text>
+          </TouchableOpacity>
 
-            <Text style={styles.auditButtonSubtitle}>
-              {isHindi
-                ? 'सभी 10+ वार्डों की रैंकिंग, A+/A/B/C ग्रेड एवं समाधान दर देखें'
-                : 'View ward rankings, grades (A+/A/B/C) & resolution rates'}
+          {/* IN PROGRESS */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('in-progress')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={COLORS.warning}
+              />
+            </View>
+            <Text style={styles.statNumber}>{inProgress}</Text>
+            <Text style={styles.statLabel}>{t.inProgress}</Text>
+          </TouchableOpacity>
+
+          {/* RESOLVED */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('resolved')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={20}
+                color={COLORS.success}
+              />
+            </View>
+            <Text style={styles.statNumber}>{resolved}</Text>
+            <Text style={styles.statLabel}>{t.resolved}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* =================================================
+            PANCHAYAT MANAGEMENT & SERVICES GRID
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'पंचायत प्रबंधन व सेवाएं' : 'Panchayat Services & Controls'}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {isHindi ? 'शिकायतें, रिपोर्ट्स, वार्ड स्कोरकार्ड व सहायता' : 'Complaints, reports, ward scorecard & help'}
             </Text>
           </View>
 
-          <View style={styles.auditArrowBox}>
+          <View style={styles.aiBadge}>
             <Ionicons
-              name="arrow-forward-outline"
-              size={19}
+              name="shield-checkmark-outline"
+              size={14}
               color={COLORS.primary}
             />
-          </View>
-        </TouchableOpacity>
-
-        {/* ADMIN RESPONSIBILITY */}
-        <View style={styles.infoBox}>
-          <View style={styles.infoIconBox}>
-            <Ionicons
-              name="information-circle-outline"
-              size={23}
-              color={COLORS.primary}
-            />
-          </View>
-
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>
-              {isHindi
-                ? 'एडमिन की जिम्मेदारी'
-                : 'Admin Responsibility'}
-            </Text>
-
-            <Text style={styles.infoText}>
-              {isHindi
-                ? 'शिकायतों की समीक्षा करें, कार्रवाई की निगरानी करें और समस्या का समाधान सुनिश्चित करें।'
-                : 'Review complaints, monitor actions and ensure problems are resolved.'}
+            <Text style={styles.aiText}>
+              {isHindi ? 'सरपंच पोर्टल' : 'ADMIN PORTAL'}
             </Text>
           </View>
         </View>
 
-        {/* FOOTER */}
-        <View style={styles.footer}>
-          <Ionicons
-            name="shield-checkmark-outline"
-            size={15}
-            color={COLORS.textMuted}
-          />
+        <View style={styles.problemCard}>
+          <View style={styles.categoryGrid}>
+            <ActionCard
+              icon="list-outline"
+              label={isHindi ? 'शिकायतें प्रबंधित' : 'Manage List'}
+              onPress={() => openComplaints('all')}
+              backgroundColor={COLORS.primaryLight}
+              iconColor={COLORS.primary}
+            />
 
-          <Text style={styles.footerText}>
-            VillageApp •{' '}
-            {isHindi
-              ? 'बेहतर ग्राम व्यवस्था'
-              : 'Better Village Governance'}
-          </Text>
+            <ActionCard
+              icon="document-text-outline"
+              label={isHindi ? 'PDF ऑडिट रिपोर्ट' : 'Audit Report'}
+              onPress={() => router.push('/audit-report' as any)}
+              backgroundColor={COLORS.successLight}
+              iconColor={COLORS.success}
+            />
+
+            <ActionCard
+              icon="stats-chart-outline"
+              label={isHindi ? 'वार्ड स्कोरकार्ड' : 'Ward Scorecard'}
+              onPress={() => router.push('/ward-scorecard' as any)}
+              backgroundColor={COLORS.accentLight}
+              iconColor={COLORS.saffron}
+            />
+
+            <ActionCard
+              icon="call-outline"
+              label={isHindi ? 'हेल्पलाइन संपर्क' : 'Helplines'}
+              onPress={openHelpLine}
+              backgroundColor={COLORS.infoLight}
+              iconColor={COLORS.info}
+            />
+
+            <ActionCard
+              icon="business-outline"
+              label={isHindi ? 'ग्राम परिचय' : 'Village Info'}
+              onPress={() => setVillageInfoVisible(true)}
+              backgroundColor="#F3E8FF"
+              iconColor="#9333EA"
+            />
+          </View>
         </View>
       </ScrollView>
+
+      {/* UNIVERSAL BOTTOM NAVIGATION BAR */}
+      <DashboardBottomBar activeTab="home" role="sarpanch" isHindi={isHindi} />
+
+      {/* VILLAGE INFO MODAL */}
+      <VillageInfoModal
+        visible={villageInfoVisible}
+        onClose={() => setVillageInfoVisible(false)}
+        villageName={admin?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+        isHindi={isHindi}
+      />
+
+      {/* FULL ENLARGED PHOTO PREVIEW MODAL */}
+      <PhotoPreviewModal
+        visible={previewVisible}
+        imageUri={admin?.profileImage}
+        userName={admin?.name || (isHindi ? 'सरपंच जी' : 'Sarpanch')}
+        userRole={isHindi ? `सरपंच • ${admin?.village || 'ग्राम पंचायत'}` : `Sarpanch • ${admin?.village || 'Gram Panchayat'}`}
+        onClose={() => setPreviewVisible(false)}
+        onChangePhoto={() => {
+          setPreviewVisible(false);
+          openProfile();
+        }}
+        isHindi={isHindi}
+      />
     </SafeAreaView>
   );
 }
 
+// =====================================================
+// STYLES (MATCHING CITIZEN DASHBOARD)
+// =====================================================
+
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
 
   content: {
-    paddingHorizontal: SPACING.screen,
-    paddingTop: SPACING.sm,
+    paddingHorizontal: SPACING.normal,
     paddingBottom: 35,
   },
 
-  /* TOP BAR & ACTIONS */
+  // TRICOLOR BAR
+  tricolorBar: {
+    flexDirection: 'row',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  saffronStripe: {
+    flex: 1,
+    backgroundColor: '#FF9933',
+  },
+  whiteStripe: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  greenStripe: {
+    flex: 1,
+    backgroundColor: '#138808',
+  },
 
-  topBar: {
+  // HEADER
+  header: {
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
-    paddingTop: 2,
+    paddingVertical: 10,
   },
 
-  headLabel: {
+  headerLeft: {
+    flex: 1,
+  },
+
+  logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  headLabelText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.black,
-    color: COLORS.accent,
-    letterSpacing: 0.6,
-    marginLeft: 4,
+  logoIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: INDIA.saffron,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
   },
 
-  topActions: {
+  appTitle: {
+    fontSize: TYPOGRAPHY.subtitle,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.textPrimary,
+  },
+
+  headerSubtitle: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    marginLeft: 47,
+  },
+
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-  },
-
-  headerTextContainer: {
-    marginBottom: SPACING.md,
-    marginTop: 4,
-  },
-
-  title: {
-    fontSize: TYPOGRAPHY.largeHeading,
-    lineHeight: TYPOGRAPHY.lineHeading,
-    fontWeight: TYPOGRAPHY.black,
-    color: COLORS.navy,
-  },
-
-  subtitle: {
-    fontSize: TYPOGRAPHY.small,
-    lineHeight: TYPOGRAPHY.lineSmall + 2,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-
-  headerProfile: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-
-  headerProfileImage: {
-    width: 36,
-    height: 36,
   },
 
   languageButton: {
-    height: 34,
+    height: 38,
     paddingHorizontal: 10,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-
-  languageText: {
-    color: COLORS.primary,
-    fontSize: TYPOGRAPHY.xs + 1,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-
-  /* ADMIN CARD */
-
-  adminCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: 13,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.md,
-    ...SHADOWS.small,
-  },
-
-  adminTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     backgroundColor: COLORS.primaryLight,
-    borderWidth: 1.5,
-    borderColor: COLORS.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-
-  avatarImage: {
-    width: 48,
-    height: 48,
-  },
-
-  adminInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  welcomeText: {
-    fontSize: TYPOGRAPHY.xs + 1,
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.mediumWeight,
-  },
-
-  adminName: {
-    fontSize: TYPOGRAPHY.subtitle,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.black,
-    marginTop: 1,
-  },
-
-  roleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 3,
-  },
-
-  roleText: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.accent,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-
-  villageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.successLight,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    marginTop: 9,
-  },
-
-  villageText: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.bold,
-    marginLeft: 5,
-  },
-
-  profileLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-    marginTop: 15,
-    paddingTop: 13,
-  },
-
-  profileLinkLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-
-  profileLinkText: {
-    fontSize: TYPOGRAPHY.bodySmall,
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-
-  /* SECTION */
-
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
-  },
-
-  sectionTitle: {
-    fontSize: TYPOGRAPHY.subtitle + 1,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.black,
-  },
-
-  sectionSubtitle: {
-    fontSize: TYPOGRAPHY.xs + 1,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-
-  totalBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: RADIUS.md,
   },
 
-  totalBadgeText: {
+  languageText: {
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.bold,
     color: COLORS.primary,
-    fontSize: TYPOGRAPHY.bodySmall,
-    fontWeight: TYPOGRAPHY.black,
   },
 
-  /* STATS */
-
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
-  },
-
-  statCard: {
-    width: '48.3%',
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: 15,
-    marginBottom: 11,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...SHADOWS.small,
   },
 
-  statIconBox: {
+  headerProfileButton: {
     width: 42,
     height: 42,
-    borderRadius: RADIUS.md,
+    borderRadius: 21,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: INDIA.saffron,
+  },
+
+  notificationBadge: {
+    position: 'absolute',
+    right: 4,
+    top: 3,
+    minWidth: 15,
+    height: 15,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  badgeText: {
+    color: COLORS.white,
+    fontSize: 9,
+    fontWeight: TYPOGRAPHY.extraBold,
+  },
+
+  profileImage: {
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+
+  profilePlaceholder: {
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  avatarTouchable: {
+    position: 'relative',
+  },
+
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: INDIA.saffron,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    ...SHADOWS.small,
+  },
+
+  // WELCOME
+  welcomeCard: {
+    backgroundColor: COLORS.card,
+    borderTopWidth: 4,
+    borderTopColor: INDIA.saffron,
+    borderRadius: RADIUS.xl,
+    padding: 17,
+    marginTop: 7,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.small,
+  },
+
+  welcomeMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  welcomeTextArea: {
+    flex: 1,
+    marginLeft: 13,
+  },
+
+  welcomeSmall: {
+    fontSize: 21,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.textPrimary,
+  },
+
+  welcomeDescription: {
+    marginTop: 4,
+    fontSize: TYPOGRAPHY.medium,
+    lineHeight: 21,
+    color: COLORS.textSecondary,
+  },
+
+  welcomeTagline: {
+    marginTop: 8,
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.semiBold,
+    color: INDIA.green,
+  },
+
+  welcomeMainCompact: {
+    padding: 16,
+  },
+  welcomeGreetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconEmblem: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeFooterCompact: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  welcomeFooter: {
+    marginTop: 15,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.success,
+    marginRight: 7,
+  },
+
+  welcomeFooterText: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    fontWeight: TYPOGRAPHY.semiBold,
+  },
+
+  // SECTIONS
+  sectionHeader: {
+    marginTop: SPACING.section,
+    marginBottom: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.subtitle,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.textPrimary,
+  },
+
+  sectionSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+  },
+
+  sectionIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 12,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 9,
   },
 
-  pendingIconBox: {
-    backgroundColor: COLORS.warningLight,
+  // STATS
+  statsRow: {
+    flexDirection: 'row',
+    gap: 9,
   },
 
-  progressIconBox: {
-    backgroundColor: COLORS.infoLight,
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.xl,
+    padding: 13,
+    alignItems: 'center',
+    ...SHADOWS.small,
   },
 
-  resolvedIconBox: {
-    backgroundColor: COLORS.successLight,
+  statIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
   },
 
   statNumber: {
-    fontSize: TYPOGRAPHY.heading,
-    lineHeight: TYPOGRAPHY.lineHeading,
-    fontWeight: TYPOGRAPHY.black,
+    fontSize: 24,
+    fontWeight: TYPOGRAPHY.extraBold,
     color: COLORS.textPrimary,
   },
 
   statLabel: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.mediumWeight,
     marginTop: 2,
-  },
-
-  /* VIEW ALL COMPLAINTS */
-
-  complaintsButton: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 17,
-    ...SHADOWS.small,
-  },
-
-  complaintsIconBox: {
-    width: 47,
-    height: 47,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  complaintsButtonText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  complaintsButtonTitle: {
-    fontSize: TYPOGRAPHY.body,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.black,
-  },
-
-  complaintsButtonSubtitle: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.semiBold,
     color: COLORS.textMuted,
-    marginTop: 3,
+    textAlign: 'center',
   },
 
-  arrowBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  /* PDF AUDIT REPORT */
-
-  auditButton: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 17,
-    ...SHADOWS.small,
-  },
-
-  auditIconBox: {
-    width: 47,
-    height: 47,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  auditButtonText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  auditButtonTitle: {
-    fontSize: TYPOGRAPHY.body,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.black,
-  },
-
-  auditButtonSubtitle: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
-    marginTop: 3,
-  },
-
-  auditArrowBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  /* WARD SCORECARD */
-
-  scorecardButton: {
+  // WARD SCORECARD BANNER
+  wardScorecardBanner: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
     borderWidth: 1.5,
@@ -1029,79 +840,165 @@ const styles = StyleSheet.create({
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 17,
+    marginTop: 18,
     ...SHADOWS.small,
   },
 
-  scorecardIconBox: {
-    width: 47,
-    height: 47,
+  wardScorecardIcon: {
+    width: 44,
+    height: 44,
     borderRadius: RADIUS.md,
-    backgroundColor: '#EDF7F2',
+    backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
 
-  newBadge: {
+  wardScorecardContent: {
+    flex: 1,
+  },
+
+  wardScorecardTitle: {
+    fontSize: TYPOGRAPHY.medium,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+
+  liveTag: {
     backgroundColor: '#23845F',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
 
-  newBadgeText: {
+  liveTagText: {
     color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '900',
   },
 
-  /* INFO */
+  wardScorecardSubtitle: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    lineHeight: 16,
+  },
 
-  infoBox: {
+  // ADMINISTRATIVE ACTIONS GRID
+  aiBadge: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+
+  aiText: {
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.primary,
+  },
+
+  problemCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.xl,
+    padding: 12,
+    ...SHADOWS.small,
+  },
+
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+  },
+
+  categoryCard: {
+    width: '48.5%',
+    minHeight: 106,
+    backgroundColor: COLORS.background,
     borderRadius: RADIUS.lg,
-    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+
+  categoryIcon: {
+    width: 49,
+    height: 49,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
+  },
+
+  categoryText: {
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+
+  otherProblemButton: {
+    marginTop: 12,
+    minHeight: 70,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-  },
-
-  infoIconBox: {
-    width: 28,
+    backgroundColor: COLORS.background,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
   },
 
-  infoContent: {
+  otherProblemIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  otherProblemText: {
     flex: 1,
-    marginLeft: 5,
+    marginLeft: 11,
   },
 
-  infoTitle: {
+  otherProblemTitle: {
+    fontSize: TYPOGRAPHY.medium,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+
+  otherProblemSubtitle: {
     fontSize: TYPOGRAPHY.small,
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.black,
-  },
-
-  infoText: {
-    fontSize: TYPOGRAPHY.xs,
-    lineHeight: TYPOGRAPHY.lineSmall,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginTop: 3,
   },
 
-  /* FOOTER */
-
+  // FOOTER
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    marginTop: 25,
     alignItems: 'center',
-    gap: 5,
-    marginTop: 18,
+    flexDirection: 'row',
+    gap: 9,
+  },
+
+  footerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.borderLight,
   },
 
   footerText: {
+    textAlign: 'center',
     color: COLORS.textMuted,
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.mediumWeight,
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.semiBold,
   },
 });

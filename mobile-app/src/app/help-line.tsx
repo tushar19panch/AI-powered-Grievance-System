@@ -1,19 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../i18n/LanguageContext';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../theme';
-
-const INDIA = {
-  saffron: '#FF9933',
-  white: '#FFFFFF',
-  green: '#138808',
-  navy: '#000080',
-  lightGreen: '#EAF6EA',
-};
 
 type OfficialContact = {
   name?: string;
@@ -23,11 +15,16 @@ type OfficialContact = {
 
 export default function HelpLine() {
   const router = useRouter();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const isHindi = language === 'hi';
 
   const [sarpanch, setSarpanch] = useState<OfficialContact | null>(null);
   const [secretary, setSecretary] = useState<OfficialContact | null>(null);
+  const [userRole, setUserRole] = useState<'citizen' | 'sarpanch' | 'secretary' | 'admin'>('citizen');
+
+  const toggleLanguage = () => {
+    setLanguage(isHindi ? 'en' : 'hi');
+  };
 
   useEffect(() => {
     loadOfficials();
@@ -38,6 +35,22 @@ export default function HelpLine() {
       const adminData = await AsyncStorage.getItem('admin');
       const secretaryData = await AsyncStorage.getItem('secretary');
       const sessionData = await AsyncStorage.getItem('user_session');
+
+      let currentRole: 'citizen' | 'sarpanch' | 'secretary' | 'admin' = 'citizen';
+
+      if (sessionData) {
+        try {
+          const session = JSON.parse(sessionData);
+          if (session?.role) {
+            currentRole = session.role;
+          }
+          if (session?.role === 'sarpanch' && session?.mobile) {
+            setSarpanch((prev) => prev || { name: session.name, mobile: session.mobile, village: session.village });
+          } else if (session?.role === 'secretary' && session?.mobile) {
+            setSecretary((prev) => prev || { name: session.name, mobile: session.mobile, village: session.village });
+          }
+        } catch {}
+      }
 
       if (adminData) {
         try {
@@ -57,16 +70,7 @@ export default function HelpLine() {
         } catch {}
       }
 
-      if (sessionData) {
-        try {
-          const session = JSON.parse(sessionData);
-          if (session?.role === 'sarpanch' && session?.mobile) {
-            setSarpanch((prev) => prev || { name: session.name, mobile: session.mobile, village: session.village });
-          } else if (session?.role === 'secretary' && session?.mobile) {
-            setSecretary((prev) => prev || { name: session.name, mobile: session.mobile, village: session.village });
-          }
-        } catch {}
-      }
+      setUserRole(currentRole);
     } catch (err) {
       console.log('Error loading official helpline contacts:', err);
     }
@@ -96,16 +100,18 @@ export default function HelpLine() {
     subtitle,
     number,
     enabled = true,
+    badgeColor = COLORS.primary,
   }: {
     icon: keyof typeof Ionicons.glyphMap;
     title: string;
     subtitle?: string;
     number: string;
     enabled?: boolean;
+    badgeColor?: string;
   }) => (
     <View style={styles.contactRow}>
-      <View style={styles.contactIcon}>
-        <Ionicons name={icon} size={23} color={enabled ? INDIA.green : COLORS.textMuted} />
+      <View style={[styles.contactIcon, { backgroundColor: `${badgeColor}15` }]}>
+        <Ionicons name={icon} size={22} color={badgeColor} />
       </View>
       <View style={styles.contactInfo}>
         <Text style={styles.contactTitle}>{title}</Text>
@@ -117,131 +123,147 @@ export default function HelpLine() {
         onPress={() => callNumber(number, enabled)}
         activeOpacity={0.82}
       >
-        <Ionicons name="call-outline" size={17} color={enabled ? COLORS.white : COLORS.textMuted} />
-        <Text style={[styles.callText, !enabled && styles.callTextDisabled]}>
-          {isHindi ? 'कॉल' : 'Call'}
+        <Ionicons name="call" size={15} color="#FFFFFF" />
+        <Text style={styles.callText}>
+          {isHindi ? 'कॉल करें' : 'Call'}
         </Text>
       </TouchableOpacity>
     </View>
   );
 
+  const showSarpanch = userRole !== 'sarpanch' && userRole !== 'admin';
+  const showSecretary = userRole !== 'secretary';
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>{isHindi ? 'हेल्पलाइन व संपर्क' : 'Helplines & Contacts'}</Text>
+          <Text style={styles.headerSubtitle}>
+            {isHindi ? 'जरूरत पड़ने पर तुरंत सहायता' : 'Emergency & official assistance'}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.languageButton} onPress={toggleLanguage} activeOpacity={0.8}>
+          <Ionicons name="language" size={16} color="#FFFFFF" />
+          <Text style={styles.languageText}>{isHindi ? 'EN' : 'हि'}</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>{isHindi ? 'हेल्प लाइन और संपर्क' : 'Help Line & Contacts'}</Text>
-            <Text style={styles.subtitle}>
-              {isHindi ? 'जरूरत पड़ने पर तुरंत संपर्क करें' : 'Quick access to important contacts'}
-            </Text>
-          </View>
-        </View>
-
-        {/* TRICOLOR STRIPE */}
-        <View style={styles.tricolor}>
-          <View style={styles.saffronLine} />
-          <View style={styles.whiteLine}>
-            <View style={styles.chakra} />
-          </View>
-          <View style={styles.greenLine} />
-        </View>
-
         {/* INFO CARD */}
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
-            <Ionicons name="call-outline" size={28} color={INDIA.green} />
+            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
           </View>
           <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>{isHindi ? 'जरूरी संपर्क' : 'Important Contacts'}</Text>
+            <Text style={styles.infoTitle}>{isHindi ? '24x7 जनसेवा व सहायता' : '24x7 Public Assistance'}</Text>
             <Text style={styles.infoText}>
               {isHindi
-                ? 'किसी भी समस्या या आपात स्थिति में संबंधित अधिकारी या सेवा से सीधे संपर्क करें।'
-                : 'Contact the relevant official or emergency service directly when needed.'}
+                ? 'किसी भी समस्या, शिकायत या आपात स्थिति में सीधे संपर्क करें।'
+                : 'Directly connect with local officials or emergency authorities.'}
             </Text>
           </View>
         </View>
 
-        {/* CONTACTS LIST */}
+        {/* SECTION 1: PANCHAYAT OFFICIALS (FILTERED PER USER ROLE) */}
+        {(showSarpanch || showSecretary) && (
+          <>
+            <Text style={styles.sectionHeader}>{isHindi ? 'ग्राम पंचायत जनप्रतिनिधि' : 'Panchayat Officials'}</Text>
+            <View style={styles.card}>
+              {/* SARPANCH (Hidden if Sarpanch is viewing) */}
+              {showSarpanch && (
+                <>
+                  <Contact
+                    icon="ribbon"
+                    title={
+                      sarpanch?.name
+                        ? `${isHindi ? 'सरपंच' : 'Sarpanch'} (${sarpanch.name})`
+                        : isHindi
+                        ? 'ग्राम प्रधान / सरपंच'
+                        : 'Gram Pradhan / Sarpanch'
+                    }
+                    subtitle={sarpanch?.village ? `${isHindi ? 'ग्राम पंचायत' : 'Panchayat'}: ${sarpanch.village}` : undefined}
+                    number={sarpanch?.mobile || (isHindi ? 'नंबर उपलब्ध नहीं' : 'Not added')}
+                    enabled={!!sarpanch?.mobile}
+                    badgeColor="#176B4D"
+                  />
+                  {showSecretary && <View style={styles.divider} />}
+                </>
+              )}
+
+              {/* SECRETARY (Hidden if Secretary is viewing) */}
+              {showSecretary && (
+                <Contact
+                  icon="briefcase"
+                  title={
+                    secretary?.name
+                      ? `${isHindi ? 'ग्राम सचिव' : 'Secretary'} (${secretary.name})`
+                      : isHindi
+                      ? 'ग्राम पंचायत सचिव'
+                      : 'Panchayat Secretary'
+                  }
+                  subtitle={secretary?.village ? `${isHindi ? 'ग्राम पंचायत' : 'Panchayat'}: ${secretary.village}` : undefined}
+                  number={secretary?.mobile || (isHindi ? 'नंबर उपलब्ध नहीं' : 'Not added')}
+                  enabled={!!secretary?.mobile}
+                  badgeColor="#000080"
+                />
+              )}
+            </View>
+          </>
+        )}
+
+        {/* SECTION 2: EMERGENCY & HELPLINES */}
+        <Text style={styles.sectionHeader}>{isHindi ? 'आपातकालीन व सरकारी सेवाएं' : 'Emergency & Public Helplines'}</Text>
         <View style={styles.card}>
-          {/* CM HELPLINE 181 (Replaced 100) */}
+          {/* CM HELPLINE 181 */}
           <Contact
-            icon="headset-outline"
+            icon="headset"
             title={isHindi ? 'सीएम हेल्पलाइन' : 'CM Helpline'}
             subtitle={isHindi ? 'शिकायत एवं जनसेवा निवारण' : 'Public Grievance Redressal'}
             number="181"
             enabled={true}
+            badgeColor="#FF9933"
           />
           <View style={styles.divider} />
 
           {/* NATIONAL EMERGENCY 112 */}
           <Contact
-            icon="alert-circle-outline"
-            title={isHindi ? 'राष्ट्रीय आपातकालीन सेवा' : 'National Emergency'}
+            icon="alert-circle"
+            title={isHindi ? 'राष्ट्रीय आपातकालीन सेवा (Emergency)' : 'National Emergency (112)'}
             subtitle={isHindi ? 'पुलिस • एम्बुलेंस • फायर' : 'All-in-one Emergency'}
             number="112"
             enabled={true}
+            badgeColor="#DC2626"
           />
           <View style={styles.divider} />
 
           {/* AMBULANCE 108 */}
           <Contact
-            icon="medkit-outline"
+            icon="medkit"
             title={isHindi ? 'एम्बुलेंस सेवा' : 'Ambulance Service'}
             subtitle={isHindi ? 'स्वास्थ्य आपातकाल' : 'Medical Emergency'}
             number="108"
             enabled={true}
-          />
-          <View style={styles.divider} />
-
-          {/* SARPANCH CONTACT (Auto updated from Sarpanch profile/login) */}
-          <Contact
-            icon="person-outline"
-            title={
-              sarpanch?.name
-                ? `${isHindi ? 'सरपंच' : 'Sarpanch'} (${sarpanch.name})`
-                : isHindi
-                ? 'ग्राम प्रधान / सरपंच'
-                : 'Gram Pradhan / Sarpanch'
-            }
-            subtitle={sarpanch?.village ? `${isHindi ? 'ग्राम पंचायत' : 'Panchayat'}: ${sarpanch.village}` : undefined}
-            number={sarpanch?.mobile || (isHindi ? 'नंबर उपलब्ध नहीं' : 'Not added')}
-            enabled={!!sarpanch?.mobile}
-          />
-          <View style={styles.divider} />
-
-          {/* SECRETARY CONTACT (Auto updated from Secretary profile/login) */}
-          <Contact
-            icon="person-circle-outline"
-            title={
-              secretary?.name
-                ? `${isHindi ? 'सचिव' : 'Secretary'} (${secretary.name})`
-                : isHindi
-                ? 'ग्राम पंचायत सचिव'
-                : 'Panchayat Secretary'
-            }
-            subtitle={secretary?.village ? `${isHindi ? 'ग्राम पंचायत' : 'Panchayat'}: ${secretary.village}` : undefined}
-            number={secretary?.mobile || (isHindi ? 'नंबर उपलब्ध नहीं' : 'Not added')}
-            enabled={!!secretary?.mobile}
+            badgeColor="#16A34A"
           />
           <View style={styles.divider} />
 
           {/* VILLAGE TOLL-FREE HELPLINE */}
           <Contact
-            icon="call-outline"
-            title={isHindi ? 'पंचायत टोल-फ्री हेल्पलाइन' : 'Panchayat Toll-Free Helpline'}
-            subtitle={isHindi ? 'पंचायती राज सहायता' : 'Panchayati Raj Support'}
+            icon="call"
+            title={isHindi ? 'पंचायती राज टोल-फ्री' : 'Panchayati Raj Toll-Free'}
+            subtitle={isHindi ? 'राष्ट्रीय ग्रामीण विकास सहायता' : 'National Rural Development Support'}
             number="1800-180-1555"
             enabled={true}
+            badgeColor="#2563EB"
           />
         </View>
-
-        <Text style={styles.footer}>
-          VillageApp • {isHindi ? 'आपके गांव के लिए डिजिटल सेवा' : 'Digital Service For Your Village'}
-        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -250,174 +272,166 @@ export default function HelpLine() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    paddingHorizontal: SPACING.normal,
-    paddingBottom: 35,
+    backgroundColor: '#F8FAFC',
   },
   header: {
-    minHeight: 70,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 8 : 12,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    ...SHADOWS.small,
   },
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.card,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  languageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  languageText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 30,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.small,
+  },
+  infoIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: TYPOGRAPHY.heading,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: INDIA.navy,
-  },
-  subtitle: {
-    marginTop: 3,
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-  },
-  tricolor: {
-    height: 9,
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 17,
-  },
-  saffronLine: {
-    flex: 1,
-    backgroundColor: INDIA.saffron,
-  },
-  whiteLine: {
-    flex: 1,
-    backgroundColor: INDIA.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  greenLine: {
-    flex: 1,
-    backgroundColor: INDIA.green,
-  },
-  chakra: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: INDIA.navy,
-  },
-  infoCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.xl,
-    padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: INDIA.green,
-    ...SHADOWS.small,
-    marginBottom: 15,
-  },
-  infoIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: INDIA.lightGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 13,
-    borderLeftWidth: 3,
-    borderLeftColor: INDIA.saffron,
   },
   infoContent: {
     flex: 1,
   },
   infoTitle: {
-    fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.navy,
   },
   infoText: {
-    marginTop: 4,
-    fontSize: TYPOGRAPHY.small,
-    lineHeight: 18,
+    fontSize: 12,
     color: COLORS.textMuted,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   card: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     paddingHorizontal: 14,
+    marginBottom: 16,
     ...SHADOWS.small,
   },
   contactRow: {
-    minHeight: 75,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 14,
   },
   contactIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor: INDIA.lightGreen,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   contactInfo: {
     flex: 1,
+    marginRight: 8,
   },
   contactTitle: {
-    fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   contactSubtitle: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
     color: COLORS.textMuted,
-    marginTop: 1,
+    marginTop: 2,
   },
   contactNumber: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.semiBold,
-    color: COLORS.navy,
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.primary,
+    marginTop: 3,
   },
   callButton: {
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 11,
-    backgroundColor: INDIA.green,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
+    gap: 4,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    ...SHADOWS.small,
   },
   callButtonDisabled: {
-    backgroundColor: COLORS.borderLight,
+    backgroundColor: '#CBD5E1',
   },
   callText: {
-    color: COLORS.white,
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-  callTextDisabled: {
-    color: COLORS.textMuted,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.borderLight,
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: 22,
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
+    backgroundColor: '#F1F5F9',
   },
 });

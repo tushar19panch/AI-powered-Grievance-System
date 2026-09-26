@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -7,9 +7,11 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { notificationApi } from '../services/api';
 
 import {
   COLORS,
@@ -41,46 +43,10 @@ const initialNotifications: NotificationItem[] = [
     id: 'N001',
     title: 'New Complaint',
     message: 'A new village problem has been submitted.',
-    time: '10 min ago',
+    time: 'Just now',
     type: 'NEW',
-    complaintId: 'GP-2026-00124',
+    complaintId: 'GP-101',
     read: false,
-  },
-  {
-    id: 'N002',
-    title: 'Complaint Under Review',
-    message: 'Your complaint is currently being reviewed.',
-    time: '1 hour ago',
-    type: 'UPDATE',
-    complaintId: 'GP-2026-00120',
-    read: false,
-  },
-  {
-    id: 'N003',
-    title: 'Action Required',
-    message: 'This complaint has been pending for a long time.',
-    time: '3 hours ago',
-    type: 'ALERT',
-    complaintId: 'GP-2026-00118',
-    read: false,
-  },
-  {
-    id: 'N004',
-    title: 'Complaint Resolved',
-    message: 'The reported problem has been marked as resolved.',
-    time: 'Yesterday',
-    type: 'RESOLVED',
-    complaintId: 'GP-2026-00115',
-    read: true,
-  },
-  {
-    id: 'N005',
-    title: 'Complaint Reopened',
-    message: 'A citizen has reported that the problem is not fixed.',
-    time: 'Yesterday',
-    type: 'REOPENED',
-    complaintId: 'GP-2026-00111',
-    read: true,
   },
 ];
 
@@ -89,12 +55,73 @@ export default function Notifications() {
 
   const [notifications, setNotifications] =
     useState<NotificationItem[]>(initialNotifications);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadLiveNotifications = async () => {
+    try {
+      const data = await notificationApi.getNotifications();
+      if (Array.isArray(data) && data.length > 0) {
+        const mapped: NotificationItem[] = data.map((n) => {
+          let type: NotificationType = 'NEW';
+          const msg = (n.message || '').toUpperCase();
+          if (msg.includes('RESOLVED') || msg.includes('CLOSED')) {
+            type = 'RESOLVED';
+          } else if (msg.includes('REOPEN')) {
+            type = 'REOPENED';
+          } else if (msg.includes('UNDER_REVIEW') || msg.includes('ACTION_TAKEN') || msg.includes('IN_PROGRESS')) {
+            type = 'UPDATE';
+          } else if (msg.includes('NEW') || msg.includes('SUBMITTED')) {
+            type = 'NEW';
+          } else {
+            type = 'ALERT';
+          }
+
+          let formattedTime = 'Recently';
+          if (n.createdAt) {
+            try {
+              const dt = new Date(n.createdAt);
+              formattedTime = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + dt.toLocaleDateString();
+            } catch {}
+          }
+
+          return {
+            id: String(n.id),
+            title: type === 'NEW' ? 'New Complaint Alert' : type === 'RESOLVED' ? 'Complaint Resolved' : 'Complaint Update',
+            message: n.message,
+            time: formattedTime,
+            type,
+            complaintId: String(n.id),
+            read: n.read,
+          };
+        });
+        setNotifications(mapped);
+      }
+    } catch (e) {
+      console.log('Unable to load live notifications:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveNotifications();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadLiveNotifications();
+    setRefreshing(false);
+  };
 
   const unreadCount = useMemo(() => {
     return notifications.filter((item) => !item.read).length;
   }, [notifications]);
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
+    try {
+      const numId = parseInt(id, 10);
+      if (!isNaN(numId)) {
+        await notificationApi.markAsRead(numId);
+      }
+    } catch {}
     setNotifications((current) =>
       current.map((item) =>
         item.id === id
@@ -107,7 +134,17 @@ export default function Notifications() {
     );
   };
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    for (const item of notifications) {
+      if (!item.read) {
+        try {
+          const numId = parseInt(item.id, 10);
+          if (!isNaN(numId)) {
+            await notificationApi.markAsRead(numId);
+          }
+        } catch {}
+      }
+    }
     setNotifications((current) =>
       current.map((item) => ({
         ...item,

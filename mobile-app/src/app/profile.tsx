@@ -5,13 +5,14 @@ import {
   Alert,
   Animated,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
+import PhotoPreviewModal from '../components/PhotoPreviewModal';
 
 import {
   COLORS,
@@ -34,6 +36,7 @@ export default function Profile() {
 
   const [user, setUser] = useState<any>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const [name, setName] = useState('');
@@ -462,20 +465,31 @@ export default function Profile() {
           {/* PROFILE CARD */}
           <View style={styles.profileCard}>
             <View style={styles.avatarWrapper}>
-              {profileImage ? (
-                <Image
-                  source={{ uri: profileImage }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons
-                    name="person-outline"
-                    size={52}
-                    color={COLORS.primary}
+              <TouchableOpacity
+                onPress={() => {
+                  if (profileImage) {
+                    setPreviewVisible(true);
+                  } else {
+                    chooseImage();
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                {profileImage ? (
+                  <Image
+                    source={{ uri: profileImage }}
+                    style={styles.avatarImage}
                   />
-                </View>
-              )}
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons
+                      name="person-outline"
+                      size={52}
+                      color={COLORS.primary}
+                    />
+                  </View>
+                )}
+              </TouchableOpacity>
 
               <Pressable
                 style={styles.cameraButton}
@@ -551,7 +565,7 @@ export default function Profile() {
               label={labels.name}
               value={name}
               editable={editing}
-              onChangeText={setName}
+              onChangeText={(text) => setName(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
             />
 
             <ProfileField
@@ -560,7 +574,7 @@ export default function Profile() {
               value={mobile}
               editable={editing}
               keyboardType="phone-pad"
-              onChangeText={setMobile}
+              onChangeText={(text) => setMobile(text.replace(/\D/g, '').slice(0, 10))}
             />
 
             <ProfileField
@@ -568,7 +582,7 @@ export default function Profile() {
               label={labels.village}
               value={village}
               editable={editing}
-              onChangeText={setVillage}
+              onChangeText={(text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
             />
 
             <ProfileField
@@ -576,7 +590,8 @@ export default function Profile() {
               label={labels.ward}
               value={ward}
               editable={editing}
-              onChangeText={setWard}
+              keyboardType="number-pad"
+              onChangeText={(text) => setWard(text.replace(/\D/g, '').slice(0, 4))}
               last
             />
           </View>
@@ -695,6 +710,15 @@ export default function Profile() {
           </Text>
         </Animated.View>
       </ScrollView>
+
+      <PhotoPreviewModal
+        visible={previewVisible}
+        imageUri={profileImage}
+        userName={name || (language === 'hi' ? 'नागरिक' : 'Citizen')}
+        userRole={labels.citizen}
+        onClose={() => setPreviewVisible(false)}
+        onChangePhoto={chooseImage}
+      />
     </SafeAreaView>
   );
 }

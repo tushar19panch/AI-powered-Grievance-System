@@ -158,6 +158,12 @@ export interface RegisterPayload {
   wardId?: number;
 }
 
+export interface ResetPasswordPayload {
+  identifier: string;
+  newPassword: string;
+  otp?: string;
+}
+
 export const authApi = {
   login: async (payload: LoginPayload): Promise<LoginResponseData> => {
     const res = await request<LoginResponseData>('/api/auth/login', {
@@ -169,6 +175,13 @@ export const authApi = {
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(res));
     }
     return res;
+  },
+
+  resetPassword: async (payload: ResetPasswordPayload): Promise<{ success: boolean; message: string }> => {
+    return await request<{ success: boolean; message: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   register: async (payload: RegisterPayload): Promise<any> => {
@@ -323,3 +336,31 @@ export const villageApi = {
     });
   },
 };
+
+// -------------------------------------------------------------
+// Notification APIs
+// -------------------------------------------------------------
+export interface NotificationData {
+  id: number;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export const notificationApi = {
+  getNotifications: async (): Promise<NotificationData[]> => {
+    return await request<NotificationData[]>('/api/notifications', {
+      method: 'GET',
+    });
+  },
+
+  markAsRead: async (notificationId: number): Promise<string> => {
+    return await request<string>(`/api/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  },
+};
+
+
+
+

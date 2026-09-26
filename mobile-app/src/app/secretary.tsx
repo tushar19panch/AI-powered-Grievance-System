@@ -1,17 +1,21 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
   Image,
+  Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../i18n/LanguageContext';
 
 import {
@@ -24,1343 +28,941 @@ import {
 
 import { complaintApi } from '../services/api';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
+import { DashboardBottomBar } from '../components/DashboardBottomBar';
+import { VillageInfoModal } from '../components/VillageInfoModal';
+
+const INDIA = {
+  saffron: '#FF9933',
+  white: '#FFFFFF',
+  green: '#138808',
+  navy: '#000080',
+  lightGreen: '#EAF6EA',
+};
 
 type Complaint = {
   complaintId: string;
-  citizenName?: string;
-  category: string;
-  ward: string;
-  description: string;
   status: string;
-  dateTime: string;
-  photo?: string | null;
-  location?: string;
 };
 
 type Secretary = {
-  name?: string;
-  mobile?: string;
-  village?: string;
+  name: string;
+  mobile: string;
+  village: string;
+  secretaryId?: string;
+  officialId?: string;
+  role?: string;
   profileImage?: string | null;
 };
 
-export default function SecretaryDashboard() {
+export default function SecretaryScreen() {
   const router = useRouter();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
 
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [secretary, setSecretary] = useState<Secretary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [villageInfoVisible, setVillageInfoVisible] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(25)).current;
 
   const isHindi = language === 'hi';
 
-  const toggleLanguage = () => {
-    setLanguage(language === 'hi' ? 'en' : 'hi');
-  };
+  // Animation trigger on mount
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
-  const loadSecretaryData = async () => {
+  const loadData = async () => {
     try {
-      const sessionData = await AsyncStorage.getItem('user_session');
+      // Load secretary details
       const secData = await AsyncStorage.getItem('secretary');
+      const sessionData = await AsyncStorage.getItem('user_session');
       const session = sessionData ? JSON.parse(sessionData) : null;
-      const sec = secData ? JSON.parse(secData) : null;
-      let parsed: any = { ...(session || {}), ...(sec || {}) };
+      let parsed = secData ? JSON.parse(secData) : session;
 
-      const currentMobile = parsed.mobile || session?.mobile || sec?.mobile;
-      if (currentMobile) {
-        const photo = await AsyncStorage.getItem(`profile_image_${currentMobile}`);
+      if (parsed) {
+        const currentMobile = parsed.mobile || session?.mobile;
+        const photo = currentMobile
+          ? await AsyncStorage.getItem(`profile_image_${currentMobile}`)
+          : null;
         parsed = { ...parsed, profileImage: photo || parsed.profileImage || null };
-      }
-      if (parsed.name || parsed.mobile || parsed.village) {
         setSecretary(parsed);
       }
-    } catch (err) {
-      console.log('Error loading secretary data:', err);
-    }
-  };
 
-  const loadComplaints = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch directly from Backend Spring Boot Database API
+      // Load live complaints directly from Backend Database API
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
         if (Array.isArray(apiComplaints)) {
-          const list: Complaint[] = apiComplaints.map((c) => ({
-            complaintId: String(c.id),
-            category: c.category || c.problemType || 'Village Issue',
-            ward: c.wardNumber ? `Ward ${c.wardNumber}` : c.location || '',
-            description: c.description || '',
-            status: c.status || 'SUBMITTED',
-            dateTime: c.createdAt || new Date().toISOString(),
-            photo: c.photo || null,
-            location: c.location || '',
-          }));
-          list.sort(
-            (a, b) =>
-              new Date(b.dateTime).getTime() -
-              new Date(a.dateTime).getTime()
+          const filtered = parsed?.village && parsed?.role !== 'SUPER_ADMIN'
+            ? apiComplaints.filter((c: any) => !c.villageName || c.villageName === parsed.village)
+            : apiComplaints;
+
+          setComplaints(
+            filtered.map((c: any) => ({
+              complaintId: String(c.id || c.complaintNumber),
+              status: c.status,
+            }))
           );
-          setComplaints(list);
-        } else {
-          setComplaints([]);
+          return;
         }
       } catch (apiErr) {
-        console.log('Secretary backend complaint fetch error:', apiErr);
-        setComplaints([]);
+        console.log('Secretary backend complaints fetch error:', apiErr);
       }
-    } catch (error) {
-      console.log('Unable to load complaints:', error);
+
       setComplaints([]);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.log('Unable to load secretary dashboard data:', err);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadSecretaryData();
-      loadComplaints();
-    }, [])
+      loadData();
+    }, [language])
   );
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  // Statistics
   const total = complaints.length;
 
-  const pending = complaints.filter(
-    (complaint) => {
-      const st = String(complaint.status || '').toUpperCase();
-      return st === 'SUBMITTED' || st === 'UNDER REVIEW' || st === 'UNDER_REVIEW';
-    }
-  ).length;
+  const inProgress = complaints.filter((item) => {
+    const st = String(item.status || '').toUpperCase();
+    return (
+      st === 'ACTION TAKEN' ||
+      st === 'ACTION_TAKEN' ||
+      st === 'IN PROGRESS' ||
+      st === 'IN_PROGRESS' ||
+      st === 'UNDER REVIEW' ||
+      st === 'UNDER_REVIEW'
+    );
+  }).length;
 
-  const resolved = complaints.filter(
-    (complaint) => {
-      const st = String(complaint.status || '').toUpperCase();
-      return st === 'RESOLVED' || st === 'CLOSED';
-    }
-  ).length;
+  const resolved = complaints.filter((item) => {
+    const st = String(item.status || '').toUpperCase();
+    return st === 'RESOLVED' || st === 'CLOSED';
+  }).length;
 
-  const reopened = complaints.filter(
-    (complaint) => String(complaint.status || '').toUpperCase() === 'REOPENED'
-  ).length;
-
-  const getCategory = (category: string) => {
-    if (!isHindi) return category;
-
-    const categoryMap: Record<string, string> = {
-      Water: 'पानी',
-      Roads: 'सड़क',
-      'Street Lights': 'स्ट्रीट लाइट',
-      'Garbage/Sanitation': 'कचरा / स्वच्छता',
-      Drainage: 'नाली',
-      Electricity: 'बिजली',
-      'Government Services': 'सरकारी सेवाएं',
-      Other: 'अन्य समस्या',
-    };
-
-    return categoryMap[category] || category;
-  };
-
-  const getStatus = (status: string) => {
-    if (!isHindi) return status;
-
-    const statusMap: Record<string, string> = {
-      SUBMITTED: 'दर्ज की गई',
-      'UNDER REVIEW': 'जांच के अधीन',
-      'ACTION TAKEN': 'कार्रवाई की गई',
-      'IN PROGRESS': 'प्रगति में',
-      RESOLVED: 'हल हो गई',
-      VERIFICATION: 'सत्यापन',
-      CLOSED: 'बंद',
-      REOPENED: 'फिर से खोली गई',
-    };
-
-    return statusMap[status] || status;
-  };
-
-  const getDate = (dateTime: string) => {
-    try {
-      return new Date(dateTime).toLocaleDateString(
-        isHindi ? 'hi-IN' : 'en-IN'
-      );
-    } catch {
-      return dateTime;
-    }
-  };
-
-  const openComplaint = (complaintId: string) => {
-    router.push({
-      pathname: '/complaint-details',
-      params: {
-        id: complaintId,
-      },
-    });
+  const toggleLanguage = () => {
+    setLanguage(isHindi ? 'en' : 'hi');
   };
 
   const openProfile = () => {
     router.push('/admin-profile');
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* HEADER */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.headerIcon}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={24}
-                  color={COLORS.navy}
-                />
-              </View>
+  const openComplaints = (filter?: string) => {
+    router.push({
+      pathname: '/(tabs)/complaints',
+      params: filter ? { filter } : {},
+    });
+  };
 
-              <View style={styles.headerText}>
-                <Text style={styles.title}>
-                  {isHindi
-                    ? 'सचिव / सुपरवाइजर'
-                    : 'Secretary / Supervisor'}
-                </Text>
+  const openNotifications = () => {
+    router.push('/notifications');
+  };
 
-                <Text style={styles.subtitle}>
-                  {isHindi
-                    ? 'शिकायतों और सरपंच के कार्यों की निगरानी'
-                    : 'Monitor complaints and Sarpanch activities'}
-                </Text>
-              </View>
-            </View>
+  const openHelpLine = () => {
+    router.push('/help-line');
+  };
 
-            <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={styles.languageButton}
-                onPress={toggleLanguage}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="language-outline"
-                  size={16}
-                  color={COLORS.navy}
-                />
-
-                <Text style={styles.languageText}>
-                  {isHindi ? 'EN' : 'हि'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.headerProfile}
-                onPress={openProfile}
-                activeOpacity={0.8}
-              >
-                {secretary?.profileImage ? (
-                  <Image
-                    source={{ uri: secretary.profileImage }}
-                    style={styles.headerProfileImage}
-                  />
-                ) : (
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color={COLORS.navy}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* NATIONAL STRIPE */}
-          <View style={styles.nationalStripe}>
-            <View style={styles.saffronStripe} />
-            <View style={styles.whiteStripe}>
-              <View style={styles.ashokaWheel}>
-                <View style={styles.wheelDot} />
-              </View>
-            </View>
-            <View style={styles.greenStripe} />
-          </View>
-
-          {/* SECRETARY PROFILE / WELCOME CARD */}
-          <TouchableOpacity
-            style={styles.secretaryCard}
-            onPress={openProfile}
-            activeOpacity={0.85}
-          >
-            <View style={styles.secretaryTop}>
-              <View style={styles.avatar}>
-                {secretary?.profileImage ? (
-                  <Image
-                    source={{ uri: secretary.profileImage }}
-                    style={styles.avatarImage}
-                  />
-                ) : (
-                  <Ionicons
-                    name="person-outline"
-                    size={24}
-                    color={COLORS.navy}
-                  />
-                )}
-              </View>
-
-              <View style={styles.secretaryInfo}>
-                <Text style={styles.welcomeText}>
-                  {isHindi ? 'स्वागत है' : 'Welcome'}
-                </Text>
-
-                <Text style={styles.secretaryName}>
-                  {secretary?.name ||
-                    (isHindi
-                      ? 'ग्राम पंचायत सचिव'
-                      : 'Panchayat Secretary')}
-                </Text>
-
-                <View style={styles.roleRow}>
-                  <Ionicons
-                    name="shield-checkmark-outline"
-                    size={13}
-                    color={COLORS.accent}
-                  />
-
-                  <Text style={styles.roleText}>
-                    {isHindi
-                      ? 'ग्राम पंचायत सचिव / सुपरवाइजर'
-                      : 'Panchayat Secretary / Supervisor'}
-                  </Text>
-                </View>
-              </View>
-
-              <Ionicons
-                name="chevron-forward-outline"
-                size={20}
-                color={COLORS.textMuted}
-              />
-            </View>
-          </TouchableOpacity>
-
-          {/* COMPLAINT OVERVIEW SECTION HEADER */}
-          <View style={styles.sectionHeaderStats}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
-              </Text>
-              <Text style={styles.sectionSubtitleText}>
-                {isHindi ? 'वर्तमान स्थिति के अनुसार शिकायतें' : 'Complaints by current status'}
-              </Text>
-            </View>
-
-            <View style={styles.totalBadge}>
-              <Ionicons
-                name="documents-outline"
-                size={14}
-                color={COLORS.navy}
-              />
-              <Text style={styles.totalBadgeText}>
-                {total}
-              </Text>
-            </View>
-          </View>
-
-          {/* STATS GRID (ALL CLICKABLE) */}
-          <View style={styles.statsGrid}>
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'all' } })}
-              activeOpacity={0.75}
-            >
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: COLORS.primaryLight },
-                ]}
-              >
-                <Ionicons
-                  name="documents-outline"
-                  size={21}
-                  color={COLORS.navy}
-                />
-              </View>
-
-              <Text style={styles.statNumber}>{total}</Text>
-
-              <Text style={styles.statLabel}>
-                {isHindi ? 'कुल शिकायतें' : 'Total Complaints'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'pending' } })}
-              activeOpacity={0.75}
-            >
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: COLORS.warningLight },
-                ]}
-              >
-                <Ionicons
-                  name="time-outline"
-                  size={21}
-                  color={COLORS.warning}
-                />
-              </View>
-
-              <Text style={[styles.statNumber, { color: COLORS.warning }]}>
-                {pending}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                {isHindi ? 'लंबित' : 'Pending'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'resolved' } })}
-              activeOpacity={0.75}
-            >
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: COLORS.successLight },
-                ]}
-              >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={21}
-                  color={COLORS.success}
-                />
-              </View>
-
-              <Text style={[styles.statNumber, { color: COLORS.success }]}>
-                {resolved}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                {isHindi ? 'हल की गई' : 'Resolved'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'reopened' } })}
-              activeOpacity={0.75}
-            >
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: COLORS.errorLight },
-                ]}
-              >
-                <Ionicons
-                  name="refresh-outline"
-                  size={21}
-                  color={COLORS.error}
-                />
-              </View>
-
-              <Text style={[styles.statNumber, { color: COLORS.error }]}>
-                {reopened}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                {isHindi ? 'फिर से खोली गई' : 'Reopened'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* MONITORING SECTION */}
-          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>
-            {isHindi
-              ? 'सरपंच कार्य निगरानी'
-              : 'Sarpanch Work Monitoring'}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.monitorCard}
-            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'pending' } })}
-            activeOpacity={0.8}
-          >
-            <View style={styles.monitorIcon}>
-              <Ionicons
-                name="eye-outline"
-                size={22}
-                color={COLORS.navy}
-              />
-            </View>
-
-            <View style={styles.monitorContent}>
-              <Text style={styles.monitorTitle}>
-                {isHindi
-                  ? 'लंबित शिकायतों की निगरानी'
-                  : 'Pending Complaint Monitoring'}
-              </Text>
-
-              <Text style={styles.monitorDescription}>
-                {isHindi
-                  ? `अभी ${pending} शिकायतें लंबित हैं।`
-                  : `${pending} complaints are currently pending.`}
-              </Text>
-            </View>
-
-            <View style={styles.monitorCount}>
-              <Text style={styles.monitorCountText}>{pending}</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.monitorCard}
-            onPress={() => router.push({ pathname: '/(tabs)/complaints', params: { filter: 'reopened' } })}
-            activeOpacity={0.8}
-          >
-            <View
-              style={[
-                styles.monitorIcon,
-                { backgroundColor: COLORS.errorLight },
-              ]}
-            >
-              <Ionicons
-                name="refresh-circle-outline"
-                size={22}
-                color={COLORS.error}
-              />
-            </View>
-
-            <View style={styles.monitorContent}>
-              <Text style={styles.monitorTitle}>
-                {isHindi
-                  ? 'फिर से खोली गई शिकायतें'
-                  : 'Reopened Complaints'}
-              </Text>
-
-              <Text style={styles.monitorDescription}>
-                {isHindi
-                  ? `नागरिक द्वारा ${reopened} शिकायतें फिर से खोली गई हैं।`
-                  : `${reopened} complaints have been reopened by citizens.`}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.monitorCount,
-                { backgroundColor: COLORS.errorLight },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.monitorCountText,
-                  { color: COLORS.error },
-                ]}
-              >
-                {reopened}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* OFFLINE SYNC BANNER */}
-          <OfflineSyncBanner isHindi={isHindi} onSyncComplete={loadComplaints} />
-
-          {/* WARD DEVELOPMENT SCORECARD TILE */}
-          <TouchableOpacity
-            style={styles.scorecardCard}
-            onPress={() => router.push('/ward-scorecard' as any)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.scorecardIconBox}>
-              <Ionicons
-                name="stats-chart"
-                size={22}
-                color={COLORS.navy}
-              />
-            </View>
-
-            <View style={styles.scorecardContent}>
-              <View style={styles.scorecardHeaderRow}>
-                <Text style={styles.scorecardTitle}>
-                  {isHindi ? '📊 वार्ड विकास स्कोरकार्ड' : '📊 Ward Scorecard'}
-                </Text>
-                <View style={styles.newBadge}>
-                  <Text style={styles.newBadgeText}>LIVE</Text>
-                </View>
-              </View>
-
-              <Text style={styles.scorecardDesc}>
-                {isHindi
-                  ? 'सभी 10+ वार्डों की रैंकिंग, A+/A/B/C ग्रेड एवं समाधान दर देखें'
-                  : 'View ward rankings, A+/A/B/C grades & resolution rates'}
-              </Text>
-            </View>
-
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={COLORS.navy}
-            />
-          </TouchableOpacity>
-
-          {/* RECENT COMPLAINTS */}
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>
-                {isHindi
-                  ? 'हाल की शिकायतें'
-                  : 'Recent Complaints'}
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                {isHindi
-                  ? 'नवीनतम शिकायतों की सूची'
-                  : 'Latest complaint activity'}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={loadComplaints}
-            >
-              <Ionicons
-                name="refresh-outline"
-                size={16}
-                color={COLORS.navy}
-              />
-
-              <Text style={styles.refreshText}>
-                {isHindi ? 'रिफ्रेश' : 'Refresh'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* LOADING */}
-          {loading && (
-            <View style={styles.center}>
-              <ActivityIndicator
-                size="large"
-                color={COLORS.navy}
-              />
-
-              <Text style={styles.loadingText}>
-                {isHindi
-                  ? 'शिकायतें लोड हो रही हैं...'
-                  : 'Loading complaints...'}
-              </Text>
-            </View>
-          )}
-
-          {/* EMPTY */}
-          {!loading && complaints.length === 0 && (
-            <View style={styles.emptyCard}>
-              <View style={styles.emptyIconCircle}>
-                <Ionicons
-                  name="documents-outline"
-                  size={35}
-                  color={COLORS.navy}
-                />
-              </View>
-
-              <Text style={styles.emptyTitle}>
-                {isHindi
-                  ? 'अभी कोई शिकायत नहीं'
-                  : 'No complaints yet'}
-              </Text>
-
-              <Text style={styles.emptyText}>
-                {isHindi
-                  ? 'नई शिकायत आने पर यहां दिखाई देगी।'
-                  : 'New complaints will appear here.'}
-              </Text>
-            </View>
-          )}
-
-          {/* COMPLAINT LIST */}
-          {!loading &&
-            complaints.map((complaint) => (
-              <TouchableOpacity
-                key={complaint.complaintId}
-                style={styles.complaintCard}
-                activeOpacity={0.8}
-                onPress={() =>
-                  openComplaint(complaint.complaintId)
-                }
-              >
-                <View style={styles.complaintTop}>
-                  <View style={styles.categoryRow}>
-                    <View style={styles.categoryIcon}>
-                      <Ionicons
-                        name="alert-circle-outline"
-                        size={18}
-                        color={COLORS.navy}
-                      />
-                    </View>
-
-                    <Text style={styles.category}>
-                      {getCategory(complaint.category)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>
-                      {getStatus(complaint.status)}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.complaintId}>
-                  {complaint.complaintId}
-                </Text>
-
-                <Text
-                  style={styles.description}
-                  numberOfLines={2}
-                >
-                  {complaint.description}
-                </Text>
-
-                {Boolean(complaint.photo && complaint.photo !== 'null' && complaint.photo !== 'undefined' && String(complaint.photo).trim() !== '') && (
-                  <View style={styles.cardPhotoWrapper}>
-                    <Image
-                      source={{ uri: String(complaint.photo).trim() }}
-                      style={styles.cardPhotoImage}
-                      resizeMode="cover"
-                    />
-                  </View>
-                )}
-
-                <View style={styles.bottomRow}>
-                  <View style={styles.metaItem}>
-                    <Ionicons
-                      name="location-outline"
-                      size={14}
-                      color={COLORS.textMuted}
-                    />
-
-                    <Text style={styles.ward}>
-                      {isHindi ? 'वार्ड' : 'Ward'} {complaint.ward}
-                    </Text>
-                  </View>
-
-                  <View style={styles.metaItem}>
-                    <Ionicons
-                      name="calendar-outline"
-                      size={14}
-                      color={COLORS.textMuted}
-                    />
-
-                    <Text style={styles.date}>
-                      {getDate(complaint.dateTime)}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-        </ScrollView>
+  // Action Tile Component
+  const ActionCard = ({
+    icon,
+    label,
+    onPress,
+    backgroundColor,
+    iconColor,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    onPress: () => void;
+    backgroundColor: string;
+    iconColor: string;
+  }) => (
+    <TouchableOpacity
+      style={styles.categoryCard}
+      onPress={onPress}
+      activeOpacity={0.82}
+    >
+      <View
+        style={[
+          styles.categoryIcon,
+          {
+            backgroundColor,
+          },
+        ]}
+      >
+        <Ionicons name={icon} size={27} color={iconColor} />
       </View>
+      <Text style={styles.categoryText} numberOfLines={2}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+          />
+        }
+      >
+        {/* =================================================
+            TRICOLOR TOP BAR
+        ================================================= */}
+        <View style={styles.tricolorBar}>
+          <View style={styles.saffronStripe} />
+          <View style={styles.whiteStripe} />
+          <View style={styles.greenStripe} />
+        </View>
+
+        {/* =================================================
+            HEADER
+        ================================================= */}
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.headerLeft}>
+            <View style={styles.logoRow}>
+              <View style={styles.logoIcon}>
+                <Ionicons
+                  name="home-outline"
+                  size={21}
+                  color={COLORS.white}
+                />
+              </View>
+              <Text style={styles.appTitle}>VillageApp</Text>
+            </View>
+            <Text style={styles.headerSubtitle}>
+              {isHindi ? 'ग्राम सचिव डैशबोर्ड' : 'Gram Secretary Dashboard'}
+            </Text>
+          </View>
+
+          <View style={styles.headerActions}>
+            {/* LANGUAGE TOGGLE */}
+            <TouchableOpacity
+              style={styles.languageButton}
+              onPress={toggleLanguage}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="language-outline"
+                size={16}
+                color={COLORS.primary}
+              />
+              <Text style={styles.languageText}>
+                {isHindi ? 'EN' : 'हि'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* PROFILE PHOTO - CLICKABLE */}
+            <TouchableOpacity
+              style={styles.headerProfileButton}
+              onPress={openProfile}
+              activeOpacity={0.8}
+            >
+              {secretary?.profileImage ? (
+                <Image
+                  source={{ uri: secretary.profileImage }}
+                  style={[styles.profileImage, { width: 40, height: 40, borderRadius: 20 }]}
+                />
+              ) : (
+                <View style={[styles.profilePlaceholder, { width: 40, height: 40, borderRadius: 20 }]}>
+                  <Ionicons
+                    name="person-outline"
+                    size={19}
+                    color={COLORS.primary}
+                  />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* OFFLINE SYNC BANNER */}
+        <OfflineSyncBanner isHindi={isHindi} onSyncComplete={loadData} />
+
+        {/* =================================================
+            WELCOME / GRAM PANCHAYAT SHOWCASE BANNER
+        ================================================= */}
+        <Animated.View
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          }}
+        >
+          <PanchayatShowcaseCard
+            userName={secretary?.name || (isHindi ? 'ग्राम सचिव जी' : 'Secretary')}
+            villageName={secretary?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+            isHindi={isHindi}
+          />
+        </Animated.View>
+
+        {/* =================================================
+            COMPLAINT OVERVIEW / STATS
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {isHindi ? 'गाँव की शिकायतों की वर्तमान स्थिति' : 'Current village complaint status'}
+            </Text>
+          </View>
+
+          <View style={styles.sectionIcon}>
+            <Ionicons
+              name="stats-chart-outline"
+              size={21}
+              color={COLORS.primary}
+            />
+          </View>
+        </View>
+
+        {/* 3 STAT CARDS MATCHING CITIZEN */}
+        <View style={styles.statsRow}>
+          {/* TOTAL */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('all')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={COLORS.primary}
+              />
+            </View>
+            <Text style={styles.statNumber}>{total}</Text>
+            <Text style={styles.statLabel}>{t.total}</Text>
+          </TouchableOpacity>
+
+          {/* IN PROGRESS */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('in-progress')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={COLORS.warning}
+              />
+            </View>
+            <Text style={styles.statNumber}>{inProgress}</Text>
+            <Text style={styles.statLabel}>{t.inProgress}</Text>
+          </TouchableOpacity>
+
+          {/* RESOLVED */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('resolved')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={20}
+                color={COLORS.success}
+              />
+            </View>
+            <Text style={styles.statNumber}>{resolved}</Text>
+            <Text style={styles.statLabel}>{t.resolved}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* =================================================
+            PANCHAYAT MANAGEMENT & SERVICES GRID
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'पंचायत प्रबंधन व सेवाएं' : 'Panchayat Services & Controls'}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {isHindi ? 'शिकायतें, रिपोर्ट्स, वार्ड स्कोरकार्ड व सहायता' : 'Complaints, reports, ward scorecard & help'}
+            </Text>
+          </View>
+
+          <View style={styles.aiBadge}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={14}
+              color={COLORS.primary}
+            />
+            <Text style={styles.aiText}>
+              {isHindi ? 'सचिव पोर्टल' : 'SECRETARY PORTAL'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.problemCard}>
+          <View style={styles.categoryGrid}>
+            <ActionCard
+              icon="list-outline"
+              label={isHindi ? 'शिकायतें प्रबंधित' : 'Manage List'}
+              onPress={() => openComplaints('all')}
+              backgroundColor={COLORS.primaryLight}
+              iconColor={COLORS.primary}
+            />
+
+            <ActionCard
+              icon="document-text-outline"
+              label={isHindi ? 'PDF ऑडिट रिपोर्ट' : 'Audit Report'}
+              onPress={() => router.push('/audit-report' as any)}
+              backgroundColor={COLORS.successLight}
+              iconColor={COLORS.success}
+            />
+
+            <ActionCard
+              icon="stats-chart-outline"
+              label={isHindi ? 'वार्ड स्कोरकार्ड' : 'Ward Scorecard'}
+              onPress={() => router.push('/ward-scorecard' as any)}
+              backgroundColor={COLORS.accentLight}
+              iconColor={COLORS.saffron}
+            />
+
+            <ActionCard
+              icon="call-outline"
+              label={isHindi ? 'हेल्पलाइन संपर्क' : 'Helplines'}
+              onPress={openHelpLine}
+              backgroundColor={COLORS.infoLight}
+              iconColor={COLORS.info}
+            />
+
+            <ActionCard
+              icon="business-outline"
+              label={isHindi ? 'ग्राम परिचय' : 'Village Info'}
+              onPress={() => setVillageInfoVisible(true)}
+              backgroundColor="#F3E8FF"
+              iconColor="#9333EA"
+            />
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* UNIVERSAL BOTTOM NAVIGATION BAR */}
+      <DashboardBottomBar activeTab="home" role="secretary" isHindi={isHindi} />
+
+      {/* VILLAGE INFO MODAL */}
+      <VillageInfoModal
+        visible={villageInfoVisible}
+        onClose={() => setVillageInfoVisible(false)}
+        villageName={secretary?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+        isHindi={isHindi}
+      />
+
+      {/* FULL ENLARGED PHOTO PREVIEW MODAL */}
+      <PhotoPreviewModal
+        visible={previewVisible}
+        imageUri={secretary?.profileImage}
+        userName={secretary?.name || (isHindi ? 'ग्राम सचिव जी' : 'Secretary')}
+        userRole={isHindi ? `ग्राम सचिव • ${secretary?.village || 'ग्राम पंचायत'}` : `Gram Secretary • ${secretary?.village || 'Gram Panchayat'}`}
+        onClose={() => setPreviewVisible(false)}
+        onChangePhoto={() => {
+          setPreviewVisible(false);
+          openProfile();
+        }}
+        isHindi={isHindi}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F7F9FC',
-  },
+// =====================================================
+// STYLES
+// =====================================================
 
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F9FC',
+    backgroundColor: COLORS.background,
   },
 
   content: {
-    padding: SPACING.screen,
-    paddingBottom: 40,
+    paddingHorizontal: SPACING.normal,
+    paddingBottom: 35,
   },
 
-  header: {
+  // TRICOLOR BAR
+  tricolorBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  saffronStripe: {
+    flex: 1,
+    backgroundColor: '#FF9933',
+  },
+  whiteStripe: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  greenStripe: {
+    flex: 1,
+    backgroundColor: '#138808',
+  },
+
+  // HEADER
+  header: {
+    minHeight: 72,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.normal,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
   },
 
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
-    paddingRight: SPACING.sm,
   },
 
-  headerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  logoIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: INDIA.saffron,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: SPACING.md,
-    borderWidth: 1,
-    borderColor: '#FFE0C2',
+    marginRight: 9,
   },
 
-  headerText: {
-    flex: 1,
-  },
-
-  title: {
-    fontSize: TYPOGRAPHY.title,
+  appTitle: {
+    fontSize: TYPOGRAPHY.subtitle,
     fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.navy,
+    color: COLORS.textPrimary,
   },
 
-  subtitle: {
+  headerSubtitle: {
     fontSize: TYPOGRAPHY.small,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    lineHeight: TYPOGRAPHY.lineSmall,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    marginLeft: 47,
   },
 
-  headerRight: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
   },
 
   languageButton: {
     height: 38,
     paddingHorizontal: 10,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: COLORS.primaryLight,
     flexDirection: 'row',
-    gap: 4,
+    alignItems: 'center',
+    gap: 5,
   },
 
   languageText: {
     fontSize: TYPOGRAPHY.small,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.navy,
+    color: COLORS.primary,
   },
 
-  headerProfile: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.card,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-
-  headerProfileImage: {
-    width: 38,
-    height: 38,
-  },
-
-  sectionHeaderStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-
-  sectionSubtitleText: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-
-  totalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.round,
-    gap: 4,
-  },
-
-  totalBadgeText: {
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.navy,
-  },
-
-  nationalStripe: {
-    height: 6,
-    borderRadius: RADIUS.round,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    marginBottom: SPACING.md,
-  },
-
-  saffronStripe: {
-    flex: 1,
-    backgroundColor: COLORS.saffron,
-  },
-
-  whiteStripe: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  greenStripe: {
-    flex: 1,
-    backgroundColor: COLORS.indiaGreen,
-  },
-
-  ashokaWheel: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: COLORS.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  wheelDot: {
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: COLORS.white,
-  },
-
-  secretaryCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    marginBottom: SPACING.lg,
     ...SHADOWS.small,
   },
 
-  secretaryTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerProfileButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: INDIA.saffron,
   },
 
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.round,
-    backgroundColor: COLORS.primaryLight,
+  notificationBadge: {
+    position: 'absolute',
+    right: 4,
+    top: 3,
+    minWidth: 15,
+    height: 15,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: COLORS.error,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: SPACING.md,
-    overflow: 'hidden',
+  },
+
+  badgeText: {
+    color: COLORS.white,
+    fontSize: 9,
+    fontWeight: TYPOGRAPHY.extraBold,
+  },
+
+  profileImage: {
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+
+  profilePlaceholder: {
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  avatarTouchable: {
+    position: 'relative',
+  },
+
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: INDIA.saffron,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    ...SHADOWS.small,
+  },
+
+  // WELCOME
+  welcomeCard: {
+    backgroundColor: COLORS.card,
+    borderTopWidth: 4,
+    borderTopColor: INDIA.saffron,
+    borderRadius: RADIUS.xl,
+    padding: 17,
+    marginTop: 7,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.small,
   },
 
-  avatarImage: {
-    width: 48,
-    height: 48,
-  },
-
-  secretaryInfo: {
-    flex: 1,
-  },
-
-  welcomeText: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.mediumWeight,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  secretaryName: {
-    fontSize: TYPOGRAPHY.large,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.navy,
-    marginTop: 1,
-  },
-
-  roleRow: {
+  welcomeMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
   },
 
-  roleText: {
+  welcomeTextArea: {
+    flex: 1,
+    marginLeft: 13,
+  },
+
+  welcomeSmall: {
+    fontSize: 21,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.textPrimary,
+  },
+
+  welcomeDescription: {
+    marginTop: 4,
+    fontSize: TYPOGRAPHY.medium,
+    lineHeight: 21,
+    color: COLORS.textSecondary,
+  },
+
+  welcomeTagline: {
+    marginTop: 8,
     fontSize: TYPOGRAPHY.small,
-    color: COLORS.accent,
+    fontWeight: TYPOGRAPHY.semiBold,
+    color: INDIA.green,
+  },
+
+  welcomeMainCompact: {
+    padding: 16,
+  },
+  welcomeGreetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconEmblem: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeFooterCompact: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  welcomeFooter: {
+    marginTop: 15,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.success,
+    marginRight: 7,
+  },
+
+  welcomeFooterText: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
     fontWeight: TYPOGRAPHY.semiBold,
   },
 
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: SPACING.sm,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-
-  metaBadge: {
+  // SECTIONS
+  sectionHeader: {
+    marginTop: SPACING.section,
+    marginBottom: 11,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
-    gap: 4,
-  },
-
-  metaText: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.mediumWeight,
-  },
-
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: SPACING.section,
-  },
-
-  statCard: {
-    width: '48%',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.normal,
-    paddingHorizontal: SPACING.sm,
-    marginBottom: SPACING.sm,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
-  },
-
-  statIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS.round,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.sm,
-  },
-
-  statNumber: {
-    fontSize: TYPOGRAPHY.title,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.navy,
-  },
-
-  statLabel: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
   },
 
   sectionTitle: {
     fontSize: TYPOGRAPHY.subtitle,
     fontWeight: TYPOGRAPHY.extraBold,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
   },
 
   sectionSubtitle: {
+    marginTop: 2,
     fontSize: TYPOGRAPHY.small,
     color: COLORS.textMuted,
-    marginTop: -8,
-    marginBottom: SPACING.md,
   },
 
-  monitorCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.normal,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-
-  monitorIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
+  sectionIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 12,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  monitorContent: {
+  // STATS
+  statsRow: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+
+  statCard: {
     flex: 1,
-    marginLeft: SPACING.md,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.xl,
+    padding: 13,
+    alignItems: 'center',
+    ...SHADOWS.small,
   },
 
-  monitorTitle: {
-    fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-  },
-
-  monitorDescription: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textSecondary,
-    marginTop: 5,
-    lineHeight: TYPOGRAPHY.lineSmall,
-  },
-
-  monitorCount: {
-    minWidth: 38,
-    height: 38,
-    borderRadius: RADIUS.round,
-    backgroundColor: COLORS.warningLight,
+  statIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: SPACING.sm,
+    marginBottom: 7,
   },
 
-  monitorCountText: {
-    fontSize: TYPOGRAPHY.medium,
+  statNumber: {
+    fontSize: 24,
     fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.warning,
-  },
-
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.sm,
-  },
-
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.sm,
-  },
-
-  refreshText: {
-    color: COLORS.navy,
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-
-  complaintCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.normal,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
-  },
-
-  complaintTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-
-  categoryRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: SPACING.sm,
-  },
-
-  categoryIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.sm,
-  },
-
-  category: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
   },
 
-  statusBadge: {
-    backgroundColor: COLORS.infoLight,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
-    borderRadius: RADIUS.sm,
-  },
-
-  statusText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.info,
-  },
-
-  complaintId: {
+  statLabel: {
+    marginTop: 2,
     fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.semiBold,
     color: COLORS.textMuted,
-    marginTop: SPACING.sm,
-  },
-
-  description: {
-    fontSize: TYPOGRAPHY.body,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.sm,
-    lineHeight: TYPOGRAPHY.lineBody,
-  },
-
-  cardPhotoWrapper: {
-    height: 140,
-    borderRadius: RADIUS.md,
-    overflow: 'hidden',
-    marginTop: SPACING.sm,
-    backgroundColor: '#F2F4F7',
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-  },
-
-  cardPhotoImage: {
-    width: '100%',
-    height: '100%',
-  },
-
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: SPACING.md,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-
-  ward: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-  },
-
-  date: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-  },
-
-  center: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xxl,
-  },
-
-  loadingText: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.sm,
-  },
-
-  emptyCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
-  },
-
-  emptyIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: RADIUS.round,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  emptyTitle: {
-    fontSize: TYPOGRAPHY.large,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-    marginTop: SPACING.md,
-  },
-
-  emptyText: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-    marginTop: SPACING.sm,
     textAlign: 'center',
   },
-  scorecardCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+
+  // WARD SCORECARD BANNER
+  wardScorecardBanner: {
+    backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
     borderWidth: 1.5,
     borderColor: '#D4E6DC',
-    elevation: 3,
-    shadowColor: COLORS.navy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 18,
+    ...SHADOWS.small,
   },
-  scorecardIconBox: {
+
+  wardScorecardIcon: {
     width: 44,
     height: 44,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primaryLight,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  scorecardContent: {
+
+  wardScorecardContent: {
     flex: 1,
   },
-  scorecardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  scorecardTitle: {
+
+  wardScorecardTitle: {
     fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.black,
-    color: COLORS.navy,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
   },
-  newBadge: {
+
+  liveTag: {
     backgroundColor: '#23845F',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  newBadgeText: {
+
+  liveTagText: {
     color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '900',
   },
-  scorecardDesc: {
+
+  wardScorecardSubtitle: {
     fontSize: TYPOGRAPHY.small,
     color: COLORS.textMuted,
-    marginTop: 3,
+    marginTop: 2,
     lineHeight: 16,
+  },
+
+  // ADMINISTRATIVE ACTIONS GRID
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+
+  aiText: {
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.primary,
+  },
+
+  problemCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.xl,
+    padding: 12,
+    ...SHADOWS.small,
+  },
+
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+  },
+
+  categoryCard: {
+    width: '48.5%',
+    minHeight: 106,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+
+  categoryIcon: {
+    width: 49,
+    height: 49,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
+  },
+
+  categoryText: {
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+
+  // FOOTER
+  footer: {
+    marginTop: 25,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 9,
+  },
+
+  footerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.borderLight,
+  },
+
+  footerText: {
+    textAlign: 'center',
+    color: COLORS.textMuted,
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.semiBold,
   },
 });

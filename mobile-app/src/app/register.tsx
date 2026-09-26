@@ -389,7 +389,7 @@ export default function RegisterScreen() {
             </View>
           </View>
 
-          {/* NAME */}
+          {/* NAME (LETTERS ONLY) */}
           {renderInput(
             'person-outline',
             isHindi ? 'पूरा नाम' : 'Full Name',
@@ -397,11 +397,11 @@ export default function RegisterScreen() {
               ? 'अपना पूरा नाम दर्ज करें'
               : 'Enter your full name',
             name,
-            setName,
+            (text) => setName(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, '')),
             { autoCapitalize: 'words' }
           )}
 
-          {/* MOBILE */}
+          {/* MOBILE (DIGITS ONLY) */}
           {renderInput(
             'call-outline',
             isHindi ? 'मोबाइल नंबर' : 'Mobile Number',
@@ -409,14 +409,14 @@ export default function RegisterScreen() {
               ? '10 अंकों का मोबाइल नंबर'
               : '10-digit mobile number',
             mobile,
-            setMobile,
+            (text) => setMobile(text.replace(/\D/g, '').slice(0, 10)),
             {
               keyboardType: 'phone-pad',
               maxLength: 10,
             }
           )}
 
-          {/* VILLAGE */}
+          {/* VILLAGE (LETTERS ONLY) */}
           {renderInput(
             'location-outline',
             isHindi ? 'गांव' : 'Village',
@@ -424,11 +424,11 @@ export default function RegisterScreen() {
               ? 'गांव का नाम दर्ज करें'
               : 'Enter village name',
             village,
-            setVillage,
+            (text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, '')),
             { autoCapitalize: 'words' }
           )}
 
-          {/* WARD */}
+          {/* WARD (DIGITS ONLY) */}
           {renderInput(
             'grid-outline',
             isHindi ? 'वार्ड नंबर' : 'Ward Number',
@@ -436,8 +436,8 @@ export default function RegisterScreen() {
               ? 'वार्ड नंबर दर्ज करें'
               : 'Enter ward number',
             ward,
-            setWard,
-            { keyboardType: 'numeric' }
+            (text) => setWard(text.replace(/\D/g, '').slice(0, 3)),
+            { keyboardType: 'numeric', maxLength: 3 }
           )}
 
           {/* PASSWORD */}

@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 
 import {
   COLORS,
@@ -51,6 +52,7 @@ export default function AdminProfile() {
   });
 
   const [editing, setEditing] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
 
   useEffect(() => {
     loadAdmin();
@@ -255,6 +257,121 @@ export default function AdminProfile() {
     );
   };
 
+  const applyVillagePhoto = async (photoUri: string | null) => {
+    try {
+      if (admin.village && photoUri) {
+        await AsyncStorage.setItem(`village_photo_${admin.village}`, photoUri);
+      } else if (admin.village && !photoUri) {
+        await AsyncStorage.removeItem(`village_photo_${admin.village}`);
+      }
+
+      if (photoUri) {
+        await AsyncStorage.setItem('village_cover_photo', photoUri);
+      } else {
+        await AsyncStorage.removeItem('village_cover_photo');
+      }
+
+      Alert.alert(
+        isHindi ? 'सफल' : 'Success',
+        isHindi
+          ? 'ग्राम पंचायत फोटो सफलतापूर्वक अपडेट हो गई।'
+          : 'Gram Panchayat photo updated successfully.'
+      );
+    } catch (err) {
+      console.log('Error saving village cover photo:', err);
+    }
+  };
+
+  const pickVillagePhotoFromCamera = async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert(
+            isHindi ? 'कैमरा अनुमति' : 'Camera Permission',
+            isHindi ? 'फोटो लेने के लिए कैमरे की अनुमति दें।' : 'Please allow camera access.'
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.7,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.base64
+          ? (asset.base64.startsWith('data:') ? asset.base64 : `data:image/jpeg;base64,${asset.base64}`)
+          : asset.uri;
+        await applyVillagePhoto(uri);
+      }
+    } catch (error) {
+      console.log('Village camera error:', error);
+    }
+  };
+
+  const pickVillagePhotoFromGallery = async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert(
+            isHindi ? 'गैलरी अनुमति' : 'Gallery Permission',
+            isHindi ? 'फोटो चुनने के लिए गैलरी की अनुमति दें।' : 'Please allow gallery access.'
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.7,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.base64
+          ? (asset.base64.startsWith('data:') ? asset.base64 : `data:image/jpeg;base64,${asset.base64}`)
+          : asset.uri;
+        await applyVillagePhoto(uri);
+      }
+    } catch (error) {
+      console.log('Village gallery error:', error);
+    }
+  };
+
+  const pickVillageCoverPhoto = () => {
+    Alert.alert(
+      isHindi ? 'ग्राम पंचायत भवन फोटो' : 'Gram Panchayat Bhavan Photo',
+      isHindi ? 'ग्राम पंचायत भवन की मुख्य फोटो बदलें' : 'Change Gram Panchayat Bhavan photo',
+      [
+        {
+          text: isHindi ? '📷 कैमरे से फोटो लें' : '📷 Take Photo',
+          onPress: pickVillagePhotoFromCamera,
+        },
+        {
+          text: isHindi ? '🖼️ गैलरी से चुनें' : '🖼️ Choose from Gallery',
+          onPress: pickVillagePhotoFromGallery,
+        },
+        {
+          text: isHindi ? '❌ डिफ़ॉल्ट फोटो लगाएं' : '❌ Reset to Default',
+          style: 'destructive' as const,
+          onPress: () => applyVillagePhoto(null),
+        },
+        {
+          text: isHindi ? 'रद्द करें' : 'Cancel',
+          style: 'cancel' as const,
+        },
+      ]
+    );
+  };
+
   const saveProfile = async () => {
     if (!admin.name.trim()) {
       Alert.alert(
@@ -429,7 +546,11 @@ export default function AdminProfile() {
 
           {/* PROFILE PHOTO */}
           <View style={styles.profileSection}>
-            <View style={styles.photoWrapper}>
+            <TouchableOpacity
+              style={styles.photoWrapper}
+              onPress={() => setPreviewVisible(true)}
+              activeOpacity={0.85}
+            >
               {admin.profileImage ? (
                 <Image
                   source={{ uri: admin.profileImage }}
@@ -456,7 +577,7 @@ export default function AdminProfile() {
                   color={COLORS.textWhite}
                 />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
 
             <Text style={styles.profileName}>
               {admin.name ||
@@ -560,7 +681,7 @@ export default function AdminProfile() {
                   onChangeText={(text) =>
                     setAdmin({
                       ...admin,
-                      name: text,
+                      name: text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''),
                     })
                   }
                   editable={editing}
@@ -598,11 +719,12 @@ export default function AdminProfile() {
                   onChangeText={(text) =>
                     setAdmin({
                       ...admin,
-                      mobile: text,
+                      mobile: text.replace(/\D/g, '').slice(0, 10),
                     })
                   }
                   editable={editing}
                   keyboardType="phone-pad"
+                  maxLength={10}
                   placeholder={
                     isHindi
                       ? 'मोबाइल नंबर'
@@ -637,7 +759,7 @@ export default function AdminProfile() {
                   onChangeText={(text) =>
                     setAdmin({
                       ...admin,
-                      village: text,
+                      village: text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''),
                     })
                   }
                   editable={editing}
@@ -740,6 +862,38 @@ export default function AdminProfile() {
           </View>
 
           <View style={styles.accountCard}>
+            {/* GRAM PANCHAYAT COVER PHOTO OPTION */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={pickVillageCoverPhoto}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accountIconBox}>
+                <Ionicons
+                  name="business-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={styles.accountTitle}>
+                  {isHindi ? 'ग्राम पंचायत फोटो बदलें' : 'Update Panchayat Photo'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'डैशबोर्ड पर दिखने वाली पंचायत भवन फोटो अपडेट करें' : 'Change Panchayat Bhavan cover photo on dashboard'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
             {/* SWITCH / ADD ACCOUNT */}
             <TouchableOpacity
               style={styles.accountRow}
@@ -859,6 +1013,20 @@ export default function AdminProfile() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* FULL ENLARGED PHOTO PREVIEW MODAL */}
+      <PhotoPreviewModal
+        visible={previewVisible}
+        imageUri={admin.profileImage}
+        userName={admin.name || (isHindi ? 'प्रोफाइल' : 'Profile')}
+        userRole={admin.role === 'secretary' ? (isHindi ? 'ग्राम सचिव' : 'Secretary') : (isHindi ? 'सरपंच / एडमिन' : 'Sarpanch')}
+        onClose={() => setPreviewVisible(false)}
+        onChangePhoto={() => {
+          setPreviewVisible(false);
+          pickImage();
+        }}
+        isHindi={isHindi}
+      />
     </SafeAreaView>
   );
 }

@@ -6,14 +6,16 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 
 import { complaintApi } from '../services/api';
@@ -33,6 +35,7 @@ interface WardScore {
   gradeBg: string;
   topCategory: string;
   categoryCounts: Record<string, number>;
+  complaints: any[];
 }
 
 const COLORS = {
@@ -40,21 +43,22 @@ const COLORS = {
   primaryDark: '#0F5139',
   primaryLight: '#EDF7F2',
   mint: '#DDEFE7',
-  background: '#F5F9F7',
+  background: '#F8FAFC',
   white: '#FFFFFF',
-  darkText: '#17352A',
-  text: '#41554C',
-  muted: '#7C8B84',
-  border: '#DCE8E2',
-  blue: '#2B70B8',
-  blueLight: '#EAF3FC',
-  orange: '#D88A25',
-  orangeLight: '#FFF4E3',
-  red: '#C85C55',
-  redLight: '#FDEDEC',
-  gold: '#B8860B',
-  goldLight: '#FFF9E6',
-  green: '#23845F',
+  darkText: '#0F172A',
+  text: '#334155',
+  muted: '#64748B',
+  border: '#E2E8F0',
+  blue: '#2563EB',
+  blueLight: '#EFF6FF',
+  orange: '#D97706',
+  orangeLight: '#FFFBEB',
+  red: '#DC2626',
+  redLight: '#FEF2F2',
+  green: '#16A34A',
+  greenLight: '#DCFCE7',
+  saffron: '#FF9933',
+  navy: '#000080',
 };
 
 export default function WardScorecardScreen() {
@@ -65,7 +69,8 @@ export default function WardScorecardScreen() {
   const [loading, setLoading] = useState(true);
   const [villageName, setVillageName] = useState('ग्राम पंचायत');
   const [wardScores, setWardScores] = useState<WardScore[]>([]);
-  const [selectedWard, setSelectedWard] = useState<string | null>(null);
+  const [activeWardNum, setActiveWardNum] = useState<string>('1');
+  const [searchInput, setSearchInput] = useState('');
   const [exporting, setExporting] = useState(false);
 
   const calculateScores = useCallback(async () => {
@@ -98,134 +103,115 @@ export default function WardScorecardScreen() {
         }
       }
 
-      // Initialize default wards (Ward 1 to Ward 10, plus any extra found in complaints)
+      // Initialize default wards 1 to 10
       const wardMap: Record<string, any[]> = {};
       for (let i = 1; i <= 10; i++) {
-        wardMap[`Ward ${i}`] = [];
+        wardMap[String(i)] = [];
       }
 
-      const extractWardNumber = (wardStr?: string | null, locStr?: string | null): string | null => {
-        const w = String(wardStr || '').trim();
-        const l = String(locStr || '').trim();
-        const wMatch = w.match(/(?:ward|वार्ड|w)[\s\-:]*(\d+)/i);
-        if (wMatch) return wMatch[1];
-        if (/^\d+$/.test(w)) return w;
-        const lMatch = l.match(/(?:ward|वार्ड|w)[\s\-:]*(\d+)/i);
-        if (lMatch) return lMatch[1];
-        return null;
+      // Helper to extract ward number
+      const extractWard = (w?: any, l?: any): string => {
+        const str = `${w || ''} ${l || ''}`.trim();
+        const match = str.match(/(?:ward|वार्ड|w)[\s\-:]*(\d+)/i);
+        if (match) return match[1];
+        const numOnly = str.match(/\b\d+\b/);
+        if (numOnly) return numOnly[0];
+        return '1';
       };
 
       allComplaints.forEach((c) => {
-        const extractedNum = extractWardNumber(c.ward || c.wardNumber, c.location);
-        const w = extractedNum ? `Ward ${extractedNum}` : 'Ward 1';
-        if (!wardMap[w]) {
-          wardMap[w] = [];
+        const wNum = extractWard(c.wardNumber || c.ward, c.location);
+        if (!wardMap[wNum]) {
+          wardMap[wNum] = [];
         }
-        wardMap[w].push(c);
+        wardMap[wNum].push(c);
       });
 
-      const scores: WardScore[] = Object.keys(wardMap).map((wKey) => {
-        const list = wardMap[wKey];
-        const total = list.length;
-        const resolved = list.filter((item) => {
-          const st = String(item.status || '').toUpperCase();
-          return st === 'RESOLVED' || st === 'CLOSED';
-        }).length;
+      // Calculate score per ward
+      const scores: WardScore[] = Object.keys(wardMap)
+        .map((num) => {
+          const cList = wardMap[num];
+          const total = cList.length;
+          let resolved = 0;
+          let inProgress = 0;
+          let pending = 0;
+          const catCounts: Record<string, number> = {};
 
-        const inProgress = list.filter((item) => {
-          const st = String(item.status || '').toUpperCase();
-          return (
-            st === 'ACTION TAKEN' ||
-            st === 'ACTION_TAKEN' ||
-            st === 'IN PROGRESS' ||
-            st === 'IN_PROGRESS'
-          );
-        }).length;
+          cList.forEach((c) => {
+            const st = String(c.status || '').toUpperCase();
+            if (st === 'RESOLVED' || st === 'CLOSED') {
+              resolved++;
+            } else if (
+              st === 'IN PROGRESS' ||
+              st === 'IN_PROGRESS' ||
+              st === 'ACTION TAKEN' ||
+              st === 'ACTION_TAKEN'
+            ) {
+              inProgress++;
+            } else {
+              pending++;
+            }
 
-        const pending = list.filter((item) => {
-          const st = String(item.status || '').toUpperCase();
-          return (
-            st === 'SUBMITTED' ||
-            st === 'UNDER REVIEW' ||
-            st === 'UNDER_REVIEW' ||
-            st === 'REOPENED'
-          );
-        }).length;
+            const cat = c.category || c.problemType || 'Village Issue';
+            catCounts[cat] = (catCounts[cat] || 0) + 1;
+          });
 
-        const categoryCounts: Record<string, number> = {};
-        list.forEach((item) => {
-          const cat = item.category || item.problemType || 'General';
-          categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-        });
+          // Rate
+          const rate = total > 0 ? Math.round((resolved / total) * 100) : 100;
 
-        let topCategory = 'No Issues';
-        let maxCount = 0;
-        Object.entries(categoryCounts).forEach(([cat, count]) => {
-          if (count > maxCount) {
-            maxCount = count;
-            topCategory = cat;
+          // Grade
+          let grade: 'A+' | 'A' | 'B' | 'C' | 'D' = 'A';
+          let gradeColor = COLORS.green;
+          let gradeBg = COLORS.greenLight;
+
+          if (total === 0 || rate >= 90) {
+            grade = 'A+';
+            gradeColor = '#059669';
+            gradeBg = '#D1FAE5';
+          } else if (rate >= 75) {
+            grade = 'A';
+            gradeColor = '#16A34A';
+            gradeBg = '#DCFCE7';
+          } else if (rate >= 55) {
+            grade = 'B';
+            gradeColor = '#D97706';
+            gradeBg = '#FEF3C7';
+          } else if (rate >= 35) {
+            grade = 'C';
+            gradeColor = '#EA580C';
+            gradeBg = '#FFEDD5';
+          } else {
+            grade = 'D';
+            gradeColor = '#DC2626';
+            gradeBg = '#FEE2E2';
           }
-        });
 
-        // Resolution rate
-        let rate = total > 0 ? Math.round((resolved / total) * 100) : 100;
+          let topCat = isHindi ? 'कोई शिकायत नहीं' : 'No Issues';
+          let maxCatCount = 0;
+          Object.entries(catCounts).forEach(([cat, count]) => {
+            if (count > maxCatCount) {
+              maxCatCount = count;
+              topCat = cat;
+            }
+          });
 
-        let grade: 'A+' | 'A' | 'B' | 'C' | 'D' = 'A+';
-        let gradeColor = COLORS.green;
-        let gradeBg = COLORS.primaryLight;
-
-        if (total === 0) {
-          grade = 'A+';
-          gradeColor = COLORS.green;
-          gradeBg = COLORS.primaryLight;
-        } else if (rate >= 90) {
-          grade = 'A+';
-          gradeColor = COLORS.green;
-          gradeBg = COLORS.primaryLight;
-        } else if (rate >= 75) {
-          grade = 'A';
-          gradeColor = '#2B70B8';
-          gradeBg = '#EAF3FC';
-        } else if (rate >= 50) {
-          grade = 'B';
-          gradeColor = COLORS.orange;
-          gradeBg = COLORS.orangeLight;
-        } else if (rate >= 30) {
-          grade = 'C';
-          gradeColor = '#D9534F';
-          gradeBg = '#FDEDEC';
-        } else {
-          grade = 'D';
-          gradeColor = '#C82333';
-          gradeBg = '#F8D7DA';
-        }
-
-        const matchNum = wKey.match(/\d+/);
-        const wardNumStr = matchNum ? matchNum[0] : wKey;
-
-        return {
-          wardNumber: wardNumStr,
-          wardLabel: isHindi ? `वार्ड क्रमांक ${wardNumStr}` : `Ward #${wardNumStr}`,
-          total,
-          resolved,
-          inProgress,
-          pending,
-          resolutionRate: rate,
-          grade,
-          gradeColor,
-          gradeBg,
-          topCategory,
-          categoryCounts,
-        };
-      });
-
-      // Sort by resolution rate (descending), then by total issues
-      scores.sort((a, b) => {
-        if (b.resolutionRate !== a.resolutionRate) {
-          return b.resolutionRate - a.resolutionRate;
-        }
-        return b.total - a.total;
-      });
+          return {
+            wardNumber: num,
+            wardLabel: isHindi ? `वार्ड संख्या: ${num}` : `Ward No. ${num}`,
+            total,
+            resolved,
+            inProgress,
+            pending,
+            resolutionRate: rate,
+            grade,
+            gradeColor,
+            gradeBg,
+            topCategory: topCat,
+            categoryCounts: catCounts,
+            complaints: cList,
+          };
+        })
+        .sort((a, b) => parseInt(a.wardNumber, 10) - parseInt(b.wardNumber, 10));
 
       setWardScores(scores);
     } catch (err) {
@@ -239,703 +225,769 @@ export default function WardScorecardScreen() {
     calculateScores();
   }, [calculateScores]);
 
-  const toggleLanguage = () => {
-    setLanguage(isHindi ? 'en' : 'hi');
+  const handleSearchSubmit = () => {
+    const clean = searchInput.trim().replace(/\D/g, '');
+    if (clean) {
+      setActiveWardNum(clean);
+    }
   };
 
-  // Overall village metrics
-  const totalVillageComplaints = wardScores.reduce((acc, curr) => acc + curr.total, 0);
-  const totalVillageResolved = wardScores.reduce((acc, curr) => acc + curr.resolved, 0);
-  const overallRate =
-    totalVillageComplaints > 0
-      ? Math.round((totalVillageResolved / totalVillageComplaints) * 100)
-      : 100;
+  const currentScore: WardScore = wardScores.find(
+    (w) => w.wardNumber === activeWardNum
+  ) || {
+    wardNumber: activeWardNum,
+    wardLabel: isHindi ? `वार्ड संख्या: ${activeWardNum}` : `Ward No. ${activeWardNum}`,
+    total: 0,
+    resolved: 0,
+    inProgress: 0,
+    pending: 0,
+    resolutionRate: 100,
+    grade: 'A+',
+    gradeColor: '#059669',
+    gradeBg: '#D1FAE5',
+    topCategory: isHindi ? 'कोई शिकायत नहीं' : 'No Issues',
+    categoryCounts: {},
+    complaints: [],
+  };
 
-  const bestWard = wardScores.find((w) => w.total > 0) || wardScores[0];
-  const urgentWard = [...wardScores]
-    .filter((w) => w.total > 0)
-    .sort((a, b) => a.resolutionRate - b.resolutionRate)[0];
-
-  const handleExportScorecardPdf = async () => {
+  const exportWardReport = async () => {
     try {
       setExporting(true);
-
-      const rowsHtml = wardScores
-        .map(
-          (w, idx) => `
-          <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; font-weight: bold; text-align: center;">#${idx + 1}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; font-weight: bold;">${w.wardLabel}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; text-align: center;">${w.total}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; text-align: center; color: #23845F; font-weight: bold;">${w.resolved}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; text-align: center; color: #D88A25;">${w.pending}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; text-align: center; font-weight: bold;">${w.resolutionRate}%</td>
-            <td style="padding: 10px; border-bottom: 1px solid #DCE8E2; text-align: center;">
-              <span style="background: ${w.gradeBg}; color: ${w.gradeColor}; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Grade ${w.grade}</span>
-            </td>
-          </tr>
-        `
-        )
-        .join('');
 
       const html = `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8" />
+          <title>Ward Performance Report - ${currentScore.wardLabel}</title>
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", sans-serif; padding: 24px; color: #17352A; }
-            .header { text-align: center; border-bottom: 3px solid #176B4D; padding-bottom: 14px; margin-bottom: 20px; }
-            .title { font-size: 22px; font-weight: bold; color: #176B4D; }
-            .subtitle { font-size: 14px; color: #41554C; margin-top: 4px; }
-            .summary { margin-bottom: 20px; background: #EDF7F2; padding: 12px; border-radius: 8px; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th { background: #176B4D; color: #FFFFFF; padding: 8px; text-align: left; }
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 25px; color: #1E293B; }
+            .header { text-align: center; border-bottom: 2px solid #176B4D; padding-bottom: 12px; margin-bottom: 20px; }
+            .title { font-size: 20px; font-weight: bold; color: #176B4D; }
+            .subtitle { font-size: 14px; color: #64748B; margin-top: 4px; }
+            .score-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+            .stat-grid { display: flex; justify-content: space-around; text-align: center; margin-top: 10px; }
+            .stat-item { font-size: 13px; color: #475569; }
+            .stat-num { font-size: 18px; font-weight: bold; color: #0F172A; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #E2E8F0; padding: 8px 12px; text-align: left; font-size: 13px; }
+            th { background-color: #EDF7F2; color: #176B4D; }
           </style>
         </head>
         <body>
           <div class="header">
-            <div class="title">📊 Ward Development & Performance Scorecard</div>
-            <div class="subtitle">${villageName} • Gram Panchayat Performance Evaluation</div>
+            <div class="title">ग्राम पंचायत: ${villageName}</div>
+            <div class="subtitle">वार्ड प्रगति एवं विकास रिपोर्ट कार्ड • ${currentScore.wardLabel}</div>
           </div>
-          <div class="summary">
-            <strong>Overall Village Redressal Rate:</strong> ${overallRate}% | <strong>Total Complaints:</strong> ${totalVillageComplaints} | <strong>Resolved:</strong> ${totalVillageResolved}
+
+          <div class="score-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>${currentScore.wardLabel} (ग्रेड: ${currentScore.grade})</h3>
+              <div>समाधान दर: <strong>${currentScore.resolutionRate}%</strong></div>
+            </div>
+            <div class="stat-grid">
+              <div class="stat-item"><div class="stat-num">${currentScore.total}</div>कुल शिकायतें</div>
+              <div class="stat-item"><div class="stat-num" style="color:#16A34A">${currentScore.resolved}</div>हल की गई</div>
+              <div class="stat-item"><div class="stat-num" style="color:#D97706">${currentScore.inProgress}</div>कार्रवाई में</div>
+              <div class="stat-item"><div class="stat-num" style="color:#DC2626">${currentScore.pending}</div>लंबित</div>
+            </div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th style="text-align: center;">Rank</th>
-                <th>Ward Name</th>
-                <th style="text-align: center;">Total</th>
-                <th style="text-align: center;">Resolved</th>
-                <th style="text-align: center;">Pending</th>
-                <th style="text-align: center;">Success %</th>
-                <th style="text-align: center;">Grade</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
+
+          <h3>वार्ड में दर्ज समस्याओं की सूची (${currentScore.complaints.length})</h3>
+          ${
+            currentScore.complaints.length === 0
+              ? '<p>इस वार्ड में कोई लंबित शिकायत नहीं है।</p>'
+              : `<table>
+                  <tr>
+                    <th>क्र.</th>
+                    <th>श्रेणी</th>
+                    <th>विवरण</th>
+                    <th>स्थिति</th>
+                  </tr>
+                  ${currentScore.complaints
+                    .map(
+                      (c, i) => `
+                    <tr>
+                      <td>#${c.id || i + 1}</td>
+                      <td>${c.category || c.problemType || 'सामान्य'}</td>
+                      <td>${c.description || '-'}</td>
+                      <td>${c.status || 'SUBMITTED'}</td>
+                    </tr>
+                  `
+                    )
+                    .join('')}
+                </table>`
+          }
         </body>
         </html>
       `;
 
       await Print.printAsync({ html });
     } catch (err: any) {
-      console.log('Error printing scorecard:', err);
-      Alert.alert('PDF Notice', err?.message || 'Unable to print scorecard.');
+      Alert.alert(
+        isHindi ? 'त्रुटि' : 'Error',
+        err?.message || (isHindi ? 'PDF तैयार नहीं हो सका।' : 'Could not generate PDF.')
+      );
     } finally {
       setExporting(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* TOP HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>
+            {isHindi ? 'वार्ड स्कोरकार्ड' : 'Ward Scorecard'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            📍 {villageName} • {currentScore.wardLabel}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.exportBtn}
+          onPress={exportWardReport}
+          disabled={exporting}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="document-text-outline" size={17} color={COLORS.primary} />
+          <Text style={styles.exportText}>{isHindi ? 'PDF' : 'PDF'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <OfflineSyncBanner isHindi={isHindi} onSyncComplete={calculateScores} />
+
       <ScrollView
+        contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
       >
-        {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              if (router.canGoBack()) router.back();
-              else router.replace('/admin');
+        {/* SEARCH WARD INPUT */}
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color={COLORS.muted} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={
+              isHindi
+                ? 'वार्ड नंबर दर्ज करें (उदा. 1, 2, 3...)'
+                : 'Enter Ward Number (e.g. 1, 2, 3...)'
+            }
+            placeholderTextColor={COLORS.muted}
+            value={searchInput}
+            onChangeText={(text) => {
+              setSearchInput(text);
+              const num = text.replace(/\D/g, '');
+              if (num) setActiveWardNum(num);
             }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={22} color={COLORS.darkText} />
-          </TouchableOpacity>
-
-          <View style={styles.headerText}>
-            <Text style={styles.title}>
-              {isHindi ? 'वार्ड विकास रिपोर्ट कार्ड' : 'Ward Scorecard'}
-            </Text>
-            <Text style={styles.subtitle}>
-              {villageName} • {isHindi ? 'पारदर्शिता एवं प्रदर्शन' : 'Performance Ranking'}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.langBtn}
-            onPress={toggleLanguage}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.langBtnText}>{isHindi ? 'EN' : 'हिं'}</Text>
-          </TouchableOpacity>
+            keyboardType="number-pad"
+            maxLength={3}
+            onSubmitEditing={handleSearchSubmit}
+          />
+          {searchInput.length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchInput('');
+              }}
+              style={{ padding: 4 }}
+            >
+              <Ionicons name="close-circle" size={18} color={COLORS.muted} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* OFFLINE SYNC BANNER */}
-        <OfflineSyncBanner isHindi={isHindi} onSyncComplete={calculateScores} />
-
-        {/* VILLAGE OVERALL HEALTH CARD */}
-        <View style={styles.healthCard}>
-          <View style={styles.healthHeader}>
-            <View style={styles.healthBadge}>
-              <Ionicons name="shield-checkmark" size={16} color="#FFFFFF" />
-              <Text style={styles.healthBadgeText}>
-                {isHindi ? 'ग्राम पंचायत प्रदर्शन' : 'Village Health Index'}
-              </Text>
-            </View>
-            <Text style={styles.overallRateText}>{overallRate}%</Text>
-          </View>
-
-          <Text style={styles.healthSub}>
-            {isHindi
-              ? `${totalVillageComplaints} कुल शिकायतों में से ${totalVillageResolved} समस्याओं का समाधान पूरा हुआ।`
-              : `${totalVillageResolved} of ${totalVillageComplaints} total complaints resolved successfully.`}
-          </Text>
-
-          {/* PROGRESS BAR */}
-          <View style={styles.progressBarTrack}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${Math.min(overallRate, 100)}%` },
-              ]}
-            />
-          </View>
-
-          {/* LEADERBOARD HIGHLIGHTS */}
-          <View style={styles.highlightsRow}>
-            {bestWard ? (
-              <View style={styles.highlightItem}>
-                <Ionicons name="trophy" size={16} color={COLORS.gold} />
-                <View style={styles.highlightTextContainer}>
-                  <Text style={styles.highlightLabel}>
-                    {isHindi ? 'सर्वश्रेष्ठ वार्ड' : 'Top Performing'}
-                  </Text>
-                  <Text style={styles.highlightVal}>
-                    {bestWard.wardLabel} ({bestWard.resolutionRate}%)
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {urgentWard && urgentWard.resolutionRate < 70 ? (
-              <View style={[styles.highlightItem, { backgroundColor: COLORS.redLight }]}>
-                <Ionicons name="alert-circle" size={16} color={COLORS.red} />
-                <View style={styles.highlightTextContainer}>
-                  <Text style={[styles.highlightLabel, { color: COLORS.red }]}>
-                    {isHindi ? 'ध्यान देने योग्य' : 'Needs Attention'}
-                  </Text>
-                  <Text style={[styles.highlightVal, { color: COLORS.red }]}>
-                    {urgentWard.wardLabel} ({urgentWard.resolutionRate}%)
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        {/* ACTION BAR */}
-        <View style={styles.actionBar}>
-          <Text style={styles.sectionHeading}>
-            {isHindi ? 'वार्डवार रैंकिंग एवं रिपोर्ट' : 'Ward Leaderboard & Grades'}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.exportBtn}
-            onPress={handleExportScorecardPdf}
-            disabled={exporting}
-            activeOpacity={0.8}
+        {/* HORIZONTAL WARD SELECTOR TABS (Ward 1 to 10) */}
+        <View style={styles.tabsWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsContainer}
           >
-            {exporting ? (
-              <ActivityIndicator size="small" color={COLORS.primary} />
-            ) : (
-              <Ionicons name="document-text-outline" size={15} color={COLORS.primary} />
-            )}
-            <Text style={styles.exportBtnText}>
-              {isHindi ? 'PDF रिपोर्ट' : 'Export PDF'}
-            </Text>
-          </TouchableOpacity>
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].map((num) => {
+              const isActive = activeWardNum === num;
+              return (
+                <TouchableOpacity
+                  key={num}
+                  style={[styles.wardTab, isActive && styles.activeWardTab]}
+                  onPress={() => {
+                    setActiveWardNum(num);
+                    setSearchInput('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.wardTabText, isActive && styles.activeWardTabText]}>
+                    {isHindi ? `वार्ड ${num}` : `Ward ${num}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
-        {/* LOADING INDICATOR */}
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>
-              {isHindi ? 'वार्ड डेटा संकलित किया जा रहा है...' : 'Calculating ward metrics...'}
+              {isHindi ? 'वार्ड डेटा लोड हो रहा है...' : 'Loading ward scorecard...'}
             </Text>
           </View>
         ) : (
-          wardScores.map((score, index) => {
-            const isSelected = selectedWard === score.wardNumber;
+          <>
+            {/* SELECTED WARD SCORECARD CARD */}
+            <View style={styles.scoreCard}>
+              <View style={styles.scoreHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.wardTitle}>{currentScore.wardLabel}</Text>
+                  <Text style={styles.wardSubtitle}>
+                    {isHindi ? 'ग्राम पंचायत विकास व समस्या रिपोर्ट' : 'Panchayat Grievance Overview'}
+                  </Text>
+                </View>
 
-            return (
-              <TouchableOpacity
-                key={score.wardNumber}
-                style={[
-                  styles.wardCard,
-                  isSelected && styles.wardCardActive,
-                ]}
-                onPress={() =>
-                  setSelectedWard(isSelected ? null : score.wardNumber)
-                }
-                activeOpacity={0.85}
-              >
-                {/* WARD TOP ROW */}
-                <View style={styles.wardCardTop}>
-                  <View style={styles.rankCircle}>
-                    <Text style={styles.rankNumber}>#{index + 1}</Text>
-                  </View>
+                {/* GRADE BADGE */}
+                <View style={[styles.gradeBadge, { backgroundColor: currentScore.gradeBg }]}>
+                  <Text style={[styles.gradeText, { color: currentScore.gradeColor }]}>
+                    {currentScore.grade}
+                  </Text>
+                  <Text style={[styles.gradeLabel, { color: currentScore.gradeColor }]}>
+                    {isHindi ? 'ग्रेड' : 'Grade'}
+                  </Text>
+                </View>
+              </View>
 
-                  <View style={styles.wardTitleBox}>
-                    <Text style={styles.wardName}>{score.wardLabel}</Text>
-                    <Text style={styles.wardMeta}>
-                      {isHindi
-                        ? `कुल ${score.total} शिकायतें • मुख्य: ${score.topCategory}`
-                        : `${score.total} issues • Top: ${score.topCategory}`}
-                    </Text>
-                  </View>
-
+              {/* RESOLUTION PROGRESS BAR */}
+              <View style={styles.progressContainer}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>
+                    {isHindi ? 'समाधान दर (Resolution Rate)' : 'Resolution Rate'}
+                  </Text>
+                  <Text style={[styles.progressVal, { color: currentScore.gradeColor }]}>
+                    {currentScore.resolutionRate}%
+                  </Text>
+                </View>
+                <View style={styles.progressBarBg}>
                   <View
                     style={[
-                      styles.gradeBadge,
-                      { backgroundColor: score.gradeBg },
+                      styles.progressBarFill,
+                      {
+                        width: `${Math.min(currentScore.resolutionRate, 100)}%`,
+                        backgroundColor: currentScore.gradeColor,
+                      },
                     ]}
+                  />
+                </View>
+              </View>
+
+              {/* 4 STAT BOXES */}
+              <View style={styles.statsGrid}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statNum}>{currentScore.total}</Text>
+                  <Text style={styles.statLbl}>{isHindi ? 'कुल दर्ज' : 'Total'}</Text>
+                </View>
+
+                <View style={[styles.statBox, { backgroundColor: '#DCFCE7' }]}>
+                  <Text style={[styles.statNum, { color: '#16A34A' }]}>
+                    {currentScore.resolved}
+                  </Text>
+                  <Text style={styles.statLbl}>{isHindi ? 'हल हुई' : 'Resolved'}</Text>
+                </View>
+
+                <View style={[styles.statBox, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={[styles.statNum, { color: '#D97706' }]}>
+                    {currentScore.inProgress}
+                  </Text>
+                  <Text style={styles.statLbl}>{isHindi ? 'प्रगति में' : 'In Progress'}</Text>
+                </View>
+
+                <View style={[styles.statBox, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={[styles.statNum, { color: '#DC2626' }]}>
+                    {currentScore.pending}
+                  </Text>
+                  <Text style={styles.statLbl}>{isHindi ? 'लंबित' : 'Pending'}</Text>
+                </View>
+              </View>
+
+              {/* TOP ISSUE CATEGORY */}
+              <View style={styles.topCategoryRow}>
+                <Ionicons name="analytics" size={16} color={COLORS.primary} />
+                <Text style={styles.topCategoryText}>
+                  {isHindi ? 'प्रमुख विषय: ' : 'Top Category: '}
+                  <Text style={{ fontWeight: '700', color: COLORS.darkText }}>
+                    {currentScore.topCategory}
+                  </Text>
+                </Text>
+              </View>
+            </View>
+
+            {/* LIST OF COMPLAINTS FOR THIS SELECTED WARD */}
+            <View style={styles.complaintsSectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {isHindi
+                  ? `${currentScore.wardLabel} की समस्याएं (${currentScore.complaints.length})`
+                  : `${currentScore.wardLabel} Problems (${currentScore.complaints.length})`}
+              </Text>
+
+              {currentScore.complaints.length > 0 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(tabs)/complaints',
+                      params: { ward: currentScore.wardNumber },
+                    } as any)
+                  }
+                >
+                  <Text style={styles.viewAllText}>
+                    {isHindi ? 'सभी देखें ➔' : 'View All ➔'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {currentScore.complaints.length === 0 ? (
+              <View style={styles.emptyWardBox}>
+                <Ionicons name="checkmark-done-circle" size={48} color="#16A34A" />
+                <Text style={styles.emptyWardTitle}>
+                  {isHindi ? 'कोई लंबित समस्या नहीं है' : 'No Pending Problems'}
+                </Text>
+                <Text style={styles.emptyWardText}>
+                  {isHindi
+                    ? `${currentScore.wardLabel} में वर्तमान में सभी कार्य सुचारु रूप से चल रहे हैं।`
+                    : `All public services are currently running smoothly in ${currentScore.wardLabel}.`}
+                </Text>
+              </View>
+            ) : (
+              currentScore.complaints.map((item, idx) => {
+                const st = String(item.status || 'SUBMITTED').toUpperCase();
+                const isResolved = st === 'RESOLVED' || st === 'CLOSED';
+                const isInProg = st === 'IN PROGRESS' || st === 'IN_PROGRESS';
+
+                return (
+                  <TouchableOpacity
+                    key={item.id || idx}
+                    style={styles.problemCard}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      if (item.id) {
+                        router.push({
+                          pathname: '/complaint-details',
+                          params: { id: String(item.id) },
+                        });
+                      }
+                    }}
                   >
-                    <Text
-                      style={[
-                        styles.gradeText,
-                        { color: score.gradeColor },
-                      ]}
-                    >
-                      {isHindi ? `ग्रेड ${score.grade}` : `Grade ${score.grade}`}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* RESOLUTION PROGRESS BAR */}
-                <View style={styles.wardProgressContainer}>
-                  <View style={styles.wardProgressLabels}>
-                    <Text style={styles.wardRateLabel}>
-                      {isHindi ? 'निराकरण दर (Resolution Rate)' : 'Resolution Rate'}
-                    </Text>
-                    <Text style={[styles.wardRateVal, { color: score.gradeColor }]}>
-                      {score.resolutionRate}%
-                    </Text>
-                  </View>
-
-                  <View style={styles.miniTrack}>
-                    <View
-                      style={[
-                        styles.miniFill,
-                        {
-                          width: `${Math.min(score.resolutionRate, 100)}%`,
-                          backgroundColor: score.gradeColor,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-
-                {/* STATS CHIPS */}
-                <View style={styles.statsRow}>
-                  <View style={styles.statPill}>
-                    <Ionicons name="checkmark-circle" size={13} color={COLORS.green} />
-                    <Text style={styles.statPillText}>
-                      {score.resolved} {isHindi ? 'हल' : 'Resolved'}
-                    </Text>
-                  </View>
-
-                  <View style={[styles.statPill, { backgroundColor: COLORS.orangeLight }]}>
-                    <Ionicons name="time" size={13} color={COLORS.orange} />
-                    <Text style={[styles.statPillText, { color: COLORS.orange }]}>
-                      {score.pending} {isHindi ? 'लंबित' : 'Pending'}
-                    </Text>
-                  </View>
-
-                  <View style={[styles.statPill, { backgroundColor: COLORS.blueLight }]}>
-                    <Ionicons name="sync" size={13} color={COLORS.blue} />
-                    <Text style={[styles.statPillText, { color: COLORS.blue }]}>
-                      {score.inProgress} {isHindi ? 'प्रगति' : 'In Progress'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* EXPANDED DETAILS */}
-                {isSelected ? (
-                  <View style={styles.expandedBox}>
-                    <Text style={styles.expandedTitle}>
-                      {isHindi ? 'समस्याओं का वर्गीकरण:' : 'Category Breakdown:'}
-                    </Text>
-                    <View style={styles.categoryTagsRow}>
-                      {Object.entries(score.categoryCounts).map(([cat, count]) => (
-                        <View key={cat} style={styles.categoryTag}>
-                          <Text style={styles.categoryTagText}>
-                            {cat}: <strong>{count}</strong>
-                          </Text>
-                        </View>
-                      ))}
-                      {Object.keys(score.categoryCounts).length === 0 && (
-                        <Text style={styles.noIssuesText}>
-                          {isHindi ? 'इस वार्ड में कोई सक्रिय शिकायत नहीं है।' : 'No active complaints in this ward.'}
+                    <View style={styles.problemHeader}>
+                      <View style={styles.problemCategoryPill}>
+                        <Ionicons name="layers-outline" size={13} color={COLORS.primary} />
+                        <Text style={styles.problemCategoryText}>
+                          {item.category || item.problemType || (isHindi ? 'ग्राम समस्या' : 'Issue')}
                         </Text>
-                      )}
+                      </View>
+
+                      <View
+                        style={[
+                          styles.problemStatusBadge,
+                          {
+                            backgroundColor: isResolved
+                              ? '#DCFCE7'
+                              : isInProg
+                              ? '#FEF3C7'
+                              : '#EFF6FF',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.problemStatusText,
+                            {
+                              color: isResolved
+                                ? '#16A34A'
+                                : isInProg
+                                ? '#D97706'
+                                : '#2563EB',
+                            },
+                          ]}
+                        >
+                          {isResolved
+                            ? isHindi ? 'हल हो गई' : 'Resolved'
+                            : isInProg
+                            ? isHindi ? 'कार्रवाई जारी' : 'In Progress'
+                            : isHindi ? 'दर्ज की गई' : 'Registered'}
+                        </Text>
+                      </View>
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.viewWardComplaintsBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/(tabs)/complaints',
-                          params: { ward: score.wardNumber },
-                        })
-                      }
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="list-outline" size={15} color={COLORS.primary} />
-                      <Text style={styles.viewWardComplaintsText}>
-                        {isHindi
-                          ? `वार्ड ${score.wardNumber} की सभी शिकायतें देखें`
-                          : `View Ward ${score.wardNumber} Complaints`}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            );
-          })
-        )}
+                    <Text style={styles.problemDescription} numberOfLines={2}>
+                      {item.description || (isHindi ? 'विवरण उपलब्ध नहीं है' : 'No description provided')}
+                    </Text>
 
-        {/* FOOTER */}
-        <Text style={styles.footer}>
-          VillageApp • {isHindi ? 'डिजिटल ग्राम पंचायत विकास सूचकांक' : 'Digital Panchayat Transparency Index'}
-        </Text>
+                    <View style={styles.problemFooter}>
+                      <Text style={styles.problemDate}>
+                        {item.createdAt
+                          ? new Date(item.createdAt).toLocaleDateString(
+                              isHindi ? 'hi-IN' : 'en-US',
+                              { day: '2-digit', month: 'short', year: 'numeric' }
+                            )
+                          : isHindi ? 'हाल ही में' : 'Recent'}
+                      </Text>
+
+                      <View style={styles.viewDetailBtn}>
+                        <Text style={styles.viewDetailText}>
+                          {isHindi ? 'विवरण देखें' : 'View'}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={13} color={COLORS.primary} />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 40,
+    backgroundColor: '#FFFFFF',
   },
   header: {
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 8 : 12,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.white,
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 11,
+    justifyContent: 'center',
   },
-  headerText: {
+  headerCenter: {
     flex: 1,
+    marginHorizontal: 12,
   },
-  title: {
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  exportText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+
+  container: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+
+  tabsWrapper: {
+    marginBottom: 16,
+  },
+  tabsContainer: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  wardTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  activeWardTab: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primaryDark,
+  },
+  wardTabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  activeWardTabText: {
+    color: '#FFFFFF',
+  },
+
+  loadingBox: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  scoreCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  scoreHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  wardTitle: {
     fontSize: 20,
-    fontWeight: '900',
-    color: COLORS.darkText,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  subtitle: {
-    fontSize: 11,
-    color: COLORS.muted,
+  wardSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 2,
   },
-  langBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  gradeBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 52,
+    height: 52,
+    borderRadius: 14,
   },
-  langBtnText: {
-    fontSize: 11,
+  gradeText: {
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  gradeLabel: {
+    fontSize: 10,
     fontWeight: '800',
+  },
+
+  progressContainer: {
+    marginBottom: 16,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  progressVal: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  progressBarBg: {
+    height: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statNum: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  statLbl: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  topCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  topCategoryText: {
+    fontSize: 13,
+    color: '#475569',
+  },
+
+  complaintsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: COLORS.primary,
   },
-  healthCard: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 20,
-    elevation: 4,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+
+  emptyWardBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  healthHeader: {
+  emptyWardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  emptyWardText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  problemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  problemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  healthBadge: {
+  problemCategoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 6,
+    gap: 5,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  healthBadgeText: {
-    color: COLORS.white,
+  problemCategoryText: {
     fontSize: 12,
-    fontWeight: '800',
-  },
-  overallRateText: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: COLORS.white,
-  },
-  healthSub: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 11,
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 14,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#6EE7B7',
-    borderRadius: 4,
-  },
-  highlightsRow: {
-    gap: 8,
-  },
-  highlightItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    gap: 8,
-  },
-  highlightTextContainer: {
-    flex: 1,
-  },
-  highlightLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.muted,
-  },
-  highlightVal: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: COLORS.darkText,
-    marginTop: 1,
-  },
-  actionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionHeading: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: COLORS.darkText,
-  },
-  exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
-  },
-  exportBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
-  loadingBox: {
-    backgroundColor: COLORS.white,
-    padding: 30,
-    borderRadius: 18,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 12,
-    color: COLORS.muted,
-  },
-  wardCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 18,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 12,
-    elevation: 2,
-  },
-  wardCardActive: {
-    borderColor: COLORS.primary,
-    borderWidth: 1.5,
-  },
-  wardCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  rankCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: COLORS.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  rankNumber: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: COLORS.primary,
-  },
-  wardTitleBox: {
-    flex: 1,
-  },
-  wardName: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: COLORS.darkText,
-  },
-  wardMeta: {
-    fontSize: 10,
-    color: COLORS.muted,
-    marginTop: 2,
-  },
-  gradeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  gradeText: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  wardProgressContainer: {
-    marginBottom: 10,
-  },
-  wardProgressLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  wardRateLabel: {
-    fontSize: 10,
     fontWeight: '700',
-    color: COLORS.muted,
-  },
-  wardRateVal: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  miniTrack: {
-    height: 6,
-    backgroundColor: '#F0F4F2',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  miniFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-  },
-  statPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.green,
-  },
-  expandedBox: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F4F2',
-  },
-  expandedTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: COLORS.darkText,
-    marginBottom: 6,
-  },
-  categoryTagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10,
-  },
-  categoryTag: {
-    backgroundColor: '#F5F9F7',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  categoryTagText: {
-    fontSize: 10,
-    color: COLORS.text,
-  },
-  noIssuesText: {
-    fontSize: 11,
-    color: COLORS.muted,
-    fontStyle: 'italic',
-  },
-  viewWardComplaintsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primaryLight,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
-  },
-  viewWardComplaintsText: {
-    fontSize: 11,
-    fontWeight: '800',
     color: COLORS.primary,
   },
-  footer: {
-    textAlign: 'center',
-    marginTop: 18,
-    fontSize: 10,
-    color: '#8A9892',
-    fontWeight: '600',
+  problemStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  problemStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  problemDescription: {
+    fontSize: 13,
+    color: '#1E293B',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  problemFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
+  },
+  problemDate: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  viewDetailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewDetailText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
 });

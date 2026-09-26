@@ -383,7 +383,7 @@ export default function AdminRegister() {
             </View>
           </View>
 
-          {/* NAME */}
+          {/* NAME (LETTERS ONLY) */}
           {renderInput(
             'person-outline',
             isHindi ? 'पूरा नाम' : 'Full Name',
@@ -391,11 +391,11 @@ export default function AdminRegister() {
               ? 'अपना पूरा नाम दर्ज करें'
               : 'Enter your full name',
             name,
-            setName,
+            (text) => setName(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, '')),
             { autoCapitalize: 'words' }
           )}
 
-          {/* MOBILE */}
+          {/* MOBILE (DIGITS ONLY) */}
           {renderInput(
             'call-outline',
             isHindi ? 'मोबाइल नंबर' : 'Mobile Number',
@@ -403,14 +403,14 @@ export default function AdminRegister() {
               ? '10 अंकों का मोबाइल नंबर'
               : '10-digit mobile number',
             mobile,
-            setMobile,
+            (text) => setMobile(text.replace(/\D/g, '').slice(0, 10)),
             {
               keyboardType: 'phone-pad',
               maxLength: 10,
             }
           )}
 
-          {/* VILLAGE */}
+          {/* VILLAGE (LETTERS ONLY) */}
           {renderInput(
             'location-outline',
             isHindi ? 'गांव' : 'Village',
@@ -418,7 +418,7 @@ export default function AdminRegister() {
               ? 'गांव का नाम दर्ज करें'
               : 'Enter village name',
             village,
-            setVillage,
+            (text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, '')),
             { autoCapitalize: 'words' }
           )}
 
@@ -429,8 +429,8 @@ export default function AdminRegister() {
               ? 'सरपंच / एडमिन आईडी'
               : 'Sarpanch / Admin ID',
             isHindi
-              ? 'अपनी एडमिन आईडी दर्ज करें'
-              : 'Enter your Admin ID',
+              ? 'अपनी एडमिन आईडी दर्ज करें (उदा. SAR101)'
+              : 'Enter your Admin ID (e.g. SAR101)',
             adminId,
             setAdminId,
             { autoCapitalize: 'characters' }

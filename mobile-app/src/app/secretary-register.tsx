@@ -318,12 +318,13 @@ export default function SecretaryRegister() {
                 }
                 placeholderTextColor={COLORS.textMuted}
                 value={name}
-                onChangeText={setName}
+                onChangeText={(text) => setName(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
+                autoCapitalize="words"
               />
             </View>
           </View>
 
-          {/* MOBILE */}
+          {/* MOBILE (DIGITS ONLY) */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
               {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'}
@@ -349,12 +350,12 @@ export default function SecretaryRegister() {
                 keyboardType="phone-pad"
                 maxLength={10}
                 value={mobile}
-                onChangeText={setMobile}
+                onChangeText={(text) => setMobile(text.replace(/\D/g, '').slice(0, 10))}
               />
             </View>
           </View>
 
-          {/* VILLAGE */}
+          {/* VILLAGE (LETTERS ONLY) */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
               {isHindi ? 'गांव' : 'Village'}
@@ -378,7 +379,8 @@ export default function SecretaryRegister() {
                 }
                 placeholderTextColor={COLORS.textMuted}
                 value={village}
-                onChangeText={setVillage}
+                onChangeText={(text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
+                autoCapitalize="words"
               />
             </View>
           </View>
@@ -402,11 +404,11 @@ export default function SecretaryRegister() {
                 style={styles.input}
                 placeholder={
                   isHindi
-                    ? 'सचिव आईडी दर्ज करें'
-                    : 'Enter Secretary ID'
+                    ? 'सचिव आईडी दर्ज करें (उदा. SEC201)'
+                    : 'Enter Secretary ID (e.g. SEC201)'
                 }
                 placeholderTextColor={COLORS.textMuted}
-                autoCapitalize="none"
+                autoCapitalize="characters"
                 value={secretaryId}
                 onChangeText={setSecretaryId}
               />
