@@ -79,6 +79,10 @@ public class SecurityConfig {
                                 "/api/wards",
                                 "/api/wards/**",
 
+                                // LGD APIs
+                                "/api/lgd",
+                                "/api/lgd/**",
+
                                 // Uploaded files
                                 "/uploads/**"
                         ).permitAll()
