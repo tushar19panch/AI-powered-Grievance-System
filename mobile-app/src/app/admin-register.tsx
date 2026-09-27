@@ -38,7 +38,6 @@ export default function AdminRegister() {
   const [district, setDistrict] = useState('');
   const [block, setBlock] = useState('');
   const [village, setVillage] = useState('');
-  const [ward, setWard] = useState('');
   const [adminId, setAdminId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -164,7 +163,6 @@ export default function AdminRegister() {
         district: district.trim(),
         block: block.trim(),
         villageName: village.trim(),
-        wardNumber: ward.trim() || '1',
         officialId: adminId.trim(),
         adminId: adminId.trim(),
       });
@@ -462,16 +460,6 @@ export default function AdminRegister() {
             isHindi ? 'गाँव का नाम दर्ज करें' : 'Enter village name',
             village,
             setVillage,
-            { autoCapitalize: 'words' }
-          )}
-
-          {/* WARD NUMBER */}
-          {renderInput(
-            'location-outline',
-            isHindi ? 'वार्ड नंबर' : 'Ward Number',
-            isHindi ? 'जैसे: Ward 1 या 1' : 'e.g. Ward 1 or 1',
-            ward,
-            setWard,
             { autoCapitalize: 'words' }
           )}
 

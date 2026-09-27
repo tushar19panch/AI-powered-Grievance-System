@@ -220,7 +220,7 @@ export default function AdminScreen() {
           },
         ]}
       >
-        <Ionicons name={icon} size={27} color={iconColor} />
+        <Ionicons name={icon} size={21} color={iconColor} />
       </View>
       <Text style={styles.categoryText} numberOfLines={2}>
         {label}
@@ -339,80 +339,14 @@ export default function AdminScreen() {
         </Animated.View>
 
         {/* =================================================
-            COMPLAINT OVERVIEW / STATS
+            COMPLAINT OVERVIEW / शिकायतों का अवलोकन
+            (PRIORITY & CLASSIFICATION BREAKDOWNS)
         ================================================= */}
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
-              {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi ? 'गाँव की शिकायतों की वर्तमान स्थिति' : 'Current village complaint status'}
-            </Text>
-          </View>
-
-          <View style={styles.sectionIcon}>
-            <Ionicons
-              name="stats-chart-outline"
-              size={21}
-              color={COLORS.primary}
-            />
-          </View>
-        </View>
-
-        {/* 3 STAT CARDS MATCHING CITIZEN */}
-        <View style={styles.statsRow}>
-          {/* TOTAL */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('all')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
-              <Ionicons
-                name="document-text-outline"
-                size={20}
-                color={COLORS.primary}
-              />
-            </View>
-            <Text style={styles.statNumber}>{total}</Text>
-            <Text style={styles.statLabel}>{t.total}</Text>
-          </TouchableOpacity>
-
-          {/* IN PROGRESS */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('in-progress')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
-              <Ionicons
-                name="time-outline"
-                size={20}
-                color={COLORS.warning}
-              />
-            </View>
-            <Text style={styles.statNumber}>{inProgress}</Text>
-            <Text style={styles.statLabel}>{t.inProgress}</Text>
-          </TouchableOpacity>
-
-          {/* RESOLVED */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('resolved')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color={COLORS.success}
-              />
-            </View>
-            <Text style={styles.statNumber}>{resolved}</Text>
-            <Text style={styles.statLabel}>{t.resolved}</Text>
-          </TouchableOpacity>
-        </View>
+        <ComplaintOverviewSection
+          complaints={complaints}
+          onSelectFilter={openComplaints}
+          isHindi={isHindi}
+        />
 
         {/* =================================================
             PANCHAYAT MANAGEMENT & SERVICES GRID
@@ -915,8 +849,10 @@ const styles = StyleSheet.create({
 
   problemCard: {
     backgroundColor: COLORS.card,
-    borderRadius: RADIUS.xl,
-    padding: 12,
+    borderRadius: RADIUS.lg,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.small,
   },
 
@@ -924,32 +860,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 10,
+    rowGap: 8,
   },
 
   categoryCard: {
     width: '48.5%',
-    minHeight: 106,
+    minHeight: 80,
     backgroundColor: COLORS.background,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 9,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
   },
 
   categoryIcon: {
-    width: 49,
-    height: 49,
-    borderRadius: 15,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 7,
+    marginBottom: 5,
   },
 
   categoryText: {
-    fontSize: TYPOGRAPHY.small,
+    fontSize: 11.5,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',

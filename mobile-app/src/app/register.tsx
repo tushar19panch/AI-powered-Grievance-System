@@ -231,15 +231,8 @@ export default function RegisterScreen() {
         mobileNumber: cleanMobile,
         password: password,
         role: 'CITIZEN',
-<<<<<<< HEAD
-        state: 'Madhya Pradesh',
-        district: district.trim(),
-        block: block.trim(),
-        villageName: village.trim(),
-=======
         villageId: matchedVillage?.id || selectedVillageId || undefined,
         villageName: matchedVillage?.name || cleanVillage,
->>>>>>> f1460798180c2d619dd78e9b1db51627a7846998
         wardNumber: ward.trim(),
       });
 

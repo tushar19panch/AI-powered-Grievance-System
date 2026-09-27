@@ -38,7 +38,6 @@ export default function SecretaryRegister() {
   const [district, setDistrict] = useState('');
   const [block, setBlock] = useState('');
   const [village, setVillage] = useState('');
-  const [ward, setWard] = useState('');
   const [secretaryId, setSecretaryId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -158,7 +157,6 @@ export default function SecretaryRegister() {
         district: district.trim(),
         block: block.trim(),
         villageName: village.trim(),
-        wardNumber: ward.trim() || '1',
         officialId: secretaryId.trim(),
         secretaryId: secretaryId.trim(),
       });
@@ -404,36 +402,6 @@ export default function SecretaryRegister() {
                 autoCapitalize="words"
                 value={village}
                 onChangeText={setVillage}
-              />
-            </View>
-          </View>
-
-          {/* WARD NUMBER */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              {isHindi ? 'वार्ड नंबर' : 'Ward Number'}
-            </Text>
-
-            <View style={styles.inputBox}>
-              <View style={styles.inputIconBox}>
-                <Ionicons
-                  name="location-outline"
-                  size={20}
-                  color={COLORS.navy}
-                />
-              </View>
-
-              <TextInput
-                style={styles.input}
-                placeholder={
-                  isHindi
-                    ? 'जैसे: Ward 1 या 1'
-                    : 'e.g. Ward 1 or 1'
-                }
-                placeholderTextColor={COLORS.textMuted}
-                autoCapitalize="words"
-                value={ward}
-                onChangeText={setWard}
               />
             </View>
           </View>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -37,6 +38,81 @@ export default function ComplaintDetailsScreen() {
   const [remarks, setRemarks] = useState<string>('');
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+
+  const webAudioRef = useRef<any>(null);
+  const nativePlayerRef = useRef<any>(null);
+
+  const handleToggleAudio = async () => {
+    if (!audioUri) return;
+
+    if (Platform.OS === 'web') {
+      try {
+        if (!webAudioRef.current) {
+          const audio = new (window as any).Audio(audioUri);
+          audio.onended = () => setIsPlayingAudio(false);
+          audio.onerror = (e: any) => {
+            console.log('Web audio error:', e);
+            setIsPlayingAudio(false);
+          };
+          webAudioRef.current = audio;
+        }
+
+        if (isPlayingAudio) {
+          webAudioRef.current.pause();
+          setIsPlayingAudio(false);
+        } else {
+          await webAudioRef.current.play();
+          setIsPlayingAudio(true);
+        }
+      } catch (err) {
+        console.log('Audio playback error on web:', err);
+        setIsPlayingAudio(false);
+      }
+    } else {
+      try {
+        const { createAudioPlayer } = require('expo-audio');
+        if (!nativePlayerRef.current) {
+          nativePlayerRef.current = createAudioPlayer(audioUri);
+          if (nativePlayerRef.current.addListener) {
+            nativePlayerRef.current.addListener('playbackStatusUpdate', (status: any) => {
+              if (status && status.didJustFinish) {
+                setIsPlayingAudio(false);
+              }
+            });
+          }
+        }
+        if (isPlayingAudio) {
+          nativePlayerRef.current.pause();
+          setIsPlayingAudio(false);
+        } else {
+          nativePlayerRef.current.play();
+          setIsPlayingAudio(true);
+        }
+      } catch (err) {
+        console.log('Native audio play error:', err);
+        setIsPlayingAudio(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (webAudioRef.current) {
+        webAudioRef.current.pause();
+        webAudioRef.current = null;
+      }
+      if (nativePlayerRef.current) {
+        try {
+          nativePlayerRef.current.pause();
+          if (nativePlayerRef.current.release) {
+            nativePlayerRef.current.release();
+          }
+        } catch (e) {}
+      }
+    };
+  }, [audioUri]);
 
   // --------------------------------------------------
   // LANGUAGE
@@ -96,6 +172,10 @@ export default function ComplaintDetailsScreen() {
         }
 
         if (foundComplaint) {
+          const soundUri = foundComplaint.audioUrl || (await AsyncStorage.getItem(`complaint_audio_${foundComplaint.id || foundComplaint.complaintNumber || complaintId}`)) || null;
+          if (soundUri) {
+            setAudioUri(soundUri);
+          }
           setComplaint({
             complaintId: String(foundComplaint.id || foundComplaint.complaintNumber || complaintId),
             citizenName: foundComplaint.citizenName || 'Citizen',
@@ -107,7 +187,7 @@ export default function ComplaintDetailsScreen() {
             deadline: foundComplaint.deadline || null,
             description: foundComplaint.description || '',
             photo: foundComplaint.photo || null,
-            audioUrl: foundComplaint.audioUrl || null,
+            audioUrl: soundUri,
             location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
             status: foundComplaint.status || 'SUBMITTED',
             dateTime: foundComplaint.createdAt || new Date().toISOString(),
@@ -612,58 +692,49 @@ export default function ComplaintDetailsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* COMPLAINT ID */}
-        <View style={styles.idBox}>
-          <View style={styles.idTopRow}>
-            <View style={styles.idIcon}>
+        {/* STATUS BANNER CARD */}
+        <View style={styles.statusBox}>
+          <View style={styles.statusTopRow}>
+            <View style={[styles.statusIconBadge, { backgroundColor: statusColors.background }]}>
               <Ionicons
-                name="document-text-outline"
-                size={22}
-                color={COLORS.primary}
+                name={
+                  normalizedStatus === 'RESOLVED' || normalizedStatus === 'CLOSED'
+                    ? 'checkmark-circle'
+                    : normalizedStatus === 'ACTION_TAKEN'
+                      ? 'construct'
+                      : normalizedStatus === 'IN_PROGRESS' || normalizedStatus === 'UNDER_REVIEW'
+                        ? 'time'
+                        : 'document-text'
+                }
+                size={20}
+                color={statusColors.text}
               />
             </View>
-
-            <View>
-              <Text style={styles.idLabel}>
-                {language === 'hi'
-                  ? 'शिकायत आईडी'
-                  : 'Complaint ID'}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.statusLabel}>
+                {language === 'hi' ? 'वर्तमान स्थिति' : 'Current Status'}
               </Text>
-
-              <Text style={styles.idText}>
-                #{complaint.complaintId}
-              </Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor: statusColors.background,
+                    borderColor: statusColors.text + '33',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    {
+                      color: statusColors.text,
+                    },
+                  ]}
+                >
+                  {getStatusLabel(normalizedStatus)}
+                </Text>
+              </View>
             </View>
-          </View>
-        </View>
-
-        {/* STATUS */}
-        <View style={styles.statusBox}>
-          <Text style={styles.statusLabel}>
-            {language === 'hi'
-              ? 'वर्तमान स्थिति'
-              : 'Current Status'}
-          </Text>
-
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor:
-                  statusColors.background,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusText,
-                {
-                  color: statusColors.text,
-                },
-              ]}
-            >
-              {getStatusLabel(normalizedStatus)}
-            </Text>
           </View>
 
           <Text style={styles.statusHint}>
@@ -677,29 +748,29 @@ export default function ComplaintDetailsScreen() {
                   : 'Resolved by official, awaiting citizen confirmation and closure.'
               : normalizedStatus === 'CLOSED'
                 ? language === 'hi'
-                  ? 'यह शिकायत बंद कर दी गई है।'
-                  : 'This complaint has been closed.'
+                  ? 'यह शिकायत सफलतापूर्वक बंद कर दी गई है।'
+                  : 'This complaint has been successfully closed.'
                 : normalizedStatus === 'REOPENED'
                   ? language === 'hi'
                     ? 'शिकायत को आगे की कार्रवाई के लिए फिर से खोला गया है।'
                     : 'The complaint has been reopened for further action.'
                   : language === 'hi'
-                    ? 'आपकी शिकायत की स्थिति यहां दिखाई जाएगी।'
-                    : 'Your complaint status is shown here.'}
+                    ? 'आपकी शिकायत संबंधित पंचायत अधिकारी की निगरानी में है।'
+                    : 'Your complaint is actively monitored by the Panchayat team.'}
           </Text>
         </View>
 
         {/* TIMELINE */}
-        <View style={styles.timelineCard}>
+        <View style={styles.card}>
           <View style={styles.cardHeadingRow}>
-            <Ionicons
-              name="git-branch-outline"
-              size={22}
-              color={COLORS.primary}
-              style={styles.cardHeadingIcon}
-            />
-
-            <Text style={styles.timelineTitle}>
+            <View style={styles.cardHeadingBadge}>
+              <Ionicons
+                name="git-branch-outline"
+                size={18}
+                color={COLORS.primary}
+              />
+            </View>
+            <Text style={styles.cardTitle}>
               {language === 'hi'
                 ? 'शिकायत प्रगति'
                 : 'Complaint Progress'}
@@ -779,7 +850,7 @@ export default function ComplaintDetailsScreen() {
             <View style={styles.reopenedBox}>
               <Ionicons
                 name="refresh-outline"
-                size={20}
+                size={18}
                 color={COLORS.error}
               />
 
@@ -794,11 +865,35 @@ export default function ComplaintDetailsScreen() {
 
         {/* COMPLAINT INFORMATION */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {language === 'hi'
-              ? 'शिकायत जानकारी'
-              : 'Complaint Information'}
-          </Text>
+          <View style={styles.cardHeadingRow}>
+            <View style={styles.cardHeadingBadge}>
+              <Ionicons
+                name="information-circle-outline"
+                size={18}
+                color={COLORS.primary}
+              />
+            </View>
+            <Text style={styles.cardTitle}>
+              {language === 'hi'
+                ? 'शिकायत जानकारी'
+                : 'Complaint Information'}
+            </Text>
+          </View>
+
+          {/* COMPLAINT ID */}
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>
+              {language === 'hi'
+                ? 'शिकायत आईडी'
+                : 'Complaint ID'}
+            </Text>
+
+            <View style={styles.idBadgeSmall}>
+              <Text style={styles.idBadgeSmallText}>
+                #{complaint.complaintId}
+              </Text>
+            </View>
+          </View>
 
           {/* CITIZEN NAME */}
           <View style={styles.detailRow}>
@@ -812,6 +907,21 @@ export default function ComplaintDetailsScreen() {
               {complaint.citizenName || '-'}
             </Text>
           </View>
+
+          {/* CITIZEN MOBILE */}
+          {Boolean(complaint.citizenMobile) && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>
+                {language === 'hi'
+                  ? 'मोबाइल नंबर'
+                  : 'Citizen Mobile'}
+              </Text>
+
+              <Text style={styles.value}>
+                {complaint.citizenMobile}
+              </Text>
+            </View>
+          )}
 
           {/* CATEGORY */}
           <View style={styles.detailRow}>
@@ -841,6 +951,45 @@ export default function ComplaintDetailsScreen() {
             </Text>
           </View>
 
+          {/* PRIORITY */}
+          {Boolean(complaint.priority) && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>
+                {language === 'hi'
+                  ? 'प्राथमिकता'
+                  : 'Priority'}
+              </Text>
+
+              <View
+                style={[
+                  styles.priorityPill,
+                  complaint.priority === 'VERY_HIGH'
+                    ? styles.priorityVeryHigh
+                    : complaint.priority === 'HIGH'
+                      ? styles.priorityHigh
+                      : complaint.priority === 'LOW'
+                        ? styles.priorityLow
+                        : styles.priorityMedium,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.priorityPillText,
+                    complaint.priority === 'VERY_HIGH'
+                      ? styles.priorityVeryHighText
+                      : complaint.priority === 'HIGH'
+                        ? styles.priorityHighText
+                        : complaint.priority === 'LOW'
+                          ? styles.priorityLowText
+                          : styles.priorityMediumText,
+                  ]}
+                >
+                  {complaint.priority}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* DATE */}
           <View
             style={[
@@ -862,11 +1011,20 @@ export default function ComplaintDetailsScreen() {
 
         {/* DESCRIPTION */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {language === 'hi'
-              ? 'समस्या का विवरण'
-              : 'Problem Description'}
-          </Text>
+          <View style={styles.cardHeadingRow}>
+            <View style={styles.cardHeadingBadge}>
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={COLORS.primary}
+              />
+            </View>
+            <Text style={styles.cardTitle}>
+              {language === 'hi'
+                ? 'समस्या का विवरण'
+                : 'Problem Description'}
+            </Text>
+          </View>
 
           <Text style={styles.description}>
             {complaint.description ||
@@ -879,11 +1037,20 @@ export default function ComplaintDetailsScreen() {
         {/* PHOTO */}
         {Boolean(complaint.photo && complaint.photo !== 'null' && complaint.photo !== 'undefined' && String(complaint.photo).trim() !== '') && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              {language === 'hi'
-                ? 'संलग्न फोटो'
-                : 'Attached Photo'}
-            </Text>
+            <View style={styles.cardHeadingRow}>
+              <View style={styles.cardHeadingBadge}>
+                <Ionicons
+                  name="image-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+              </View>
+              <Text style={styles.cardTitle}>
+                {language === 'hi'
+                  ? 'संलग्न फोटो'
+                  : 'Attached Photo'}
+              </Text>
+            </View>
 
             {!imageError ? (
               <Image
@@ -896,33 +1063,89 @@ export default function ComplaintDetailsScreen() {
               />
             ) : (
               <View style={styles.photoFallbackBox}>
-                <Ionicons name="image-outline" size={42} color={COLORS.primary} />
+                <Ionicons name="image-outline" size={38} color={COLORS.primary} />
                 <Text style={styles.photoFallbackTitle}>
                   {language === 'hi' ? 'फोटो संलग्न है' : 'Photo Attached'}
                 </Text>
                 <Text style={styles.photoFallbackSub}>
                   {language === 'hi'
-                    ? 'स्थानीय डिवाइस फोटो (वेब पूर्वावलोकन सीमित)'
-                    : 'Local device attachment saved with complaint'}
+                    ? 'स्थानीय डिवाइस फोटो (सुरक्षित रूप से संलग्न)'
+                    : 'Local photo attachment saved with complaint'}
                 </Text>
               </View>
             )}
           </View>
         )}
 
+        {/* COMPACT VOICE RECORDING PLAYER */}
+        {Boolean(audioUri || (complaint.audioUrl && complaint.audioUrl !== 'null')) && (
+          <View style={styles.compactAudioCard}>
+            <TouchableOpacity
+              style={[styles.compactPlayBtn, isPlayingAudio && styles.compactPlayBtnActive]}
+              onPress={handleToggleAudio}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isPlayingAudio ? 'pause' : 'play'}
+                size={18}
+                color="#FFFFFF"
+                style={{ marginLeft: isPlayingAudio ? 0 : 2 }}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.compactAudioInfo}>
+              <View style={styles.compactAudioTitleRow}>
+                <Text style={styles.compactAudioTitle}>
+                  {language === 'hi' ? 'नागरिक वॉइस रिकॉर्डिंग' : 'Citizen Voice Note'}
+                </Text>
+                <Text style={styles.compactAudioStatus}>
+                  {isPlayingAudio
+                    ? (language === 'hi' ? 'चल रहा है...' : 'Playing...')
+                    : (language === 'hi' ? 'सुनने के लिए टैप करें' : 'Tap to listen')}
+                </Text>
+              </View>
+
+              <View style={styles.compactWaveform}>
+                <View style={[styles.compactWaveBar, { height: 7 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 14 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 19 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 10 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 16 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 9 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 18 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 12 }, isPlayingAudio && styles.compactWaveBarActive]} />
+                <View style={[styles.compactWaveBar, { height: 7 }, isPlayingAudio && styles.compactWaveBarActive]} />
+              </View>
+            </View>
+
+            <View style={styles.compactMicBadge}>
+              <Ionicons name="mic" size={16} color="#D97706" />
+            </View>
+          </View>
+        )}
+
         {/* LOCATION */}
         {complaint.location && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              {language === 'hi'
-                ? 'स्थान'
-                : 'Location'}
-            </Text>
+            <View style={styles.cardHeadingRow}>
+              <View style={styles.cardHeadingBadge}>
+                <Ionicons
+                  name="location-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+              </View>
+              <Text style={styles.cardTitle}>
+                {language === 'hi'
+                  ? 'स्थान विवरण'
+                  : 'Location Details'}
+              </Text>
+            </View>
 
             <View style={styles.locationRow}>
               <Ionicons
-                name="location-outline"
-                size={24}
+                name="pin"
+                size={18}
                 color={COLORS.primary}
               />
 
@@ -967,7 +1190,7 @@ export default function ComplaintDetailsScreen() {
             >
               <Ionicons
                 name="checkmark-circle-outline"
-                size={21}
+                size={20}
                 color="#FFFFFF"
               />
 
@@ -988,7 +1211,7 @@ export default function ComplaintDetailsScreen() {
             >
               <Ionicons
                 name="close-circle-outline"
-                size={21}
+                size={20}
                 color={COLORS.error}
               />
 
@@ -1008,7 +1231,7 @@ export default function ComplaintDetailsScreen() {
           <View style={styles.officialNoticeCard}>
             <Ionicons
               name="hourglass-outline"
-              size={24}
+              size={22}
               color={COLORS.warning}
             />
             <View style={styles.officialNoticeContent}>
@@ -1031,7 +1254,7 @@ export default function ComplaintDetailsScreen() {
           <View style={[styles.officialNoticeCard, styles.closedNoticeCard]}>
             <Ionicons
               name="checkmark-done-circle-outline"
-              size={24}
+              size={22}
               color={COLORS.indiaGreen}
             />
             <View style={styles.officialNoticeContent}>
@@ -1053,12 +1276,13 @@ export default function ComplaintDetailsScreen() {
         {(userRole === 'sarpanch' || userRole === 'secretary') && (
           <View style={styles.officialActionCard}>
             <View style={styles.cardHeadingRow}>
-              <Ionicons
-                name="shield-checkmark"
-                size={22}
-                color={COLORS.primary}
-                style={styles.cardHeadingIcon}
-              />
+              <View style={[styles.cardHeadingBadge, { backgroundColor: '#EEF2FF' }]}>
+                <Ionicons
+                  name="shield-checkmark"
+                  size={18}
+                  color="#000080"
+                />
+              </View>
               <Text style={styles.officialCardTitle}>
                 {language === 'hi'
                   ? 'अधिकारी कार्रवाई पैनल'
@@ -1090,7 +1314,7 @@ export default function ComplaintDetailsScreen() {
                 >
                   <Ionicons
                     name={st.icon as any}
-                    size={16}
+                    size={15}
                     color={selectedStatus === st.id ? '#FFFFFF' : COLORS.textPrimary}
                   />
                   <Text
@@ -1137,7 +1361,7 @@ export default function ComplaintDetailsScreen() {
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <>
-                  <Ionicons name="cloud-upload-outline" size={20} color="#FFFFFF" />
+                  <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.officialSubmitBtnText}>
                     {language === 'hi' ? 'स्थिति अपडेट करें' : 'Update Status Now'}
                   </Text>
@@ -1271,7 +1495,7 @@ const styles = StyleSheet.create({
 
   title: {
     flex: 1,
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '900',
     color: '#172033',
     textAlign: 'center',
@@ -1298,70 +1522,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  idBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 17,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E8EBF0',
-    elevation: 3,
-    shadowColor: '#101828',
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    overflow: 'hidden',
-  },
-
-  idTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  idIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: '#EEF0FF',
-    borderWidth: 1,
-    borderColor: '#D9DDFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 13,
-  },
-
-  idLabel: {
-    fontSize: 12,
-    color: '#667085',
-    marginBottom: 3,
-    fontWeight: '600',
-  },
-
-  idText: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#172033',
-    letterSpacing: 0.3,
-  },
-
   statusBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 18,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E8EBF0',
-    elevation: 3,
-    shadowColor: '#101828',
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: '#EAECEF',
+    ...SHADOWS.small,
+  },
+
+  statusTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  statusIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   statusLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#667085',
-    marginBottom: 9,
+    marginBottom: 4,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1369,59 +1557,50 @@ const styles = StyleSheet.create({
 
   statusBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 15,
-    paddingVertical: 9,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
 
   statusText: {
-    fontSize: 14,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   statusHint: {
-    marginTop: 13,
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#667085',
+    marginTop: 12,
+    fontSize: 12.5,
+    lineHeight: 19,
+    color: '#475467',
     fontWeight: '500',
-  },
-
-  timelineCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E8EBF0',
-    elevation: 3,
-    shadowColor: '#101828',
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
   },
 
   cardHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
   },
 
-  cardHeadingIcon: {
-    marginRight: 9,
+  cardHeadingBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
 
-  timelineTitle: {
-    fontSize: 16,
-    fontWeight: '900',
+  cardTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
     color: '#172033',
   },
 
   timelineItem: {
     flexDirection: 'row',
-    minHeight: 58,
+    minHeight: 52,
   },
 
   timelineLeft: {
@@ -1508,23 +1687,12 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 18,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E8EBF0',
-    elevation: 3,
-    shadowColor: '#101828',
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#172033',
-    marginBottom: 13,
+    borderColor: '#EAECEF',
+    ...SHADOWS.small,
   },
 
   detailRow: {
@@ -1840,5 +2008,152 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E4E7EC',
     backgroundColor: '#F9FAFB',
+  },
+
+  compactAudioCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    ...SHADOWS.small,
+  },
+
+  compactPlayBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#D97706',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#D97706',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+
+  compactPlayBtnActive: {
+    backgroundColor: '#B45309',
+  },
+
+  compactAudioInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+
+  compactAudioTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+
+  compactAudioTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#172033',
+  },
+
+  compactAudioStatus: {
+    fontSize: 11,
+    color: '#D97706',
+    fontWeight: '600',
+  },
+
+  compactWaveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 20,
+  },
+
+  compactWaveBar: {
+    width: 3.5,
+    borderRadius: 2,
+    backgroundColor: '#FDE68A',
+  },
+
+  compactWaveBarActive: {
+    backgroundColor: '#D97706',
+  },
+
+  compactMicBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+
+  idBadgeSmall: {
+    backgroundColor: '#EBF4FE',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C2DCFD',
+  },
+
+  idBadgeSmallText: {
+    color: '#000080',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  priorityPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+
+  priorityPillText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  priorityVeryHigh: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+
+  priorityVeryHighText: {
+    color: '#DC2626',
+  },
+
+  priorityHigh: {
+    backgroundColor: '#FFEDD5',
+    borderColor: '#FDBA74',
+  },
+
+  priorityHighText: {
+    color: '#EA580C',
+  },
+
+  priorityMedium: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+
+  priorityMediumText: {
+    color: '#D97706',
+  },
+
+  priorityLow: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+
+  priorityLowText: {
+    color: '#16A34A',
   },
 });

@@ -164,6 +164,31 @@ export default function ComplaintsScreen() {
     } else if (selectedFilter === 'reopened') {
       const s = String(c.status || '').toUpperCase();
       if (s !== 'REOPENED') return false;
+    } else if (selectedFilter === 'priority-very-high') {
+      const p = String(c.priority || '').toUpperCase();
+      if (p !== 'VERY_HIGH' && p !== 'VERY HIGH' && p !== 'CRITICAL' && p !== 'URGENT') return false;
+    } else if (selectedFilter === 'priority-high') {
+      const p = String(c.priority || '').toUpperCase();
+      if (p !== 'HIGH') return false;
+    } else if (selectedFilter === 'priority-medium') {
+      const p = String(c.priority || '').toUpperCase();
+      if (p !== 'MEDIUM' && p !== 'NORMAL' && (p !== '' && c.priority)) return false;
+    } else if (selectedFilter === 'priority-low') {
+      const p = String(c.priority || '').toUpperCase();
+      if (p !== 'LOW') return false;
+    } else if (selectedFilter === 'class-duplicate') {
+      const cl = String((c as any).classification || '').toUpperCase();
+      if (cl !== 'DUPLICATE' && cl !== 'COPIED') return false;
+    } else if (selectedFilter === 'class-fake') {
+      const cl = String((c as any).classification || '').toUpperCase();
+      if (cl !== 'FAKE' && cl !== 'INVALID' && cl !== 'SPAM') return false;
+    } else if (selectedFilter === 'class-verification') {
+      const cl = String((c as any).classification || '').toUpperCase();
+      const st = String(c.status || '').toUpperCase();
+      if (cl !== 'NEEDS_VERIFICATION' && cl !== 'VERIFICATION' && st !== 'VERIFICATION' && st !== 'UNDER_REVIEW') return false;
+    } else if (selectedFilter === 'class-genuine') {
+      const cl = String((c as any).classification || '').toUpperCase();
+      if (cl === 'FAKE' || cl === 'INVALID' || cl === 'DUPLICATE') return false;
     }
 
     if (selectedWard) {
@@ -193,23 +218,150 @@ export default function ComplaintsScreen() {
     return true;
   });
 
-  const getTitle = () => {
+  const getFilterInfo = () => {
     if (selectedWard) {
-      return isHindi ? `वार्ड ${selectedWard} की शिकायतें` : `Ward ${selectedWard} Complaints`;
+      return {
+        title: isHindi ? `वार्ड ${selectedWard} की शिकायतें` : `Ward ${selectedWard} Complaints`,
+        badgeText: isHindi ? `वार्ड ${selectedWard}` : `Ward ${selectedWard}`,
+        icon: 'location-outline' as const,
+        iconColor: COLORS.primary,
+        iconBg: COLORS.primaryLight,
+        emptyTitle: isHindi ? `वार्ड ${selectedWard} में कोई शिकायत नहीं है` : `No Complaints in Ward ${selectedWard}`,
+        emptyDesc: isHindi ? `वार्ड ${selectedWard} में वर्तमान में कोई समस्या दर्ज नहीं है।` : `There are currently no complaints recorded in Ward ${selectedWard}.`,
+      };
     }
-    if (selectedFilter === 'pending') {
-      return isHindi ? 'लंबित शिकायतें' : 'Pending Complaints';
+    switch (selectedFilter) {
+      case 'priority-very-high':
+        return {
+          title: isHindi ? 'अति गंभीर शिकायतें' : 'Very High Priority Complaints',
+          badgeText: isHindi ? '🔴 अति गंभीर (Very High)' : '🔴 Very High Priority',
+          icon: 'alert-circle-outline' as const,
+          iconColor: COLORS.error,
+          iconBg: COLORS.errorLight,
+          emptyTitle: isHindi ? 'कोई अति गंभीर शिकायत नहीं है' : 'No Very High Priority Complaints',
+          emptyDesc: isHindi ? 'ग्राम पंचायत में कोई अति गंभीर या आपातकालीन समस्या लंबित नहीं है।' : 'No urgent or critical complaints are currently pending in this category.',
+        };
+      case 'priority-high':
+        return {
+          title: isHindi ? 'उच्च प्राथमिकता शिकायतें' : 'High Priority Complaints',
+          badgeText: isHindi ? '🟠 उच्च (High Priority)' : '🟠 High Priority',
+          icon: 'flame-outline' as const,
+          iconColor: COLORS.saffron,
+          iconBg: COLORS.accentLight,
+          emptyTitle: isHindi ? 'कोई उच्च प्राथमिकता शिकायत नहीं है' : 'No High Priority Complaints',
+          emptyDesc: isHindi ? 'वर्तमान में उच्च प्राथमिकता वाली कोई शिकायत लंबित नहीं है।' : 'No high priority issues are currently pending in the system.',
+        };
+      case 'priority-medium':
+        return {
+          title: isHindi ? 'मध्यम प्राथमिकता शिकायतें' : 'Medium Priority Complaints',
+          badgeText: isHindi ? '🟡 मध्यम (Medium)' : '🟡 Medium Priority',
+          icon: 'time-outline' as const,
+          iconColor: COLORS.warning,
+          iconBg: COLORS.warningLight,
+          emptyTitle: isHindi ? 'कोई मध्यम प्राथमिकता शिकायत नहीं है' : 'No Medium Priority Complaints',
+          emptyDesc: isHindi ? 'मध्यम प्राथमिकता श्रेणी में कोई शिकायत दर्ज नहीं है।' : 'No medium priority issues recorded.',
+        };
+      case 'priority-low':
+        return {
+          title: isHindi ? 'सामान्य प्राथमिकता शिकायतें' : 'Low Priority Complaints',
+          badgeText: isHindi ? '🟢 सामान्य (Low)' : '🟢 Low Priority',
+          icon: 'checkmark-circle-outline' as const,
+          iconColor: COLORS.success,
+          iconBg: COLORS.successLight,
+          emptyTitle: isHindi ? 'कोई सामान्य प्राथमिकता शिकायत नहीं है' : 'No Low Priority Complaints',
+          emptyDesc: isHindi ? 'सामान्य प्राथमिकता श्रेणी में कोई शिकायत नहीं है।' : 'No routine or low priority complaints found.',
+        };
+      case 'class-genuine':
+        return {
+          title: isHindi ? 'वास्तविक शिकायतें' : 'Genuine Complaints',
+          badgeText: isHindi ? '🟢 वास्तविक (Genuine)' : '🟢 Genuine Verified',
+          icon: 'shield-checkmark-outline' as const,
+          iconColor: COLORS.success,
+          iconBg: COLORS.successLight,
+          emptyTitle: isHindi ? 'कोई वास्तविक शिकायत नहीं है' : 'No Genuine Complaints',
+          emptyDesc: isHindi ? 'सत्यापित वास्तविक श्रेणी में कोई शिकायत नहीं है।' : 'No verified real complaints found in this view.',
+        };
+      case 'class-duplicate':
+        return {
+          title: isHindi ? 'डुप्लीकेट शिकायतें' : 'Duplicate Complaints',
+          badgeText: isHindi ? '🔵 डुप्लीकेट (Duplicate)' : '🔵 Linked Duplicates',
+          icon: 'copy-outline' as const,
+          iconColor: COLORS.info,
+          iconBg: COLORS.infoLight,
+          emptyTitle: isHindi ? 'कोई डुप्लीकेट शिकायत नहीं है' : 'No Duplicate Complaints',
+          emptyDesc: isHindi ? 'ग्राम पंचायत में कोई समान या डुप्लीकेट शिकायत नहीं पाई गई है।' : 'No linked duplicate complaints detected by AI.',
+        };
+      case 'class-fake':
+        return {
+          title: isHindi ? 'अमान्य / फर्जी शिकायतें' : 'Fake / Invalid Complaints',
+          badgeText: isHindi ? '⚫ अमान्य (Invalid)' : '⚫ Invalid / Rejected',
+          icon: 'close-circle-outline' as const,
+          iconColor: COLORS.textSecondary,
+          iconBg: COLORS.primaryLight,
+          emptyTitle: isHindi ? 'कोई अमान्य शिकायत नहीं है' : 'No Invalid Complaints',
+          emptyDesc: isHindi ? 'कोई भी फर्जी या अमान्य शिकायत दर्ज नहीं है।' : 'No spam or invalid complaints found.',
+        };
+      case 'class-verification':
+        return {
+          title: isHindi ? 'सत्यापन योग्य शिकायतें' : 'Needs Verification Complaints',
+          badgeText: isHindi ? '🟣 सत्यापन (Verification)' : '🟣 Needs Verification',
+          icon: 'help-circle-outline' as const,
+          iconColor: '#9333EA',
+          iconBg: '#F3E8FF',
+          emptyTitle: isHindi ? 'सत्यापन हेतु कोई शिकायत लंबित नहीं है' : 'No Complaints Needing Verification',
+          emptyDesc: isHindi ? 'सभी शिकायतों का AI व प्राथमिक सत्यापन पूरा हो चुका है।' : 'All complaints have completed verification checks.',
+        };
+      case 'in-progress':
+        return {
+          title: isHindi ? 'प्रगति में शिकायतें' : 'In-Progress Complaints',
+          badgeText: isHindi ? '⏳ प्रगति में' : '⏳ In Progress',
+          icon: 'construct-outline' as const,
+          iconColor: COLORS.warning,
+          iconBg: COLORS.warningLight,
+          emptyTitle: isHindi ? 'कोई शिकायत प्रगति में नहीं है' : 'No In-Progress Complaints',
+          emptyDesc: isHindi ? 'वर्तमान में किसी शिकायत पर कार्रवाई लंबित नहीं है।' : 'No complaints are currently under progress.',
+        };
+      case 'resolved':
+        return {
+          title: isHindi ? 'हल की गई शिकायतें' : 'Resolved Complaints',
+          badgeText: isHindi ? '✅ हल की गई' : '✅ Resolved',
+          icon: 'checkmark-done-circle-outline' as const,
+          iconColor: COLORS.success,
+          iconBg: COLORS.successLight,
+          emptyTitle: isHindi ? 'कोई हल की गई शिकायत नहीं है' : 'No Resolved Complaints',
+          emptyDesc: isHindi ? 'अभी तक कोई शिकायत हल के रूप में चिन्हित नहीं है।' : 'No complaints marked as resolved yet.',
+        };
+      case 'pending':
+        return {
+          title: isHindi ? 'लंबित शिकायतें' : 'Pending Complaints',
+          badgeText: isHindi ? '🕒 लंबित' : '🕒 Pending',
+          icon: 'time-outline' as const,
+          iconColor: COLORS.primary,
+          iconBg: COLORS.primaryLight,
+          emptyTitle: isHindi ? 'कोई लंबित शिकायत नहीं है' : 'No Pending Complaints',
+          emptyDesc: isHindi ? 'सभी शिकायतों पर संज्ञान लिया जा चुका है।' : 'All complaints have been reviewed.',
+        };
+      case 'reopened':
+        return {
+          title: isHindi ? 'पुनः खोली गई शिकायतें' : 'Reopened Complaints',
+          badgeText: isHindi ? '🔄 पुनः खोली गई' : '🔄 Reopened',
+          icon: 'refresh-outline' as const,
+          iconColor: COLORS.error,
+          iconBg: COLORS.errorLight,
+          emptyTitle: isHindi ? 'कोई पुनः खोली गई शिकायत नहीं है' : 'No Reopened Complaints',
+          emptyDesc: isHindi ? 'वर्तमान में कोई भी शिकायत दोबारा नहीं खोली गई है।' : 'No reopened complaints found.',
+        };
+      default:
+        return {
+          title: isHindi ? 'सभी शिकायतें' : 'All Complaints',
+          badgeText: isHindi ? '📋 सभी शिकायतें' : '📋 All Complaints',
+          icon: 'list-outline' as const,
+          iconColor: COLORS.primary,
+          iconBg: COLORS.primaryLight,
+          emptyTitle: isHindi ? 'कोई शिकायत नहीं मिली' : 'No Complaints Found',
+          emptyDesc: isHindi ? 'गाँव में अभी कोई शिकायत दर्ज नहीं है।' : 'No complaints have been registered yet.',
+        };
     }
-    if (selectedFilter === 'in-progress') {
-      return isHindi ? 'प्रगति में शिकायतें' : 'In-Progress Complaints';
-    }
-    if (selectedFilter === 'resolved') {
-      return isHindi ? 'हल की गई शिकायतें' : 'Resolved Complaints';
-    }
-    if (selectedFilter === 'reopened') {
-      return isHindi ? 'पुनः खोली गई शिकायतें' : 'Reopened Complaints';
-    }
-    return isHindi ? 'सभी शिकायतें' : 'All Complaints';
   };
 
   const formatComplaintId = (id?: string) => {
@@ -368,6 +520,8 @@ export default function ComplaintsScreen() {
     }
   };
 
+  const filterInfo = getFilterInfo();
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -384,7 +538,7 @@ export default function ComplaintsScreen() {
 
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {getTitle()}
+            {filterInfo.title}
           </Text>
           <Text style={styles.headerSubtitle}>
             {filteredComplaints.length}{' '}
@@ -399,7 +553,7 @@ export default function ComplaintsScreen() {
           onPress={toggleLanguage}
           activeOpacity={0.8}
         >
-          <Ionicons name="language" size={16} color="#FFFFFF" />
+          <Ionicons name="language-outline" size={15} color={COLORS.primary} />
           <Text style={styles.languageText}>{isHindi ? 'EN' : 'हि'}</Text>
         </TouchableOpacity>
       </View>
@@ -408,25 +562,38 @@ export default function ComplaintsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ACTIVE FILTER BADGE */}
-        {(selectedWard || selectedFilter) ? (
-          <View style={styles.filterChipRow}>
-            <View style={styles.filterChip}>
-              <Ionicons name="funnel" size={13} color={COLORS.primary} />
-              <Text style={styles.filterChipText}>
-                {selectedWard ? (isHindi ? `वार्ड ${selectedWard}` : `Ward ${selectedWard}`) : ''}
-                {selectedWard && selectedFilter ? ' • ' : ''}
-                {selectedFilter ? selectedFilter.toUpperCase() : ''}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  router.setParams({ filter: undefined, ward: undefined });
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
-              </TouchableOpacity>
+        {/* ACTIVE FILTER BADGE CARD */}
+        {(selectedWard || (selectedFilter && selectedFilter !== 'all')) ? (
+          <View style={styles.activeFilterCard}>
+            <View style={styles.activeFilterLeft}>
+              <View style={[styles.filterIconBadge, { backgroundColor: filterInfo.iconBg }]}>
+                <Ionicons name={filterInfo.icon} size={17} color={filterInfo.iconColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activeFilterTitle} numberOfLines={1}>
+                  {filterInfo.badgeText}
+                </Text>
+                <Text style={styles.activeFilterSub}>
+                  {filteredComplaints.length}{' '}
+                  {isHindi
+                    ? filteredComplaints.length === 1 ? 'शिकायत मिली' : 'शिकायतें मिलीं'
+                    : filteredComplaints.length === 1 ? 'matching issue' : 'matching issues'}
+                </Text>
+              </View>
             </View>
+
+            <TouchableOpacity
+              style={styles.clearFilterBtn}
+              onPress={() => {
+                router.setParams({ filter: undefined, ward: undefined });
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close-circle" size={15} color={COLORS.primary} />
+              <Text style={styles.clearFilterText}>
+                {isHindi ? 'सभी देखें' : 'View All'}
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
@@ -443,23 +610,29 @@ export default function ComplaintsScreen() {
           </View>
         ) : filteredComplaints.length === 0 ? (
           <View style={styles.emptyCard}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="document-text-outline" size={44} color={COLORS.primary} />
+            <View style={[styles.emptyIconCircle, { backgroundColor: filterInfo.iconBg }]}>
+              <Ionicons name={filterInfo.icon} size={38} color={filterInfo.iconColor} />
             </View>
             <Text style={styles.emptyTitle}>
-              {selectedFilter === 'pending'
-                ? (isHindi ? 'कोई लंबित शिकायत नहीं है' : 'No Pending Complaints')
-                : selectedFilter === 'in-progress'
-                ? (isHindi ? 'कोई शिकायत प्रगति में नहीं है' : 'No In-Progress Complaints')
-                : selectedFilter === 'resolved'
-                ? (isHindi ? 'कोई हल की गई शिकायत नहीं है' : 'No Resolved Complaints')
-                : (isHindi ? 'कोई शिकायत नहीं मिली' : 'No Complaints Found')}
+              {filterInfo.emptyTitle}
             </Text>
             <Text style={styles.emptyText}>
-              {selectedWard
-                ? (isHindi ? `वार्ड ${selectedWard} में अभी कोई शिकायत दर्ज नहीं है।` : `No complaints found for Ward ${selectedWard}.`)
-                : (isHindi ? 'वर्तमान में इस श्रेणी में कोई शिकायत उपलब्ध नहीं है।' : 'There are currently no complaints in this category.')}
+              {filterInfo.emptyDesc}
             </Text>
+
+            {(selectedWard || (selectedFilter && selectedFilter !== 'all')) && (
+              <TouchableOpacity
+                style={styles.viewAllBtn}
+                onPress={() => router.setParams({ filter: undefined, ward: undefined })}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="list-outline" size={17} color="#FFFFFF" />
+                <Text style={styles.viewAllBtnText}>
+                  {isHindi ? 'सभी शिकायतें देखें' : 'View All Complaints'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {userRole === 'citizen' && (
               <TouchableOpacity
                 style={styles.reportButton}
@@ -663,24 +836,54 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  /* ================= FILTER CHIP ================= */
-  filterChipRow: {
-    flexDirection: 'row',
+  /* ================= ACTIVE FILTER CARD ================= */
+  activeFilterCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
     marginBottom: 14,
-  },
-  filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    gap: 6,
+    justifyContent: 'space-between',
+    ...SHADOWS.small,
   },
-  filterChipText: {
-    fontSize: 12,
+  activeFilterLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginRight: 8,
+  },
+  filterIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeFilterTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  activeFilterSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  clearFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  clearFilterText: {
+    fontSize: 11,
     fontWeight: '700',
     color: COLORS.primary,
   },
@@ -689,49 +892,64 @@ const styles = StyleSheet.create({
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    padding: 28,
+    padding: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginTop: 20,
+    marginTop: 10,
     ...SHADOWS.small,
   },
   emptyIconCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: '#EEF2FF',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 6,
     textAlign: 'center',
   },
   emptyText: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#64748B',
     textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 18,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  viewAllBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   reportButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 12,
+    backgroundColor: COLORS.success,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 10,
+    marginTop: 4,
   },
   reportButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
 

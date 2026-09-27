@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system';
 import {
   AudioModule,
   RecordingPresets,
@@ -316,6 +317,20 @@ export default function ReportScreen() {
     }
   };
 
+  const extractWardFromText = (text: string): string | null => {
+    if (!text) return null;
+    const match = text.match(/(?:ward|वार्ड|w)[\s\-:]*(\d+)/i);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (num >= 1 && num <= 50) {
+        return `Ward ${num}`;
+      }
+    }
+    return null;
+  };
+
+  const detectedWard = extractWardFromText(description);
+
   // ==========================================
   // SUBMIT PROBLEM
   // ==========================================
@@ -354,13 +369,30 @@ export default function ReportScreen() {
           ? 'आवाज़ रिकॉर्डिंग द्वारा दर्ज समस्या'
           : 'Voice recorded problem description';
 
+      // Convert audio recording to Base64 so it can be played anywhere
+      let audioPayload = audioUri;
+      if (audioUri && (audioUri.startsWith('file://') || audioUri.startsWith('/'))) {
+        try {
+          const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+            encoding: 'base64',
+          });
+          if (base64Audio) {
+            audioPayload = `data:audio/m4a;base64,${base64Audio}`;
+          }
+        } catch (fsErr) {
+          console.log('Audio base64 conversion error:', fsErr);
+        }
+      }
+
+      const effectiveWard = problemWard || ward || 'Ward 1';
+
       const payload = {
         problemType: 'General Problem',
         category: 'Village Issue',
         description: finalDescription,
-        location: location || `Ward ${problemWard || ward || '1'}`,
+        location: location || `${effectiveWard}`,
         photo: image || undefined,
-        audioUrl: audioUri || undefined,
+        audioUrl: audioPayload || audioUri || undefined,
         latitude: lat,
         longitude: lng,
       };
@@ -377,10 +409,16 @@ export default function ReportScreen() {
         console.log('Backend complaint submission failed, queuing offline:', apiErr);
         const offlineItem = await queueOfflineComplaint(payload, {
           citizenName: userName,
-          ward: problemWard || ward,
+          ward: effectiveWard,
         });
         backendId = offlineItem.id;
         isSavedOffline = true;
+      }
+
+      if (backendId && audioUri) {
+        try {
+          await AsyncStorage.setItem(`complaint_audio_${backendId}`, audioUri);
+        } catch {}
       }
 
       const newComplaintId = backendId || String(Date.now());
@@ -746,6 +784,40 @@ export default function ReportScreen() {
           value={description}
           onChangeText={setDescription}
         />
+
+        {/* SMART WARD DETECTION & SYNC BANNER */}
+        {detectedWard && detectedWard !== problemWard ? (
+          <View style={styles.wardMismatchCard}>
+            <View style={styles.mismatchLeft}>
+              <Ionicons name="sparkles" size={17} color={COLORS.saffron} />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.mismatchTitle}>
+                  {isHindi
+                    ? `विवरण में "${detectedWard}" मिला`
+                    : `"${detectedWard}" detected in details`}
+                </Text>
+                <Text style={styles.mismatchSub}>
+                  {isHindi
+                    ? `वर्तमान चयनित: ${problemWard}`
+                    : `Currently selected: ${problemWard}`}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.syncWardBtn}
+              onPress={() => {
+                setProblemWard(detectedWard);
+                setDifferentWard(true);
+              }}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="checkmark-circle" size={15} color="#FFFFFF" />
+              <Text style={styles.syncWardBtnText}>
+                {isHindi ? `${detectedWard} चुनें` : `Set ${detectedWard}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* =================================================
             4. PROBLEM PHOTO
@@ -1534,5 +1606,48 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: SPACING.sm,
     lineHeight: 15,
+  },
+
+  /* WARD MISMATCH BANNER */
+  wardMismatchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: RADIUS.md,
+    padding: 10,
+    marginTop: 8,
+  },
+  mismatchLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  mismatchTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  mismatchSub: {
+    fontSize: 10.5,
+    color: '#B45309',
+    marginTop: 1,
+  },
+  syncWardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.saffron,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  syncWardBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

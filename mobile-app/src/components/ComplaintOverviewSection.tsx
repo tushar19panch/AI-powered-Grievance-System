@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, RADIUS, SHADOWS, TYPOGRAPHY } from '../theme';
+import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
 interface ComplaintItem {
   complaintId?: string | number;
@@ -24,7 +24,7 @@ export function ComplaintOverviewSection({
 }: ComplaintOverviewSectionProps) {
   const hasComplaints = complaints.length > 0;
 
-  // Calculate Priority Counts (with fallback to mockup demo values)
+  // Priority counts calculation
   const countVeryHigh = hasComplaints
     ? complaints.filter((c) => {
         const p = String(c.priority || '').toUpperCase();
@@ -47,7 +47,7 @@ export function ComplaintOverviewSection({
     ? complaints.filter((c) => String(c.priority || '').toUpperCase() === 'LOW').length
     : 10;
 
-  // Calculate Classification Counts (with fallback to mockup demo values)
+  // Classification counts calculation
   const countGenuine = hasComplaints
     ? complaints.filter((c) => {
         const cl = String(c.classification || '').toUpperCase();
@@ -85,226 +85,166 @@ export function ComplaintOverviewSection({
     }
   };
 
+  // Action Tile matching Panchayat Services CategoryCard (Compact Size)
+  const Tile = ({
+    icon,
+    iconColor,
+    iconBg,
+    count,
+    label,
+    filterKey,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    iconColor: string;
+    iconBg: string;
+    count: number;
+    label: string;
+    filterKey: string;
+  }) => (
+    <TouchableOpacity
+      style={styles.categoryCard}
+      onPress={() => handlePress(filterKey)}
+      activeOpacity={0.82}
+    >
+      <View style={[styles.categoryIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={18} color={iconColor} />
+      </View>
+      <Text style={styles.countText}>{formatNumber(count)}</Text>
+      <Text style={styles.categoryText} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
       {/* =================================================
-          MAIN SECTION TITLE: COMPLAINT OVERVIEW / शिकायतों का अवलोकन
+          1. PRIORITY SECTION (COMPACT PANCHAYAT STYLE)
       ================================================= */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerTextGroup}>
-          <Text style={styles.mainTitle}>
-            {isHindi ? 'शिकायतों का अवलोकन' : 'COMPLAINT OVERVIEW'}
+      <View style={styles.sectionHeader}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.sectionTitle} numberOfLines={1}>
+            {isHindi ? 'प्राथमिकता स्तर (Priority)' : 'Complaint Priority'}
           </Text>
-          <Text style={styles.subTitle}>
-            {isHindi ? 'गाँव की शिकायतों का प्राथमिकता व AI वर्गीकरण' : 'Priority & AI Classification Breakdown'}
+          <Text style={styles.sectionSubtitle} numberOfLines={1}>
+            {isHindi ? 'गंभीरता अनुसार शिकायतों का वर्गीकरण' : 'Grievance severity breakdown'}
           </Text>
         </View>
-        <View style={styles.headerBadge}>
-          <Ionicons name="pie-chart" size={18} color={COLORS.primary} />
+
+        <View style={[styles.aiBadge, { flexShrink: 0 }]}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={12}
+            color={COLORS.primary}
+          />
+          <Text style={styles.aiText}>
+            {isHindi ? 'प्राथमिकता' : 'PRIORITY'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.problemCard}>
+        <View style={styles.categoryGrid}>
+          <Tile
+            icon="alert-circle-outline"
+            iconColor={COLORS.error}
+            iconBg={COLORS.errorLight}
+            count={countVeryHigh}
+            label={isHindi ? 'अति गंभीर' : 'Very High'}
+            filterKey="priority-very-high"
+          />
+
+          <Tile
+            icon="flame-outline"
+            iconColor={COLORS.saffron}
+            iconBg={COLORS.accentLight}
+            count={countHigh}
+            label={isHindi ? 'उच्च' : 'High Priority'}
+            filterKey="priority-high"
+          />
+
+          <Tile
+            icon="time-outline"
+            iconColor={COLORS.warning}
+            iconBg={COLORS.warningLight}
+            count={countMedium}
+            label={isHindi ? 'मध्यम' : 'Medium'}
+            filterKey="priority-medium"
+          />
+
+          <Tile
+            icon="checkmark-circle-outline"
+            iconColor={COLORS.success}
+            iconBg={COLORS.successLight}
+            count={countLow}
+            label={isHindi ? 'सामान्य' : 'Low Priority'}
+            filterKey="priority-low"
+          />
         </View>
       </View>
 
       {/* =================================================
-          SUBSECTION 1: 🚨 PRIORITY
+          2. CLASSIFICATION SECTION (COMPACT PANCHAYAT STYLE)
       ================================================= */}
-      <View style={styles.subSectionHeader}>
-        <View style={styles.subSectionTitleRow}>
-          <Text style={styles.subSectionEmoji}>🚨</Text>
-          <Text style={styles.subSectionTitle}>
-            {isHindi ? 'प्राथमिकता (PRIORITY)' : 'PRIORITY'}
+      <View style={[styles.sectionHeader, { marginTop: 14 }]}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.sectionTitle} numberOfLines={1}>
+            {isHindi ? 'AI वर्गीकरण (Classification)' : 'AI Classification'}
+          </Text>
+          <Text style={styles.sectionSubtitle} numberOfLines={1}>
+            {isHindi ? 'वास्तविक, डुप्लीकेट व सत्यापन स्थिति' : 'Genuine, duplicate & verification status'}
           </Text>
         </View>
-        <View style={styles.subSectionLine} />
-      </View>
 
-      {/* 2x2 Grid for PRIORITY */}
-      <View style={styles.grid}>
-        {/* Row 1 */}
-        <View style={styles.gridRow}>
-          {/* 🔴 VERY HIGH */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardVeryHigh]}
-            onPress={() => handlePress('priority-very-high')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#EF4444' }]} />
-              <Text style={[styles.cardLabel, { color: '#B91C1C' }]}>
-                {isHindi ? '🔴 अति गंभीर' : '🔴 VERY HIGH'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#991B1B' }]}>
-              {formatNumber(countVeryHigh)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'तत्काल कार्रवाई' : 'Immediate'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* 🟠 HIGH */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardHigh]}
-            onPress={() => handlePress('priority-high')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#F97316' }]} />
-              <Text style={[styles.cardLabel, { color: '#C2410C' }]}>
-                {isHindi ? '🟠 उच्च' : '🟠 HIGH'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#9A3412' }]}>
-              {formatNumber(countHigh)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'उच्च प्राथमिकता' : 'High Priority'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Row 2 */}
-        <View style={styles.gridRow}>
-          {/* 🟡 MEDIUM */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardMedium]}
-            onPress={() => handlePress('priority-medium')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#EAB308' }]} />
-              <Text style={[styles.cardLabel, { color: '#A16207' }]}>
-                {isHindi ? '🟡 मध्यम' : '🟡 MEDIUM'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#854D0E' }]}>
-              {formatNumber(countMedium)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'मानक समय' : 'Standard'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* 🟢 LOW */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardLow]}
-            onPress={() => handlePress('priority-low')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#22C55E' }]} />
-              <Text style={[styles.cardLabel, { color: '#15803D' }]}>
-                {isHindi ? '🟢 सामान्य' : '🟢 LOW'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#166534' }]}>
-              {formatNumber(countLow)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'नियमित' : 'Routine'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* =================================================
-          SUBSECTION 2: 🔎 CLASSIFICATION
-      ================================================= */}
-      <View style={[styles.subSectionHeader, { marginTop: 18 }]}>
-        <View style={styles.subSectionTitleRow}>
-          <Text style={styles.subSectionEmoji}>🔎</Text>
-          <Text style={styles.subSectionTitle}>
-            {isHindi ? 'वर्गीकरण (CLASSIFICATION)' : 'CLASSIFICATION'}
+        <View style={[styles.aiBadge, { flexShrink: 0 }]}>
+          <Ionicons
+            name="scan-outline"
+            size={12}
+            color={COLORS.primary}
+          />
+          <Text style={styles.aiText}>
+            {isHindi ? 'AI वर्गीकरण' : 'CLASSIFICATION'}
           </Text>
         </View>
-        <View style={styles.subSectionLine} />
       </View>
 
-      {/* 2x2 Grid for CLASSIFICATION */}
-      <View style={styles.grid}>
-        {/* Row 1 */}
-        <View style={styles.gridRow}>
-          {/* 🟢 GENUINE */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardGenuine]}
-            onPress={() => handlePress('class-genuine')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
-              <Text style={[styles.cardLabel, { color: '#047857' }]}>
-                {isHindi ? '🟢 वास्तविक' : '🟢 GENUINE'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#065F46' }]}>
-              {formatNumber(countGenuine)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'सत्यापित' : 'Verified'}
-            </Text>
-          </TouchableOpacity>
+      <View style={styles.problemCard}>
+        <View style={styles.categoryGrid}>
+          <Tile
+            icon="shield-checkmark-outline"
+            iconColor={COLORS.success}
+            iconBg={COLORS.successLight}
+            count={countGenuine}
+            label={isHindi ? 'वास्तविक' : 'Genuine'}
+            filterKey="class-genuine"
+          />
 
-          {/* 🔵 DUPLICATE */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardDuplicate]}
-            onPress={() => handlePress('class-duplicate')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#3B82F6' }]} />
-              <Text style={[styles.cardLabel, { color: '#1D4ED8' }]}>
-                {isHindi ? '🔵 डुप्लीकेट' : '🔵 DUPLICATE'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#1E40AF' }]}>
-              {formatNumber(countDuplicate)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'समान समस्या' : 'Linked Copies'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+          <Tile
+            icon="copy-outline"
+            iconColor={COLORS.info}
+            iconBg={COLORS.infoLight}
+            count={countDuplicate}
+            label={isHindi ? 'डुप्लीकेट' : 'Duplicate'}
+            filterKey="class-duplicate"
+          />
 
-        {/* Row 2 */}
-        <View style={styles.gridRow}>
-          {/* ⚫ FAKE / INVALID */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardFake]}
-            onPress={() => handlePress('class-fake')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#475569' }]} />
-              <Text style={[styles.cardLabel, { color: '#334155' }]}>
-                {isHindi ? '⚫ अमान्य / फर्जी' : '⚫ FAKE / INVALID'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#1E293B' }]}>
-              {formatNumber(countFake)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'अस्वीकृत' : 'Rejected'}
-            </Text>
-          </TouchableOpacity>
+          <Tile
+            icon="close-circle-outline"
+            iconColor={COLORS.textSecondary}
+            iconBg={COLORS.primaryLight}
+            count={countFake}
+            label={isHindi ? 'अमान्य' : 'Fake / Invalid'}
+            filterKey="class-fake"
+          />
 
-          {/* 🟣 NEEDS VERIFICATION */}
-          <TouchableOpacity
-            style={[styles.card, styles.cardVerification]}
-            onPress={() => handlePress('class-verification')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardTopRow}>
-              <View style={[styles.dot, { backgroundColor: '#8B5CF6' }]} />
-              <Text style={[styles.cardLabel, { color: '#6D28D9' }]}>
-                {isHindi ? '🟣 सत्यापन' : '🟣 NEEDS VERIFICATION'}
-              </Text>
-            </View>
-            <Text style={[styles.cardCount, { color: '#5B21B6' }]}>
-              {formatNumber(countNeedsVerification)}
-            </Text>
-            <Text style={styles.cardFootnote}>
-              {isHindi ? 'जाँच लंबित' : 'Pending AI Check'}
-            </Text>
-          </TouchableOpacity>
+          <Tile
+            icon="help-circle-outline"
+            iconColor="#9333EA"
+            iconBg="#F3E8FF"
+            count={countNeedsVerification}
+            label={isHindi ? 'सत्यापन योग्य' : 'Needs Verify'}
+            filterKey="class-verification"
+          />
         </View>
       </View>
     </View>
@@ -313,148 +253,96 @@ export function ComplaintOverviewSection({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 18,
-    marginBottom: 8,
+    marginBottom: 4,
   },
 
-  // Header Row
-  headerRow: {
+  // Section Header (Compact)
+  sectionHeader: {
+    marginTop: 14,
+    marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
   },
-  headerTextGroup: {
-    flex: 1,
-  },
-  mainTitle: {
-    fontSize: TYPOGRAPHY.subtitle,
+  sectionTitle: {
+    fontSize: 15,
     fontWeight: TYPOGRAPHY.extraBold,
     color: COLORS.textPrimary,
-    letterSpacing: 0.2,
   },
-  subTitle: {
-    fontSize: TYPOGRAPHY.small,
+  sectionSubtitle: {
+    marginTop: 1,
+    fontSize: 11,
     color: COLORS.textMuted,
-    marginTop: 2,
   },
-  headerBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  aiText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.primary,
   },
 
-  // Subsection Header
-  subSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 8,
-  },
-  subSectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  subSectionEmoji: {
-    fontSize: 14,
-  },
-  subSectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    letterSpacing: 0.5,
-  },
-  subSectionLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.borderLight,
-    marginLeft: 4,
-  },
-
-  // Grid
-  grid: {
-    gap: 10,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  // Card Base
-  card: {
-    flex: 1,
+  // ProblemCard Container (Compact)
+  problemCard: {
+    backgroundColor: COLORS.card,
     borderRadius: RADIUS.lg,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 1.5,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
     ...SHADOWS.small,
   },
-  cardTopRow: {
+
+  // 2-Column Category Grid
+  categoryGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 8,
+  },
+
+  // CategoryCard Tile (Smaller & Compact)
+  categoryCard: {
+    width: '48.5%',
+    minHeight: 74,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  cardLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  cardCount: {
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    marginVertical: 2,
-  },
-  cardFootnote: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: '600',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
   },
 
-  // Priority Card Color Themes
-  cardVeryHigh: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
-  cardHigh: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FED7AA',
-  },
-  cardMedium: {
-    backgroundColor: '#FEFCE8',
-    borderColor: '#FEF08A',
-  },
-  cardLow: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+  // CategoryIcon (Smaller & Compact)
+  categoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
   },
 
-  // Classification Card Color Themes
-  cardGenuine: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+  countText: {
+    fontSize: 16,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.textPrimary,
+    marginVertical: 0,
   },
-  cardDuplicate: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
-  },
-  cardFake: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#CBD5E1',
-  },
-  cardVerification: {
-    backgroundColor: '#FAF5FF',
-    borderColor: '#E9D5FF',
+
+  categoryText: {
+    fontSize: 10.5,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
 });
