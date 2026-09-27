@@ -53,6 +53,9 @@ type Secretary = {
   secretaryId?: string;
   officialId?: string;
   role?: string;
+  district?: string;
+  block?: string;
+  state?: string;
   profileImage?: string | null;
 };
 
@@ -412,16 +415,16 @@ export default function SecretaryScreen() {
             PANCHAYAT MANAGEMENT & SERVICES GRID
         ================================================= */}
         <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={styles.sectionTitle} numberOfLines={1}>
               {isHindi ? 'पंचायत प्रबंधन व सेवाएं' : 'Panchayat Services & Controls'}
             </Text>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={styles.sectionSubtitle} numberOfLines={1}>
               {isHindi ? 'शिकायतें, रिपोर्ट्स, वार्ड स्कोरकार्ड व सहायता' : 'Complaints, reports, ward scorecard & help'}
             </Text>
           </View>
 
-          <View style={styles.aiBadge}>
+          <View style={[styles.aiBadge, { flexShrink: 0 }]}>
             <Ionicons
               name="shield-checkmark-outline"
               size={14}
@@ -485,7 +488,11 @@ export default function SecretaryScreen() {
       <VillageInfoModal
         visible={villageInfoVisible}
         onClose={() => setVillageInfoVisible(false)}
-        villageName={secretary?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+        villageName={secretary?.village || (isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat')}
+        district={secretary?.district}
+        block={secretary?.block}
+        state={secretary?.state || 'Madhya Pradesh'}
+        secretaryName={secretary?.name}
         isHindi={isHindi}
       />
 

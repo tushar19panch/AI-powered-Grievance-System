@@ -268,50 +268,6 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {/* DESCRIPTION / RAISE PROBLEM (CLICKABLE) */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={openRoleSelection}
-        >
-          <Animated.View
-            style={[
-              styles.descriptionCard,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
-            ]}
-          >
-            <View style={styles.descriptionIcon}>
-              <Ionicons
-                name="megaphone-outline"
-                size={25}
-                color={COLORS.orange}
-              />
-            </View>
-
-            <View style={styles.descriptionContent}>
-              <Text style={styles.descriptionTitle}>
-                {language === 'hi'
-                  ? 'अपने गांव की समस्या बताएं'
-                  : 'Raise Your Village Problem'}
-              </Text>
-
-              <Text style={styles.descriptionText}>
-                {language === 'hi'
-                  ? 'समस्या दर्ज करें और उसके समाधान की स्थिति आसानी से देखें।'
-                  : 'Report problems and easily track their resolution.'}
-              </Text>
-            </View>
-
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={COLORS.orange}
-              style={{ marginLeft: 'auto', alignSelf: 'center' }}
-            />
-          </Animated.View>
-        </TouchableOpacity>
 
         {/* CREATE ACCOUNT */}
         <Animated.View
@@ -779,45 +735,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
 
-  /* DESCRIPTION */
-
-  descriptionCard: {
-    backgroundColor: COLORS.orangeLight,
-    borderRadius: 20,
-    padding: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FFE0C2',
-    marginBottom: 15,
-  },
-
-  descriptionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: COLORS.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-
-  descriptionContent: {
-    flex: 1,
-  },
-
-  descriptionTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: COLORS.dark,
-  },
-
-  descriptionText: {
-    fontSize: 11,
-    lineHeight: 17,
-    color: COLORS.text,
-    marginTop: 3,
-  },
 
   /* CREATE ACCOUNT */
 

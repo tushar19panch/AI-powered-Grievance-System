@@ -14,15 +14,29 @@ interface VillageInfoModalProps {
   visible: boolean;
   onClose: () => void;
   villageName?: string;
+  district?: string;
+  block?: string;
+  state?: string;
+  wardNumber?: string;
+  sarpanchName?: string;
+  secretaryName?: string;
   isHindi?: boolean;
 }
 
 export function VillageInfoModal({
   visible,
   onClose,
-  villageName = 'मुख्य ग्राम',
+  villageName = 'ग्राम पंचायत',
+  district,
+  block,
+  state = 'Madhya Pradesh',
+  wardNumber,
+  sarpanchName,
+  secretaryName,
   isHindi = true,
 }: VillageInfoModalProps) {
+  const displayVillage = villageName && villageName !== 'मुख्य ग्राम' ? villageName : (isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat');
+
   return (
     <Modal
       visible={visible}
@@ -38,37 +52,96 @@ export function VillageInfoModal({
               <View style={styles.headerIcon}>
                 <Ionicons name="business-outline" size={22} color={COLORS.primary} />
               </View>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.title}>
-                  {isHindi ? 'ग्राम पंचायत परिचय' : 'Gram Panchayat Overview'}
+                  {isHindi ? 'ग्राम पंचायत परिचय' : 'Gram Panchayat Details'}
                 </Text>
-                <Text style={styles.subtitle}>
-                  {villageName} • {isHindi ? 'बुनियादी विवरण' : 'Basic Details'}
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {displayVillage} • {isHindi ? 'प्रशासनिक विवरण' : 'Administrative Details'}
                 </Text>
               </View>
             </View>
 
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.65}>
               <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-            {/* TRICOLOR BADGE */}
+            {/* TRICOLOR HERO BADGE */}
             <View style={styles.villageHeroCard}>
-              <Ionicons name="location" size={24} color={COLORS.saffron} />
-              <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={styles.villageHeroTitle}>{villageName}</Text>
+              <Ionicons name="location" size={26} color={COLORS.saffron} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={styles.villageHeroTitle}>{displayVillage}</Text>
                 <Text style={styles.villageHeroSub}>
-                  {isHindi ? 'डिजिटल ग्राम पंचायत • आदर्श ग्राम' : 'Digital Gram Panchayat • Model Village'}
+                  {isHindi
+                    ? 'डिजिटल ग्राम पंचायत • मध्य प्रदेश शासन'
+                    : 'Digital Gram Panchayat • Govt of Madhya Pradesh'}
                 </Text>
               </View>
             </View>
 
-            {/* DETAILS GRID */}
+            {/* LOCATION HIERARCHY DETAILS */}
             <View style={styles.infoSection}>
               <Text style={styles.sectionHeading}>
-                {isHindi ? 'प्रमुख प्रशासनिक प्रतिनिधि' : 'Key Administrative Representatives'}
+                {isHindi ? 'भौगोलिक एवं प्रशासनिक स्थिति' : 'Administrative Hierarchy'}
+              </Text>
+
+              {/* STATE */}
+              <View style={styles.infoRow}>
+                <View style={[styles.infoIconBox, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="map-outline" size={18} color="#2563EB" />
+                </View>
+                <View style={styles.infoTextBox}>
+                  <Text style={styles.infoLabel}>{isHindi ? 'राज्य / State' : 'State'}</Text>
+                  <Text style={styles.infoVal}>{state}</Text>
+                </View>
+              </View>
+
+              {/* DISTRICT */}
+              {district ? (
+                <View style={styles.infoRow}>
+                  <View style={[styles.infoIconBox, { backgroundColor: '#F0FDF4' }]}>
+                    <Ionicons name="trail-sign-outline" size={18} color="#16A34A" />
+                  </View>
+                  <View style={styles.infoTextBox}>
+                    <Text style={styles.infoLabel}>{isHindi ? 'जिला / District' : 'District'}</Text>
+                    <Text style={styles.infoVal}>{district}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {/* BLOCK */}
+              {block ? (
+                <View style={styles.infoRow}>
+                  <View style={[styles.infoIconBox, { backgroundColor: '#FAF5FF' }]}>
+                    <Ionicons name="git-network-outline" size={18} color="#9333EA" />
+                  </View>
+                  <View style={styles.infoTextBox}>
+                    <Text style={styles.infoLabel}>{isHindi ? 'विकासखंड / Block' : 'Block'}</Text>
+                    <Text style={styles.infoVal}>{block}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {/* WARD */}
+              {wardNumber ? (
+                <View style={styles.infoRow}>
+                  <View style={[styles.infoIconBox, { backgroundColor: '#FFF7ED' }]}>
+                    <Ionicons name="home-outline" size={18} color="#EA580C" />
+                  </View>
+                  <View style={styles.infoTextBox}>
+                    <Text style={styles.infoLabel}>{isHindi ? 'वार्ड संख्या / Ward' : 'Ward'}</Text>
+                    <Text style={styles.infoVal}>{isHindi ? `वार्ड नं. ${wardNumber}` : `Ward No. ${wardNumber}`}</Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+
+            {/* ADMINISTRATIVE REPRESENTATION */}
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionHeading}>
+                {isHindi ? 'पंचायत प्रशासनिक व्यवस्था' : 'Panchayat Administration'}
               </Text>
 
               {/* SARPANCH */}
@@ -81,7 +154,7 @@ export function VillageInfoModal({
                     {isHindi ? 'ग्राम प्रधान / सरपंच' : 'Village Head / Sarpanch'}
                   </Text>
                   <Text style={styles.infoVal}>
-                    {isHindi ? 'श्रीमती / श्री (सरपंच प्रतिनिधि)' : 'Sarpanch Representative'}
+                    {sarpanchName || (isHindi ? 'सरपंच कार्यालय (ग्राम पंचायत)' : 'Sarpanch Office')}
                   </Text>
                 </View>
               </View>
@@ -89,46 +162,22 @@ export function VillageInfoModal({
               {/* SECRETARY */}
               <View style={styles.infoRow}>
                 <View style={[styles.infoIconBox, { backgroundColor: COLORS.infoLight }]}>
-                  <Ionicons name="person" size={18} color={COLORS.info} />
+                  <Ionicons name="person-circle-outline" size={18} color={COLORS.info} />
                 </View>
                 <View style={styles.infoTextBox}>
                   <Text style={styles.infoLabel}>
                     {isHindi ? 'ग्राम पंचायत सचिव (VDO)' : 'Gram Panchayat Secretary'}
                   </Text>
                   <Text style={styles.infoVal}>
-                    {isHindi ? 'ग्राम विकास अधिकारी' : 'Village Development Officer'}
+                    {secretaryName || (isHindi ? 'ग्राम विकास अधिकारी कार्यालय' : 'VDO / Secretary Office')}
                   </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* STATS SECTION */}
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionHeading}>
-                {isHindi ? 'जनसांख्यिकी एवं ढांचा' : 'Demographics & Infrastructure'}
-              </Text>
-
-              <View style={styles.statsGrid}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statNum}>~3,450</Text>
-                  <Text style={styles.statLbl}>{isHindi ? 'अनुमानित जनसंख्या' : 'Population'}</Text>
-                </View>
-
-                <View style={styles.statBox}>
-                  <Text style={styles.statNum}>10</Text>
-                  <Text style={styles.statLbl}>{isHindi ? 'सक्रिय वार्ड' : 'Active Wards'}</Text>
-                </View>
-
-                <View style={styles.statBox}>
-                  <Text style={styles.statNum}>24x7</Text>
-                  <Text style={styles.statLbl}>{isHindi ? 'नागरिक हेल्पलाइन' : 'Helpline'}</Text>
                 </View>
               </View>
             </View>
           </ScrollView>
 
-          {/* OK BUTTON */}
-          <TouchableOpacity style={styles.doneButton} onPress={onClose} activeOpacity={0.85}>
+          {/* CLOSE BUTTON */}
+          <TouchableOpacity style={styles.doneButton} onPress={onClose} activeOpacity={0.7}>
             <Text style={styles.doneText}>{isHindi ? 'ठीक है' : 'Close'}</Text>
           </TouchableOpacity>
         </View>
@@ -215,7 +264,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionHeading: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: COLORS.textMuted,
     textTransform: 'uppercase',
@@ -244,7 +293,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.textMuted,
     fontWeight: '600',
   },
@@ -253,32 +302,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.navy,
     marginTop: 2,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  statNum: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
-  statLbl: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: 2,
-    textAlign: 'center',
-    fontWeight: '600',
   },
   doneButton: {
     backgroundColor: COLORS.primary,

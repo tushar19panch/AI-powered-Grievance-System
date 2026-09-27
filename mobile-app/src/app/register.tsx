@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../i18n/LanguageContext';
+import { LocationHierarchyPicker } from '../components/LocationHierarchyPicker';
 
 import {
   COLORS,
@@ -33,10 +34,15 @@ export default function RegisterScreen() {
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [state, setState] = useState('Madhya Pradesh');
+  const [district, setDistrict] = useState('');
+  const [block, setBlock] = useState('');
   const [village, setVillage] = useState('');
   const [ward, setWard] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -89,27 +95,23 @@ export default function RegisterScreen() {
     // -----------------------------------------
     // BASIC VALIDATION
     // -----------------------------------------
-    if (
-      !name.trim() ||
-      !mobile.trim() ||
-      !village.trim() ||
-      !ward.trim() ||
-      !password ||
-      !confirmPassword
-    ) {
+    if (!name.trim()) {
       showAlert(
-        isHindi ? 'जानकारी अधूरी है' : 'Missing Information',
-        isHindi
-          ? 'कृपया सभी जानकारी (नाम, मोबाइल, गांव, वार्ड, पासवर्ड) भरें।'
-          : 'Please fill all required fields.'
+        isHindi ? 'नाम आवश्यक है' : 'Name Required',
+        isHindi ? 'कृपया अपना पूरा नाम दर्ज करें।' : 'Please enter your full name.'
       );
       return;
     }
 
-    // -----------------------------------------
-    // MOBILE VALIDATION
-    // -----------------------------------------
     const cleanMobile = mobile.trim();
+    if (!cleanMobile) {
+      showAlert(
+        isHindi ? 'मोबाइल नंबर आवश्यक है' : 'Mobile Required',
+        isHindi ? 'कृपया 10 अंकों का मोबाइल नंबर दर्ज करें।' : 'Please enter mobile number.'
+      );
+      return;
+    }
+
     if (!/^\d{10}$/.test(cleanMobile)) {
       showAlert(
         isHindi ? 'मोबाइल नंबर गलत है' : 'Invalid Mobile Number',
@@ -121,8 +123,53 @@ export default function RegisterScreen() {
     }
 
     // -----------------------------------------
+    // LOCATION HIERARCHY VALIDATION (TEMPORARILY COMMENTED OUT - TO BE IMPLEMENTED LATER)
+    // -----------------------------------------
+    /*
+    if (!district.trim()) {
+      showAlert(
+        isHindi ? 'जिला चुनें' : 'Select District',
+        isHindi ? 'कृपया जिला चुनें।' : 'Please select a district.'
+      );
+      return;
+    }
+
+    if (!block.trim()) {
+      showAlert(
+        isHindi ? 'ब्लॉक चुनें' : 'Select Block',
+        isHindi ? 'कृपया ब्लॉक चुनें।' : 'Please select a block.'
+      );
+      return;
+    }
+    */
+
+    if (!village.trim()) {
+      showAlert(
+        isHindi ? 'गाँव का नाम आवश्यक है' : 'Village Name Required',
+        isHindi ? 'कृपया अपने गाँव का नाम दर्ज करें।' : 'Please enter your village name.'
+      );
+      return;
+    }
+
+    if (!ward.trim()) {
+      showAlert(
+        isHindi ? 'वार्ड नंबर आवश्यक है' : 'Ward Required',
+        isHindi ? 'कृपया वार्ड नंबर दर्ज करें।' : 'Please enter your ward number.'
+      );
+      return;
+    }
+
+    // -----------------------------------------
     // PASSWORD VALIDATION
     // -----------------------------------------
+    if (!password) {
+      showAlert(
+        isHindi ? 'पासवर्ड आवश्यक है' : 'Password Required',
+        isHindi ? 'कृपया पासवर्ड दर्ज करें।' : 'Please enter password.'
+      );
+      return;
+    }
+
     if (password.length < 6) {
       showAlert(
         isHindi ? 'कमजोर पासवर्ड' : 'Weak Password',
@@ -152,6 +199,9 @@ export default function RegisterScreen() {
         mobileNumber: cleanMobile,
         password: password,
         role: 'CITIZEN',
+        state: 'Madhya Pradesh',
+        district: district.trim(),
+        block: block.trim(),
         villageName: village.trim(),
         wardNumber: ward.trim(),
       });
@@ -160,42 +210,41 @@ export default function RegisterScreen() {
       let loginData;
       try {
         loginData = await authApi.login({
-          mobileNumber: cleanMobile,
+          identifier: cleanMobile,
           password: password,
+          role: 'CITIZEN',
         });
       } catch (loginErr) {
-        console.log('Auto-login after register failed:', loginErr);
+        console.log('Auto login failed, saving local session:', loginErr);
       }
 
-      // Also cache locally for offline support
-      const citizen = {
+      const citizenData = {
         name: name.trim(),
         mobile: cleanMobile,
+        state: 'Madhya Pradesh',
+        district: district.trim(),
+        block: block.trim(),
         village: village.trim(),
         ward: ward.trim(),
-        password: password,
+        token: loginData?.token || 'session_' + Date.now(),
         role: 'citizen',
-        profileImage: null,
-        registeredAt: new Date().toISOString(),
       };
 
-      await AsyncStorage.setItem('citizen', JSON.stringify(citizen));
-      await AsyncStorage.setItem(
-        'user_session',
-        JSON.stringify({
-          isLoggedIn: true,
-          role: 'citizen',
-          name: name.trim(),
-          mobile: cleanMobile,
-          village: village.trim(),
-          ward: ward.trim(),
-          token: loginData?.token || '',
-          loginAt: new Date().toISOString(),
-        })
-      );
+      await AsyncStorage.setItem('citizen', JSON.stringify(citizenData));
+      await AsyncStorage.setItem('user_session', JSON.stringify(citizenData));
 
-      // Direct redirect to Citizen Dashboard
-      router.replace('/citizen-dashboard');
+      showAlert(
+        isHindi ? 'पंजीकरण सफल' : 'Registration Successful',
+        isHindi
+          ? 'आपका नागरिक खाता सफलतापूर्वक बन गया है!'
+          : 'Your citizen account has been created successfully!',
+        [
+          {
+            text: isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard',
+            onPress: () => router.replace('/citizen-dashboard'),
+          },
+        ]
+      );
     } catch (error: any) {
       console.log('Registration error:', error);
       showAlert(
@@ -221,6 +270,9 @@ export default function RegisterScreen() {
       secureTextEntry?: boolean;
       maxLength?: number;
       autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+      isPassword?: boolean;
+      showPassword?: boolean;
+      onTogglePassword?: () => void;
     }
   ) => (
     <>
@@ -241,8 +293,25 @@ export default function RegisterScreen() {
           placeholderTextColor={COLORS.textMuted}
           value={value}
           onChangeText={onChangeText}
-          {...options}
+          secureTextEntry={options?.isPassword ? !options.showPassword : options?.secureTextEntry}
+          keyboardType={options?.keyboardType}
+          maxLength={options?.maxLength}
+          autoCapitalize={options?.autoCapitalize}
         />
+
+        {options?.isPassword && options.onTogglePassword && (
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={options.onTogglePassword}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={options.showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={21}
+              color={COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
       </View>
     </>
   );
@@ -416,29 +485,41 @@ export default function RegisterScreen() {
             }
           )}
 
-          {/* VILLAGE (LETTERS ONLY) */}
+          {/* VILLAGE NAME */}
           {renderInput(
-            'location-outline',
-            isHindi ? 'गांव' : 'Village',
-            isHindi
-              ? 'गांव का नाम दर्ज करें'
-              : 'Enter village name',
+            'home-outline',
+            isHindi ? 'गाँव / ग्राम पंचायत' : 'Village / Gram Panchayat',
+            isHindi ? 'अपने गाँव का नाम दर्ज करें' : 'Enter your village name',
             village,
-            (text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, '')),
+            setVillage,
             { autoCapitalize: 'words' }
           )}
 
-          {/* WARD (DIGITS ONLY) */}
+          {/* WARD NUMBER */}
           {renderInput(
-            'grid-outline',
+            'location-outline',
             isHindi ? 'वार्ड नंबर' : 'Ward Number',
-            isHindi
-              ? 'वार्ड नंबर दर्ज करें'
-              : 'Enter ward number',
+            isHindi ? 'जैसे: Ward 1 या 1' : 'e.g. Ward 1 or 1',
             ward,
-            (text) => setWard(text.replace(/\D/g, '').slice(0, 3)),
-            { keyboardType: 'numeric', maxLength: 3 }
+            setWard,
+            { autoCapitalize: 'words' }
           )}
+
+          {/* 
+          LOCATION HIERARCHY PICKER (TEMPORARILY COMMENTED OUT - TO BE IMPLEMENTED LATER)
+          <LocationHierarchyPicker
+            isHindi={isHindi}
+            selectedState={state}
+            selectedDistrict={district}
+            selectedBlock={block}
+            selectedVillage={village}
+            selectedWard={ward}
+            onDistrictChange={setDistrict}
+            onBlockChange={setBlock}
+            onVillageChange={setVillage}
+            onWardChange={setWard}
+          />
+          */}
 
           {/* PASSWORD */}
           {renderInput(
@@ -449,7 +530,11 @@ export default function RegisterScreen() {
               : 'Create password',
             password,
             setPassword,
-            { secureTextEntry: true }
+            {
+              isPassword: true,
+              showPassword: showPassword,
+              onTogglePassword: () => setShowPassword(!showPassword),
+            }
           )}
 
           {/* CONFIRM PASSWORD */}
@@ -463,7 +548,11 @@ export default function RegisterScreen() {
               : 'Confirm password',
             confirmPassword,
             setConfirmPassword,
-            { secureTextEntry: true }
+            {
+              isPassword: true,
+              showPassword: showConfirmPassword,
+              onTogglePassword: () => setShowConfirmPassword(!showConfirmPassword),
+            }
           )}
 
           {/* SECURITY */}
@@ -783,6 +872,13 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.body,
     color: COLORS.textPrimary,
     marginLeft: SPACING.sm,
+  },
+
+  eyeButton: {
+    width: 40,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   infoBox: {

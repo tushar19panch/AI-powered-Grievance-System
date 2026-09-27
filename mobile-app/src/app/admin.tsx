@@ -52,6 +52,9 @@ type Admin = {
   village: string;
   adminId: string;
   role?: string;
+  district?: string;
+  block?: string;
+  state?: string;
   profileImage?: string | null;
 };
 
@@ -410,16 +413,16 @@ export default function AdminScreen() {
             PANCHAYAT MANAGEMENT & SERVICES GRID
         ================================================= */}
         <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={styles.sectionTitle} numberOfLines={1}>
               {isHindi ? 'पंचायत प्रबंधन व सेवाएं' : 'Panchayat Services & Controls'}
             </Text>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={styles.sectionSubtitle} numberOfLines={1}>
               {isHindi ? 'शिकायतें, रिपोर्ट्स, वार्ड स्कोरकार्ड व सहायता' : 'Complaints, reports, ward scorecard & help'}
             </Text>
           </View>
 
-          <View style={styles.aiBadge}>
+          <View style={[styles.aiBadge, { flexShrink: 0 }]}>
             <Ionicons
               name="shield-checkmark-outline"
               size={14}
@@ -483,7 +486,11 @@ export default function AdminScreen() {
       <VillageInfoModal
         visible={villageInfoVisible}
         onClose={() => setVillageInfoVisible(false)}
-        villageName={admin?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+        villageName={admin?.village || (isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat')}
+        district={admin?.district}
+        block={admin?.block}
+        state={admin?.state || 'Madhya Pradesh'}
+        sarpanchName={admin?.name}
         isHindi={isHindi}
       />
 

@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../i18n/LanguageContext';
+import { LocationHierarchyPicker } from '../components/LocationHierarchyPicker';
 
 import {
   COLORS,
@@ -33,7 +34,11 @@ export default function SecretaryRegister() {
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [state, setState] = useState('Madhya Pradesh');
+  const [district, setDistrict] = useState('');
+  const [block, setBlock] = useState('');
   const [village, setVillage] = useState('');
+  const [ward, setWard] = useState('');
   const [secretaryId, setSecretaryId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -79,31 +84,45 @@ export default function SecretaryRegister() {
   const handleRegister = async () => {
     if (loading) return;
 
-    if (
-      !name.trim() ||
-      !mobile.trim() ||
-      !village.trim() ||
-      !secretaryId.trim() ||
-      !password.trim() ||
-      !confirmPassword.trim()
-    ) {
+    if (!name.trim()) {
       showAlert(
-        isHindi ? 'जानकारी अधूरी है' : 'Incomplete Information',
-        isHindi
-          ? 'कृपया सभी जानकारी भरें।'
-          : 'Please fill in all fields.'
+        isHindi ? 'नाम आवश्यक है' : 'Name Required',
+        isHindi ? 'कृपया अपना पूरा नाम दर्ज करें।' : 'Please enter your name.'
       );
       return;
     }
 
     const cleanMobile = mobile.trim();
-    if (!/^[0-9]{10}$/.test(cleanMobile)) {
+    if (!cleanMobile || !/^[0-9]{10}$/.test(cleanMobile)) {
       showAlert(
         isHindi ? 'गलत मोबाइल नंबर' : 'Invalid Mobile Number',
         isHindi
           ? '10 अंकों का मोबाइल नंबर दर्ज करें।'
           : 'Please enter a valid 10-digit mobile number.'
       );
+      return;
+    }
+
+    // LOCATION HIERARCHY VALIDATION (TEMPORARILY COMMENTED OUT - TO BE IMPLEMENTED LATER)
+    /*
+    if (!district.trim()) {
+      showAlert(isHindi ? 'जिला चुनें' : 'Select District', isHindi ? 'कृपया जिला चुनें।' : 'Please select a district.');
+      return;
+    }
+
+    if (!block.trim()) {
+      showAlert(isHindi ? 'ब्लॉक चुनें' : 'Select Block', isHindi ? 'कृपया ब्लॉक चुनें।' : 'Please select a block.');
+      return;
+    }
+    */
+
+    if (!village.trim()) {
+      showAlert(isHindi ? 'गाँव का नाम आवश्यक है' : 'Village Name Required', isHindi ? 'कृपया ग्राम पंचायत / गाँव का नाम दर्ज करें।' : 'Please enter village name.');
+      return;
+    }
+
+    if (!secretaryId.trim()) {
+      showAlert(isHindi ? 'सचिव आईडी आवश्यक है' : 'Secretary ID Required', isHindi ? 'कृपया सचिव आईडी दर्ज करें।' : 'Please enter Secretary ID.');
       return;
     }
 
@@ -135,7 +154,11 @@ export default function SecretaryRegister() {
         mobileNumber: cleanMobile,
         password: password,
         role: 'SECRETARY',
+        state: 'Madhya Pradesh',
+        district: district.trim(),
+        block: block.trim(),
         villageName: village.trim(),
+        wardNumber: ward.trim() || '1',
         officialId: secretaryId.trim(),
         secretaryId: secretaryId.trim(),
       });
@@ -355,10 +378,40 @@ export default function SecretaryRegister() {
             </View>
           </View>
 
-          {/* VILLAGE (LETTERS ONLY) */}
+          {/* VILLAGE NAME */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              {isHindi ? 'गांव' : 'Village'}
+              {isHindi ? 'ग्राम पंचायत / गाँव का नाम' : 'Gram Panchayat / Village'}
+            </Text>
+
+            <View style={styles.inputBox}>
+              <View style={styles.inputIconBox}>
+                <Ionicons
+                  name="home-outline"
+                  size={20}
+                  color={COLORS.navy}
+                />
+              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder={
+                  isHindi
+                    ? 'गाँव का नाम दर्ज करें'
+                    : 'Enter village name'
+                }
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="words"
+                value={village}
+                onChangeText={setVillage}
+              />
+            </View>
+          </View>
+
+          {/* WARD NUMBER */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              {isHindi ? 'वार्ड नंबर' : 'Ward Number'}
             </Text>
 
             <View style={styles.inputBox}>
@@ -374,16 +427,32 @@ export default function SecretaryRegister() {
                 style={styles.input}
                 placeholder={
                   isHindi
-                    ? 'गांव का नाम दर्ज करें'
-                    : 'Enter village name'
+                    ? 'जैसे: Ward 1 या 1'
+                    : 'e.g. Ward 1 or 1'
                 }
                 placeholderTextColor={COLORS.textMuted}
-                value={village}
-                onChangeText={(text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
                 autoCapitalize="words"
+                value={ward}
+                onChangeText={setWard}
               />
             </View>
           </View>
+
+          {/* 
+          LOCATION HIERARCHY PICKER (TEMPORARILY COMMENTED OUT - TO BE IMPLEMENTED LATER)
+          <LocationHierarchyPicker
+            isHindi={isHindi}
+            selectedState={state}
+            selectedDistrict={district}
+            selectedBlock={block}
+            selectedVillage={village}
+            selectedWard={ward}
+            onDistrictChange={setDistrict}
+            onBlockChange={setBlock}
+            onVillageChange={setVillage}
+            onWardChange={setWard}
+          />
+          */}
 
           {/* SECRETARY ID */}
           <View style={styles.inputGroup}>

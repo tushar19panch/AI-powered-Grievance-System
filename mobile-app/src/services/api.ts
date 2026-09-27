@@ -130,8 +130,10 @@ async function request<T>(
 // Authentication APIs
 // -------------------------------------------------------------
 export interface LoginPayload {
-  mobileNumber: string;
+  mobileNumber?: string;
+  identifier?: string;
   password: string;
+  role?: 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
 }
 
 export interface LoginResponseData {
@@ -149,6 +151,11 @@ export interface RegisterPayload {
   mobileNumber: string;
   password: string;
   role: 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
+  state?: string;
+  district?: string;
+  block?: string;
+  village?: string;
+  ward?: string;
   villageName?: string;
   wardNumber?: string;
   officialId?: string;

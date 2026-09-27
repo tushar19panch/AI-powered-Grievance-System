@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
 import PhotoPreviewModal from '../components/PhotoPreviewModal';
+import { DashboardBottomBar } from '../components/DashboardBottomBar';
 
 import {
   COLORS,
@@ -427,28 +428,30 @@ export default function Profile() {
         >
           {/* HEADER */}
           <View style={styles.header}>
-            <Pressable
+            <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
+              activeOpacity={0.65}
             >
               <Ionicons
                 name="arrow-back-outline"
                 size={22}
                 color={COLORS.primary}
               />
-            </Pressable>
+            </TouchableOpacity>
 
             <Text style={styles.headerTitle}>
               {labels.profile}
             </Text>
 
-            <Pressable
+            <TouchableOpacity
               style={styles.languageButton}
               onPress={() =>
                 setLanguage(
                   language === 'hi' ? 'en' : 'hi'
                 )
               }
+              activeOpacity={0.65}
             >
               <Ionicons
                 name="language-outline"
@@ -459,7 +462,7 @@ export default function Profile() {
               <Text style={styles.languageText}>
                 {language === 'hi' ? 'EN' : 'हि'}
               </Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {/* PROFILE CARD */}
@@ -491,16 +494,17 @@ export default function Profile() {
                 )}
               </TouchableOpacity>
 
-              <Pressable
+              <TouchableOpacity
                 style={styles.cameraButton}
                 onPress={chooseImage}
+                activeOpacity={0.7}
               >
                 <Ionicons
                   name="camera-outline"
                   size={19}
                   color={COLORS.textWhite}
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
 
             <Text style={styles.profileName}>
@@ -522,9 +526,10 @@ export default function Profile() {
               </Text>
             </View>
 
-            <Pressable
+            <TouchableOpacity
               style={styles.photoButton}
               onPress={chooseImage}
+              activeOpacity={0.7}
             >
               <Ionicons
                 name="image-outline"
@@ -537,7 +542,7 @@ export default function Profile() {
                   ? labels.changePhoto
                   : labels.addPhoto}
               </Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {/* PERSONAL INFORMATION */}
@@ -547,15 +552,17 @@ export default function Profile() {
             </Text>
 
             {!editing && (
-              <Pressable
+              <TouchableOpacity
                 onPress={() => setEditing(true)}
+                activeOpacity={0.65}
+                style={{ padding: 4 }}
               >
                 <Ionicons
                   name="create-outline"
                   size={22}
                   color={COLORS.accent}
                 />
-              </Pressable>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -599,7 +606,7 @@ export default function Profile() {
           {/* EDIT ACTIONS */}
           {editing && (
             <View style={styles.editActions}>
-              <Pressable
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
                   setName(user?.name || '');
@@ -611,15 +618,17 @@ export default function Profile() {
                   );
                   setEditing(false);
                 }}
+                activeOpacity={0.7}
               >
                 <Text style={styles.cancelText}>
                   {labels.cancel}
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
 
-              <Pressable
+              <TouchableOpacity
                 style={styles.saveButton}
                 onPress={saveProfile}
+                activeOpacity={0.7}
               >
                 <Ionicons
                   name="checkmark-outline"
@@ -630,7 +639,7 @@ export default function Profile() {
                 <Text style={styles.saveText}>
                   {labels.save}
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -641,13 +650,14 @@ export default function Profile() {
 
           <View style={styles.accountCard}>
             {/* LANGUAGE */}
-            <Pressable
+            <TouchableOpacity
               style={styles.accountRow}
               onPress={() =>
                 setLanguage(
                   language === 'hi' ? 'en' : 'hi'
                 )
               }
+              activeOpacity={0.7}
             >
               <View style={styles.accountIcon}>
                 <Ionicons
@@ -674,14 +684,15 @@ export default function Profile() {
                 size={21}
                 color={COLORS.textMuted}
               />
-            </Pressable>
+            </TouchableOpacity>
 
             <View style={styles.divider} />
 
             {/* LOGOUT */}
-            <Pressable
+            <TouchableOpacity
               style={styles.accountRow}
               onPress={logout}
+              activeOpacity={0.7}
             >
               <View style={styles.logoutIcon}>
                 <Ionicons
@@ -702,14 +713,13 @@ export default function Profile() {
                 size={21}
                 color={COLORS.error}
               />
-            </Pressable>
+            </TouchableOpacity>
           </View>
-
-          <Text style={styles.footerText}>
-            VillageApp
-          </Text>
         </Animated.View>
       </ScrollView>
+
+      {/* BOTTOM NAVIGATION BAR */}
+      <DashboardBottomBar activeTab="profile" role="citizen" isHindi={language === 'hi'} />
 
       <PhotoPreviewModal
         visible={previewVisible}

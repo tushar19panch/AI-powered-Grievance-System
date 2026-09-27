@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { DashboardBottomBar } from '../components/DashboardBottomBar';
 
 import {
   COLORS,
@@ -1013,6 +1014,9 @@ export default function AdminProfile() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* UNIVERSAL BOTTOM NAVIGATION BAR */}
+      <DashboardBottomBar activeTab="profile" role={admin.role} isHindi={isHindi} />
 
       {/* FULL ENLARGED PHOTO PREVIEW MODAL */}
       <PhotoPreviewModal

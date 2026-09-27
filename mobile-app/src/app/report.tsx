@@ -11,10 +11,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import {
@@ -38,36 +37,23 @@ import {
   TYPOGRAPHY,
 } from '../theme';
 
-const CATEGORY_NAMES: Record<string, { hi: string; en: string }> = {
-  water: { hi: '💧 पानी की समस्या', en: '💧 Water Supply Issue' },
-  electricity: { hi: '💡 स्ट्रीट लाइट / बिजली', en: '💡 Street Light & Power' },
-  road: { hi: '🛣️ सड़क व नाली मरम्मत', en: '🛣️ Road & Drainage' },
-  cleanliness: { hi: '🧹 सफाई व कचरा प्रबंधन', en: '🧹 Sanitation & Waste' },
-  school: { hi: '🏫 स्कूल व आंगनवाड़ी', en: '🏫 School & Anganwadi' },
-  health: { hi: '🏥 स्वास्थ्य व चिकित्सा', en: '🏥 Health & Clinic' },
-  other: { hi: '📝 अन्य समस्या', en: '📝 Other Problem' },
-};
-
 export default function ReportScreen() {
+  const router = useRouter();
   const { language, setLanguage } = useLanguage();
-  const params = useLocalSearchParams<{ initialCategory?: string }>();
   const isHindi = language === 'hi';
 
-  const defaultDesc = params.initialCategory && CATEGORY_NAMES[params.initialCategory]
-    ? `[${isHindi ? CATEGORY_NAMES[params.initialCategory].hi : CATEGORY_NAMES[params.initialCategory].en}]: `
-    : '';
-
-  const [description, setDescription] = useState(defaultDesc);
+  const [description, setDescription] = useState('');
   const [location, setLocation] = useState<string | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [image, setImage] = useState<string | null>(null);
   const [complaintId, setComplaintId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [userName, setUserName] = useState('');
   const [ward, setWard] = useState('');
   const [problemWard, setProblemWard] = useState('');
   const [differentWard, setDifferentWard] = useState(false);
-  const [citizenId, setCitizenId] = useState<number | undefined>(undefined);
-  const [villageId, setVillageId] = useState<number | undefined>(undefined);
+  const [showWardList, setShowWardList] = useState(false);
 
   const audioRecorder = useAudioRecorder({
     ...RecordingPresets.HIGH_QUALITY,
@@ -89,21 +75,20 @@ export default function ReportScreen() {
   // ==========================================
   // LOAD CITIZEN
   // ==========================================
-
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const data = await AsyncStorage.getItem('citizen');
+        const sessionData = await AsyncStorage.getItem('user_session');
+        const session = sessionData ? JSON.parse(sessionData) : null;
+        const storedCitizen = await AsyncStorage.getItem('citizen');
+        const citizen = storedCitizen ? JSON.parse(storedCitizen) : null;
 
-        if (data) {
-          const user = JSON.parse(data);
+        const name = session?.name || citizen?.name || '';
+        const userWard = session?.ward || citizen?.ward || '';
 
-          setUserName(user.name || '');
-          setWard(user.ward || '');
-          setProblemWard(user.ward || '');
-          if (user.id) setCitizenId(Number(user.id));
-          if (user.villageId) setVillageId(Number(user.villageId));
-        }
+        setUserName(name);
+        setWard(userWard);
+        setProblemWard(userWard || 'Ward 1');
       } catch (error) {
         console.log('Unable to load user:', error);
       }
@@ -112,12 +97,9 @@ export default function ReportScreen() {
     loadUser();
   }, []);
 
-
-
   // ==========================================
   // IMAGE CONVERSION HELPER
   // ==========================================
-
   const processImageUri = async (asset: ImagePicker.ImagePickerAsset): Promise<string> => {
     if (asset.base64) {
       return asset.base64.startsWith('data:')
@@ -128,7 +110,6 @@ export default function ReportScreen() {
     if (uri && uri.startsWith('data:')) {
       return uri;
     }
-    // Convert blob: or file: uri into Base64 Data URI
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
@@ -149,13 +130,10 @@ export default function ReportScreen() {
   // ==========================================
   // CAMERA
   // ==========================================
-
   const takePhoto = async () => {
     try {
       if (Platform.OS !== 'web') {
-        const permission =
-          await ImagePicker.requestCameraPermissionsAsync();
-
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
           Alert.alert(
             isHindi ? 'कैमरा अनुमति' : 'Camera Permission',
@@ -186,13 +164,10 @@ export default function ReportScreen() {
   // ==========================================
   // GALLERY
   // ==========================================
-
   const pickFromGallery = async () => {
     try {
       if (Platform.OS !== 'web') {
-        const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
-
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
           Alert.alert(
             isHindi ? 'गैलरी अनुमति' : 'Gallery Permission',
@@ -220,10 +195,6 @@ export default function ReportScreen() {
     }
   };
 
-  // ==========================================
-  // REMOVE PHOTO
-  // ==========================================
-
   const removePhoto = () => {
     setImage(null);
   };
@@ -231,12 +202,9 @@ export default function ReportScreen() {
   // ==========================================
   // AUDIO RECORDING
   // ==========================================
-
   const startRecording = async () => {
     try {
-      const permission =
-        await AudioModule.requestRecordingPermissionsAsync();
-
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (!permission.granted) {
         Alert.alert(
           isHindi ? 'माइक्रोफोन अनुमति' : 'Microphone Permission',
@@ -286,7 +254,6 @@ export default function ReportScreen() {
 
   const toggleAudioPlayback = () => {
     if (!audioUri) return;
-
     try {
       if (audioPlayer.playing) {
         audioPlayer.pause();
@@ -298,38 +265,43 @@ export default function ReportScreen() {
     }
   };
 
-  const selectProblemWard = (selectedWard: string) => {
+  const handleSelectMyWard = () => {
+    setDifferentWard(false);
+    setShowWardList(false);
+    setProblemWard(ward || 'Ward 1');
+  };
+
+  const handleSelectOtherWardTab = () => {
+    setDifferentWard(true);
+    setShowWardList(true);
+  };
+
+  const handlePickSpecificWard = (selectedWard: string) => {
     setProblemWard(selectedWard);
-    setDifferentWard(selectedWard !== ward);
+    setShowWardList(false);
   };
 
   // ==========================================
   // LOCATION
   // ==========================================
-
   const getCurrentLocation = async () => {
-    const { status } =
-      await Location.requestForegroundPermissionsAsync();
-
-    if (status !== 'granted') {
-      Alert.alert(
-        isHindi ? 'लोकेशन अनुमति' : 'Location Permission',
-        isHindi
-          ? 'लोकेशन प्राप्त करने के लिए अनुमति आवश्यक है।'
-          : 'Location permission is required.'
-      );
-      return;
-    }
-
+    setIsGettingLocation(true);
     try {
-      const currentLocation =
-        await Location.getCurrentPositionAsync({});
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          isHindi ? 'लोकेशन अनुमति' : 'Location Permission',
+          isHindi
+            ? 'GPS लोकेशन प्राप्त करने के लिए अनुमति आवश्यक है।'
+            : 'Location permission is required.'
+        );
+        setIsGettingLocation(false);
+        return;
+      }
 
-      const latitude =
-        currentLocation.coords.latitude;
-
-      const longitude =
-        currentLocation.coords.longitude;
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      const latitude = currentLocation.coords.latitude.toFixed(6);
+      const longitude = currentLocation.coords.longitude.toFixed(6);
 
       setLocation(`${latitude}, ${longitude}`);
     } catch (error) {
@@ -339,23 +311,29 @@ export default function ReportScreen() {
           ? 'आपकी वर्तमान लोकेशन प्राप्त नहीं हो सकी।'
           : 'Unable to get your current location.'
       );
+    } finally {
+      setIsGettingLocation(false);
     }
   };
 
   // ==========================================
-  // SUBMIT
+  // SUBMIT PROBLEM
   // ==========================================
-
   const submitProblem = async () => {
-    if (!description.trim() || !image || !problemWard) {
+    const hasText = description.trim().length > 0;
+    const hasAudio = !!audioUri;
+
+    if ((!hasText && !hasAudio) || !image || !problemWard) {
       Alert.alert(
         isHindi ? 'जानकारी अधूरी है' : 'Missing Information',
         isHindi
-          ? 'कृपया समस्या का विवरण, समस्या का वार्ड और फोटो दर्ज करें।'
-          : 'Please provide the description, problem ward and photo.'
+          ? 'कृपया समस्या का विवरण (बोलकर या लिखकर), समस्या का वार्ड और फोटो दर्ज करें।'
+          : 'Please provide the problem description (voice or text), ward and photo.'
       );
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       let lat: number | undefined;
@@ -370,10 +348,16 @@ export default function ReportScreen() {
         }
       }
 
+      const finalDescription = hasText
+        ? description.trim()
+        : isHindi
+          ? 'आवाज़ रिकॉर्डिंग द्वारा दर्ज समस्या'
+          : 'Voice recorded problem description';
+
       const payload = {
         problemType: 'General Problem',
         category: 'Village Issue',
-        description: description.trim(),
+        description: finalDescription,
         location: location || `Ward ${problemWard || ward || '1'}`,
         photo: image || undefined,
         audioUrl: audioUri || undefined,
@@ -391,7 +375,6 @@ export default function ReportScreen() {
         }
       } catch (apiErr) {
         console.log('Backend complaint submission failed, queuing offline:', apiErr);
-        // Queue for background sync
         const offlineItem = await queueOfflineComplaint(payload, {
           citizenName: userName,
           ward: problemWard || ward,
@@ -407,17 +390,15 @@ export default function ReportScreen() {
         Alert.alert(
           isHindi ? '📶 शिकायत ऑफलाइन सुरक्षित' : '📶 Complaint Saved Offline',
           isHindi
-            ? `इंटरनेट नेटवर्क न होने के कारण आपकी शिकायत फोटो सहित आपके फोन में सुरक्षित सेव कर ली गई है।\n\nजैसे ही इंटरनेट कनेक्ट होगा, यह अपने आप ग्राम पंचायत सर्वर पर सिंक हो जाएगी।\n\nअस्थायी आईडी: #${newComplaintId}`
-            : `Your complaint with photo has been saved offline on your device due to no/slow network.\n\nIt will automatically synchronize with the Gram Panchayat server when connected.\n\nOffline ID: #${newComplaintId}`
+            ? `इंटरनेट न होने के कारण आपकी शिकायत सुरक्षित सेव कर ली गई है। कनेक्ट होने पर यह अपने आप सिंक हो जाएगी।\n\nअस्थायी आईडी: #${newComplaintId}`
+            : `Your complaint has been saved offline. It will synchronize automatically when online.\n\nOffline ID: #${newComplaintId}`
         );
       } else {
         Alert.alert(
+          isHindi ? 'शिकायत सफलतापूर्वक दर्ज हुई' : 'Complaint Submitted Successfully',
           isHindi
-            ? 'शिकायत सफलतापूर्वक दर्ज हुई'
-            : 'Complaint Submitted Successfully',
-          isHindi
-            ? `शिकायत आईडी: #${newComplaintId}`
-            : `Complaint ID: #${newComplaintId}`
+            ? `आपकी शिकायत आईडी: #${newComplaintId}\nAI द्वारा समस्या को उपयुक्त विभाग में भेज दिया गया है।`
+            : `Complaint ID: #${newComplaintId}\nAI has routed your problem to the concerned department.`
         );
       }
 
@@ -425,44 +406,53 @@ export default function ReportScreen() {
       setImage(null);
       setLocation(null);
       setAudioUri(null);
-      setProblemWard(ward);
+      setProblemWard(ward || 'Ward 1');
       setDifferentWard(false);
     } catch (error) {
       console.log('Unable to submit complaint:', error);
-
       Alert.alert(
         isHindi ? 'त्रुटि' : 'Error',
         isHindi
           ? 'शिकायत दर्ज नहीं हो सकी। कृपया फिर प्रयास करें।'
           : 'Unable to submit complaint. Please try again.'
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* HEADER */}
+        {/* TRICOLOR TOP STRIPE */}
+        <View style={styles.tricolorBar}>
+          <View style={styles.saffronStripe} />
+          <View style={styles.whiteStripe} />
+          <View style={styles.greenStripe} />
+        </View>
+
+        {/* HEADER WITH BACK BUTTON */}
         <View style={styles.header}>
-          <View>
-            <View style={styles.brandRow}>
-              <View style={styles.brandSaffron} />
+          <View style={styles.headerLeftRow}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back" size={20} color={COLORS.navy} />
+            </TouchableOpacity>
 
-              <Text style={styles.appName}>
-                VillageApp
+            <View>
+              <Text style={styles.headerTitle}>
+                {isHindi ? 'समस्या दर्ज करें' : 'Report a Problem'}
               </Text>
-
-              <View style={styles.brandGreen} />
+              <Text style={styles.headerSubtitle}>
+                {isHindi ? 'AI सक्षम ग्राम पंचायत पोर्टल' : 'AI Powered Grievance Portal'}
+              </Text>
             </View>
-
-            <Text style={styles.headerTitle}>
-              {isHindi
-                ? 'समस्या दर्ज करें'
-                : 'Report a Problem'}
-            </Text>
           </View>
 
           <TouchableOpacity
@@ -470,233 +460,109 @@ export default function ReportScreen() {
             onPress={toggleLanguage}
             activeOpacity={0.8}
           >
-            <Ionicons
-              name="language-outline"
-              size={17}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.languageText}>
-              {isHindi ? 'English' : 'हिंदी'}
-            </Text>
+            <Ionicons name="language-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.languageText}>{isHindi ? 'EN' : 'हि'}</Text>
           </TouchableOpacity>
         </View>
 
         {/* OFFLINE SYNC BANNER */}
         <OfflineSyncBanner isHindi={isHindi} />
 
-        {/* INTRO */}
-        <View style={styles.introCard}>
-          <View style={styles.introIcon}>
-            <Ionicons
-              name="megaphone-outline"
-              size={24}
-              color={COLORS.primary}
-            />
-          </View>
-
-          <View style={styles.introContent}>
-            <Text style={styles.introTitle}>
-              {isHindi
-                ? 'गांव की समस्या बताएं'
-                : 'Tell us your village problem'}
-            </Text>
-
-            <Text style={styles.introText}>
-              {isHindi
-                ? 'समस्या अपने शब्दों में लिखें और उसकी फोटो जोड़ें।'
-                : 'Describe the problem in your own words and add a photo.'}
-            </Text>
-          </View>
-        </View>
-
-
-        {/* CITIZEN */}
-        {userName ? (
-          <View style={styles.infoCard}>
-            <View style={styles.infoIcon}>
-              <Ionicons
-                name="person-outline"
-                size={19}
-                color={COLORS.primary}
-              />
+        {/* CITIZEN & REGISTERED WARD SUMMARY BAR */}
+        {userName || ward ? (
+          <View style={styles.citizenProfileBar}>
+            <View style={styles.citizenIconCircle}>
+              <Ionicons name="person" size={18} color={COLORS.primary} />
             </View>
-
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>
-                {isHindi ? 'नागरिक' : 'Citizen'}
-              </Text>
-
-              <Text style={styles.infoValue}>
-                {userName}
+            <View style={styles.citizenInfoCol}>
+              <Text style={styles.citizenNameText}>{userName || (isHindi ? 'नागरिक' : 'Citizen')}</Text>
+              <Text style={styles.citizenWardSub}>
+                {ward ? (isHindi ? `पंजीकृत वार्ड: ${ward}` : `Registered: ${ward}`) : (isHindi ? 'ग्राम पंचायत नागरिक' : 'Gram Panchayat Citizen')}
               </Text>
             </View>
-          </View>
-        ) : null}
-
-        {/* WARD */}
-        {ward ? (
-          <View style={styles.infoCard}>
-            <View style={styles.infoIcon}>
-              <Ionicons
-                name="home-outline"
-                size={19}
-                color={COLORS.primary}
-              />
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
+              <Text style={styles.verifiedText}>{isHindi ? 'सत्यापित' : 'Active'}</Text>
             </View>
-
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>
-                {isHindi ? 'वार्ड' : 'Ward'}
-              </Text>
-
-              <Text style={styles.infoValue}>
-                {ward}
-              </Text>
-
-              <Text style={styles.autoText}>
-                {isHindi
-                  ? 'आपकी प्रोफाइल से स्वचालित'
-                  : 'Automatically taken from your profile'}
-              </Text>
-            </View>
-
-            <Ionicons
-              name="checkmark-circle"
-              size={21}
-              color={COLORS.success}
-            />
           </View>
         ) : null}
 
         {/* =================================================
-            PROBLEM WARD
+            1. PROBLEM WARD SELECTION
         ================================================= */}
-
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIcon}>
-            <Ionicons
-              name="home-outline"
-              size={19}
-              color={COLORS.primary}
-            />
+            <Ionicons name="home-outline" size={18} color={COLORS.primary} />
           </View>
-
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
               {isHindi ? 'समस्या का वार्ड' : 'Problem Ward'}
             </Text>
             <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'जिस वार्ड में समस्या है'
-                : 'Ward where the problem exists'}
+              {isHindi ? 'जिस वार्ड में समस्या मौजूद है' : 'Ward where the issue exists'}
             </Text>
           </View>
         </View>
 
         <View style={styles.wardCard}>
-          <View style={styles.wardTopRow}>
-            <View style={styles.wardIcon}>
+          <Text style={styles.wardQuestion}>
+            {isHindi ? 'क्या समस्या आपके वार्ड में है?' : 'Is the problem in your ward?'}
+          </Text>
+
+          <View style={styles.wardChoiceRow}>
+            <TouchableOpacity
+              style={[
+                styles.wardChoice,
+                !differentWard && styles.wardChoiceActive,
+              ]}
+              onPress={handleSelectMyWard}
+              activeOpacity={0.8}
+            >
               <Ionicons
-                name="person-outline"
-                size={20}
-                color={COLORS.primary}
+                name={!differentWard ? 'radio-button-on' : 'radio-button-off'}
+                size={18}
+                color={!differentWard ? COLORS.success : COLORS.textMuted}
               />
-            </View>
-
-            <View style={styles.wardTextBlock}>
-              <Text style={styles.wardLabel}>
-                {isHindi ? 'आपका पंजीकृत वार्ड' : 'Your Registered Ward'}
+              <Text style={[styles.wardChoiceText, !differentWard && styles.wardChoiceTextActive]}>
+                {isHindi ? `हाँ (${ward || 'मेरा वार्ड'})` : `Yes (${ward || 'My Ward'})`}
               </Text>
-              <Text style={styles.wardValue}>
-                {ward || (isHindi ? 'उपलब्ध नहीं' : 'Not available')}
-              </Text>
-            </View>
+            </TouchableOpacity>
 
-            <Ionicons
-              name="checkmark-circle"
-              size={21}
-              color={COLORS.success}
-            />
+            <TouchableOpacity
+              style={[
+                styles.wardChoice,
+                differentWard && styles.wardChoiceActiveSaffron,
+              ]}
+              onPress={handleSelectOtherWardTab}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={differentWard ? 'radio-button-on' : 'radio-button-off'}
+                size={18}
+                color={differentWard ? COLORS.saffron : COLORS.textMuted}
+              />
+              <Text style={[styles.wardChoiceText, differentWard && styles.wardChoiceTextSaffron]}>
+                {isHindi ? 'अन्य वार्ड' : 'Other Ward'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.wardQuestionBox}>
-            <Text style={styles.wardQuestion}>
-              {isHindi
-                ? 'क्या समस्या आपके वार्ड में है?'
-                : 'Is the problem in your ward?'}
-            </Text>
-
-            <View style={styles.wardChoiceRow}>
-              <TouchableOpacity
-                style={[
-                  styles.wardChoice,
-                  !differentWard && styles.wardChoiceActive,
-                ]}
-                onPress={() => selectProblemWard(ward)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={
-                    !differentWard
-                      ? 'radio-button-on'
-                      : 'radio-button-off'
-                  }
-                  size={20}
-                  color={
-                    !differentWard
-                      ? COLORS.success
-                      : COLORS.textMuted
-                  }
-                />
-                <Text
-                  style={[
-                    styles.wardChoiceText,
-                    !differentWard && styles.wardChoiceTextActive,
-                  ]}
-                >
-                  {isHindi ? 'हाँ' : 'Yes'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.wardChoice,
-                  differentWard && styles.wardChoiceActiveSaffron,
-                ]}
-                onPress={() => setDifferentWard(true)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={
-                    differentWard
-                      ? 'radio-button-on'
-                      : 'radio-button-off'
-                  }
-                  size={20}
-                  color={
-                    differentWard
-                      ? COLORS.saffron
-                      : COLORS.textMuted
-                  }
-                />
-                <Text
-                  style={[
-                    styles.wardChoiceText,
-                    differentWard && styles.wardChoiceTextSaffron,
-                  ]}
-                >
-                  {isHindi ? 'नहीं' : 'No'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {differentWard ? (
+          {/* OPEN WARD LIST ONLY WHEN OTHER WARD IS SELECTED AND LIST IS OPEN */}
+          {differentWard && showWardList ? (
             <View style={styles.wardOptionsWrap}>
-              <Text style={styles.wardSelectLabel}>
-                {isHindi ? 'समस्या वाला वार्ड चुनें' : 'Select Problem Ward'}
-              </Text>
+              <View style={styles.wardOptionsHeaderRow}>
+                <Text style={styles.wardSelectLabel}>
+                  {isHindi ? 'समस्या वाला वार्ड चुनें:' : 'Select Problem Ward:'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowWardList(false)}
+                  style={styles.closeListBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.closeListText}>{isHindi ? 'बंद करें' : 'Hide'}</Text>
+                  <Ionicons name="chevron-up" size={14} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.wardOptionsGrid}>
                 {wardOptions.map((item) => (
@@ -706,14 +572,13 @@ export default function ReportScreen() {
                       styles.wardOption,
                       problemWard === item && styles.wardOptionActive,
                     ]}
-                    onPress={() => selectProblemWard(item)}
+                    onPress={() => handlePickSpecificWard(item)}
                     activeOpacity={0.8}
                   >
                     <Text
                       style={[
                         styles.wardOptionText,
-                        problemWard === item &&
-                          styles.wardOptionTextActive,
+                        problemWard === item && styles.wardOptionTextActive,
                       ]}
                     >
                       {item}
@@ -724,83 +589,42 @@ export default function ReportScreen() {
             </View>
           ) : null}
 
+          {/* SELECTED WARD SUMMARY BAR WITH CHANGE BUTTON */}
           <View style={styles.selectedWardRow}>
-            <Ionicons
-              name="location-outline"
-              size={17}
-              color={COLORS.primary}
-            />
-            <Text style={styles.selectedWardText}>
-              {isHindi ? 'समस्या का वार्ड:' : 'Problem Ward:'}{' '}
-              <Text style={styles.selectedWardBold}>
-                {problemWard || ward || '-'}
+            <View style={styles.selectedWardLeft}>
+              <Ionicons name="location-outline" size={16} color={COLORS.primary} />
+              <Text style={styles.selectedWardText}>
+                {isHindi ? 'समस्या का वार्ड:' : 'Problem Ward:'}{' '}
+                <Text style={styles.selectedWardBold}>{problemWard || ward || 'Ward 1'}</Text>
               </Text>
-            </Text>
+            </View>
+
+            {differentWard && !showWardList ? (
+              <TouchableOpacity
+                onPress={() => setShowWardList(true)}
+                style={styles.changeWardButton}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="pencil" size={12} color={COLORS.saffron} />
+                <Text style={styles.changeWardText}>{isHindi ? 'वार्ड बदलें' : 'Change'}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
-
-        {/* DESCRIPTION */}
-
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionIcon}>
-            <Ionicons
-              name="create-outline"
-              size={19}
-              color={COLORS.primary}
-            />
-          </View>
-
-          <View style={styles.sectionHeaderContent}>
-            <Text style={styles.sectionTitle}>
-              {isHindi
-                ? 'समस्या का विवरण'
-                : 'Problem Description'}
-            </Text>
-
-            <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'समस्या को स्पष्ट रूप से बताएं'
-                : 'Explain the problem clearly'}
-            </Text>
-          </View>
-        </View>
-
-        <TextInput
-          style={styles.descriptionInput}
-          placeholder={
-            isHindi
-              ? 'उदाहरण: हमारे वार्ड में 3 दिन से पानी नहीं आ रहा है...'
-              : 'Example: There has been no water supply in our ward for 3 days...'
-          }
-          placeholderTextColor={COLORS.textMuted}
-          multiline
-          numberOfLines={7}
-          textAlignVertical="top"
-          value={description}
-          onChangeText={setDescription}
-        />
 
         {/* =================================================
-            AUDIO
+            2. VOICE RECORDING (MIC)
         ================================================= */}
-
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIcon}>
-            <Ionicons
-              name="mic-outline"
-              size={19}
-              color={COLORS.primary}
-            />
+            <Ionicons name="mic-outline" size={18} color={COLORS.primary} />
           </View>
-
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
               {isHindi ? 'आवाज़ रिकॉर्ड करें' : 'Record Voice'}
             </Text>
             <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'अपनी समस्या बोलकर बताएं'
-                : 'Describe the problem with your voice'}
+              {isHindi ? 'माइक दबाकर समस्या बोलकर बताएं' : 'Speak to record your problem'}
             </Text>
           </View>
         </View>
@@ -810,85 +634,50 @@ export default function ReportScreen() {
             <View
               style={[
                 styles.audioMicCircle,
-                recorderState.isRecording &&
-                  styles.audioMicCircleRecording,
+                recorderState.isRecording && styles.audioMicCircleRecording,
               ]}
             >
               <Ionicons
-                name={
-                  recorderState.isRecording
-                    ? 'radio'
-                    : 'mic-outline'
-                }
-                size={27}
-                color={
-                  recorderState.isRecording
-                    ? COLORS.error
-                    : COLORS.primary
-                }
+                name={recorderState.isRecording ? 'radio' : 'mic-outline'}
+                size={26}
+                color={recorderState.isRecording ? COLORS.error : COLORS.primary}
               />
             </View>
 
             <View style={styles.audioTextBlock}>
               <Text style={styles.audioTitle}>
                 {recorderState.isRecording
-                  ? isHindi
-                    ? 'रिकॉर्डिंग चल रही है...'
-                    : 'Recording...'
+                  ? isHindi ? 'रिकॉर्डिंग चल रही है...' : 'Recording in progress...'
                   : audioUri
-                    ? isHindi
-                      ? 'ऑडियो रिकॉर्ड हो गया'
-                      : 'Audio recorded'
-                    : isHindi
-                      ? 'आवाज़ से समस्या बताएं'
-                      : 'Explain by voice'}
+                    ? isHindi ? 'ऑडियो रिकॉर्ड हो गया' : 'Audio Recorded'
+                    : isHindi ? 'बोलकर समस्या बताएं' : 'Speak into Microphone'}
               </Text>
-
               <Text style={styles.audioDuration}>
                 {recorderState.isRecording
-                  ? `${Math.floor(
-                      recorderState.durationMillis / 1000
-                    )}s`
+                  ? `${Math.floor(recorderState.durationMillis / 1000)}s`
                   : audioUri
-                    ? isHindi
-                      ? 'रिकॉर्डिंग तैयार है'
-                      : 'Recording ready'
-                    : isHindi
-                      ? 'वैकल्पिक'
-                      : 'Optional'}
+                    ? isHindi ? 'ऑडियो सुरक्षित' : 'Audio Ready'
+                    : isHindi ? 'सुविधाजनक व आसान' : 'Optional & Convenient'}
               </Text>
             </View>
 
             <TouchableOpacity
               style={[
                 styles.recordButton,
-                recorderState.isRecording &&
-                  styles.stopRecordButton,
+                recorderState.isRecording && styles.stopRecordButton,
               ]}
-              onPress={
-                recorderState.isRecording
-                  ? stopRecording
-                  : startRecording
-              }
+              onPress={recorderState.isRecording ? stopRecording : startRecording}
               activeOpacity={0.85}
             >
               <Ionicons
-                name={
-                  recorderState.isRecording
-                    ? 'stop'
-                    : 'mic'
-                }
-                size={20}
+                name={recorderState.isRecording ? 'stop' : 'mic'}
+                size={18}
                 color={COLORS.white}
               />
               <Text style={styles.recordButtonText}>
                 {recorderState.isRecording
-                  ? isHindi
-                    ? 'रोकें'
-                    : 'Stop'
-                  : isHindi
-                    ? 'रिकॉर्ड'
-                    : 'Record'}
+                  ? isHindi ? 'रोकें' : 'Stop'
+                  : isHindi ? 'रिकॉर्ड' : 'Record'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -901,22 +690,14 @@ export default function ReportScreen() {
                 activeOpacity={0.8}
               >
                 <Ionicons
-                  name={
-                    audioPlayer.playing
-                      ? 'pause'
-                      : 'play'
-                  }
-                  size={18}
+                  name={audioPlayer.playing ? 'pause' : 'play'}
+                  size={17}
                   color={COLORS.primary}
                 />
                 <Text style={styles.playAudioText}>
                   {audioPlayer.playing
-                    ? isHindi
-                      ? 'रोकें'
-                      : 'Pause'
-                    : isHindi
-                      ? 'सुनें'
-                      : 'Play'}
+                    ? isHindi ? 'रोकें' : 'Pause'
+                    : isHindi ? 'सुनें' : 'Play'}
                 </Text>
               </TouchableOpacity>
 
@@ -925,11 +706,7 @@ export default function ReportScreen() {
                 onPress={removeAudio}
                 activeOpacity={0.8}
               >
-                <Ionicons
-                  name="trash-outline"
-                  size={17}
-                  color={COLORS.error}
-                />
+                <Ionicons name="trash-outline" size={16} color={COLORS.error} />
                 <Text style={styles.removeAudioText}>
                   {isHindi ? 'हटाएं' : 'Remove'}
                 </Text>
@@ -938,32 +715,52 @@ export default function ReportScreen() {
           ) : null}
         </View>
 
-        {/* PHOTO */}
-
+        {/* =================================================
+            3. PROBLEM DESCRIPTION (TEXT)
+        ================================================= */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIcon}>
-            <Ionicons
-              name="camera-outline"
-              size={19}
-              color={COLORS.primary}
-            />
+            <Ionicons name="create-outline" size={18} color={COLORS.primary} />
           </View>
-
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
-              {isHindi
-                ? 'समस्या की फोटो'
-                : 'Problem Photo'}
-
-              <Text style={styles.required}>
-                {' '}*
-              </Text>
+              {isHindi ? 'समस्या का विवरण' : 'Problem Description'}
             </Text>
-
             <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'समस्या की स्पष्ट फोटो जोड़ें'
-                : 'Add a clear photo of the problem'}
+              {isHindi ? 'समस्या को अपने शब्दों में लिखें' : 'Write details in your own words'}
+            </Text>
+          </View>
+        </View>
+
+        <TextInput
+          style={styles.descriptionInput}
+          placeholder={
+            isHindi
+              ? 'यहाँ समस्या का विवरण लिखें (जैसे: सड़क पर गड्ढा, पानी की लाइन टूटी, स्ट्रीट लाइट बंद आदि)...'
+              : 'Describe the issue (e.g. Broken road, no water supply, street light off)...'
+          }
+          placeholderTextColor={COLORS.textMuted}
+          multiline
+          numberOfLines={6}
+          textAlignVertical="top"
+          value={description}
+          onChangeText={setDescription}
+        />
+
+        {/* =================================================
+            4. PROBLEM PHOTO
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionIcon}>
+            <Ionicons name="camera-outline" size={18} color={COLORS.primary} />
+          </View>
+          <View style={styles.sectionHeaderContent}>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'समस्या की फोटो' : 'Problem Photo'}
+              <Text style={styles.required}> *</Text>
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {isHindi ? 'समस्या की स्पष्ट फोटो जोड़ें' : 'Add a clear photo of the problem'}
             </Text>
           </View>
         </View>
@@ -977,21 +774,13 @@ export default function ReportScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.photoIcon}>
-                <Ionicons
-                  name="camera-outline"
-                  size={23}
-                  color={COLORS.primary}
-                />
+                <Ionicons name="camera-outline" size={24} color={COLORS.primary} />
               </View>
-
               <Text style={styles.photoButtonTitle}>
-                {isHindi
-                  ? 'फोटो लें'
-                  : 'Take Photo'}
+                {isHindi ? 'कैमरा से फोटो लें' : 'Take Photo'}
               </Text>
-
               <Text style={styles.photoButtonSub}>
-                {isHindi ? 'कैमरा' : 'Camera'}
+                {isHindi ? 'नया फोटो' : 'Camera'}
               </Text>
             </TouchableOpacity>
 
@@ -1002,215 +791,113 @@ export default function ReportScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.photoIcon}>
-                <Ionicons
-                  name="images-outline"
-                  size={23}
-                  color={COLORS.primary}
-                />
+                <Ionicons name="images-outline" size={24} color={COLORS.primary} />
               </View>
-
               <Text style={styles.photoButtonTitle}>
-                {isHindi
-                  ? 'गैलरी से चुनें'
-                  : 'Choose from Gallery'}
+                {isHindi ? 'गैलरी से चुनें' : 'Choose Gallery'}
               </Text>
-
               <Text style={styles.photoButtonSub}>
-                {isHindi
-                  ? 'पहले से मौजूद फोटो'
-                  : 'Existing photo'}
+                {isHindi ? 'मौजूदा फोटो' : 'Gallery'}
               </Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.imageCard}>
-            <Image
-              source={{ uri: image }}
-              style={styles.previewImage}
-            />
-
+            <Image source={{ uri: image }} style={styles.previewImage} />
             <View style={styles.imageBottom}>
               <View style={styles.imageSuccess}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={19}
-                  color={COLORS.success}
-                />
-
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
                 <Text style={styles.imageSuccessText}>
-                  {isHindi
-                    ? 'फोटो जोड़ दी गई'
-                    : 'Photo added successfully'}
+                  {isHindi ? 'फोटो जुड़ गई है' : 'Photo Attached'}
                 </Text>
               </View>
 
-              <TouchableOpacity
-                onPress={removePhoto}
-                style={styles.removeButton}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={17}
-                  color={COLORS.error}
-                />
-
-                <Text style={styles.removeText}>
-                  {isHindi ? 'हटाएं' : 'Remove'}
-                </Text>
+              <TouchableOpacity onPress={removePhoto} style={styles.removeButton}>
+                <Ionicons name="trash-outline" size={16} color={COLORS.error} />
+                <Text style={styles.removeText}>{isHindi ? 'हटाएं' : 'Remove'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* LOCATION */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionIcon}>
-            <Ionicons
-              name="location-outline"
-              size={19}
-              color={COLORS.primary}
-            />
-          </View>
-
-          <View style={styles.sectionHeaderContent}>
-            <Text style={styles.sectionTitle}>
-              {isHindi
-                ? 'समस्या की लोकेशन'
-                : 'Problem Location'}
-            </Text>
-
-            <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'जहां समस्या है वहां की लोकेशन'
-                : 'Location where the problem exists'}
-            </Text>
-          </View>
-        </View>
-
+        {/* =================================================
+            5. MERGED GPS LOCATION BUTTON / CARD
+        ================================================= */}
         <TouchableOpacity
-          style={[
-            styles.locationButton,
-            location && styles.locationActive,
-          ]}
+          style={[styles.locationCard, location && styles.locationCardActive]}
           onPress={getCurrentLocation}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
+          disabled={isGettingLocation}
         >
-          <View style={styles.locationIcon}>
+          <View style={[styles.locationIconBox, location && styles.locationIconBoxActive]}>
             <Ionicons
-              name={
-                location
-                  ? 'location'
-                  : 'locate-outline'
-              }
-              size={21}
-              color={COLORS.primary}
+              name={location ? 'location' : 'locate-outline'}
+              size={22}
+              color={location ? COLORS.success : COLORS.primary}
             />
           </View>
 
-          <View style={styles.locationContent}>
-            <Text style={styles.locationTitle}>
+          <View style={styles.locationInfoCol}>
+            <Text style={styles.locationCardTitle}>
               {location
-                ? isHindi
-                  ? 'लोकेशन प्राप्त हो गई'
-                  : 'Location captured'
-                : isHindi
-                  ? 'वर्तमान लोकेशन प्राप्त करें'
-                  : 'Get Current Location'}
+                ? isHindi ? 'GPS लोकेशन दर्ज हो गई' : 'GPS Location Captured'
+                : isGettingLocation
+                  ? isHindi ? 'लोकेशन प्राप्त हो रही है...' : 'Fetching location...'
+                  : isHindi ? 'वर्तमान GPS लोकेशन जोड़ें' : 'Add Current GPS Location'}
             </Text>
-
-            <Text
-              style={styles.locationValue}
-              numberOfLines={1}
-            >
-              {location ||
-                (isHindi
-                  ? 'GPS लोकेशन वैकल्पिक है'
-                  : 'GPS location is optional')}
+            <Text style={styles.locationCardSub} numberOfLines={1}>
+              {location
+                ? location
+                : isHindi ? 'टैप करके सटीक लोकेशन दर्ज करें (वैकल्पिक)' : 'Tap to capture exact coordinates (Optional)'}
             </Text>
           </View>
 
-          <Ionicons
-            name={
-              location
-                ? 'checkmark-circle'
-                : 'chevron-forward'
-            }
-            size={21}
-            color={
-              location
-                ? COLORS.success
-                : COLORS.textMuted
-            }
-          />
+          <View style={styles.locationActionTag}>
+            <Ionicons
+              name={location ? 'checkmark-circle' : 'chevron-forward'}
+              size={20}
+              color={location ? COLORS.success : COLORS.textMuted}
+            />
+          </View>
         </TouchableOpacity>
 
-        {/* REQUIRED INFORMATION */}
-        <View style={styles.requiredCard}>
-          <Ionicons
-            name="shield-checkmark-outline"
-            size={20}
-            color={COLORS.primary}
-          />
-
-          <Text style={styles.requiredCardText}>
-            {isHindi
-              ? 'विवरण, समस्या का वार्ड और फोटो दर्ज करें।'
-              : 'Add the description, problem ward and photo.'}
-          </Text>
-        </View>
-
-        {/* COMPLAINT ID */}
+        {/* COMPLAINT ID CONFIRMATION */}
         {complaintId ? (
           <View style={styles.complaintBox}>
             <View style={styles.complaintIcon}>
-              <Ionicons
-                name="document-text-outline"
-                size={24}
-                color={COLORS.primary}
-              />
+              <Ionicons name="document-text-outline" size={24} color={COLORS.primary} />
             </View>
-
             <Text style={styles.complaintLabel}>
-              {isHindi
-                ? 'आपकी शिकायत आईडी'
-                : 'Your Complaint ID'}
+              {isHindi ? 'आपकी शिकायत आईडी' : 'Your Complaint ID'}
             </Text>
-
-            <Text style={styles.complaintId}>
-              {complaintId}
-            </Text>
-
+            <Text style={styles.complaintId}>{complaintId}</Text>
             <Text style={styles.complaintHint}>
               {isHindi
-                ? 'इस ID से आप शिकायत की स्थिति देख सकते हैं।'
-                : 'Use this ID to track your complaint status.'}
+                ? 'इस ID से आप कभी भी शिकायत की स्थिति देख सकते हैं।'
+                : 'Use this ID to track your complaint progress.'}
             </Text>
           </View>
         ) : null}
 
-        {/* SUBMIT */}
+        {/* SUBMIT BUTTON */}
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
           onPress={submitProblem}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
+          disabled={isSubmitting}
         >
-          <Ionicons
-            name="send-outline"
-            size={20}
-            color={COLORS.textWhite}
-          />
-
+          <Ionicons name="send" size={18} color={COLORS.white} />
           <Text style={styles.submitText}>
-            {isHindi
-              ? 'शिकायत दर्ज करें'
-              : 'Submit Complaint'}
+            {isSubmitting
+              ? isHindi ? 'शिकायत दर्ज हो रही है...' : 'Submitting...'
+              : isHindi ? 'शिकायत दर्ज करें' : 'Submit Problem'}
           </Text>
         </TouchableOpacity>
 
         <Text style={styles.bottomNote}>
           {isHindi
-            ? 'आपकी शिकायत सिस्टम में सुरक्षित रूप से दर्ज की जाएगी।'
-            : 'Your complaint will be securely recorded in the system.'}
+            ? '🤖 AI द्वारा आपकी समस्या का स्वतः वर्गीकरण कर संबंधित ग्राम पंचायत विभाग को भेजा जाएगा।'
+            : '🤖 AI will automatically classify and route your grievance to the concerned department.'}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -1218,62 +905,72 @@ export default function ReportScreen() {
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
-
   content: {
     padding: SPACING.screen,
     paddingBottom: SPACING.xxl,
   },
 
   // ==========================================
-  // HEADER
+  // TRICOLOR & HEADER
   // ==========================================
-
+  tricolorBar: {
+    flexDirection: 'row',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  saffronStripe: {
+    flex: 1,
+    backgroundColor: '#FF9933',
+  },
+  whiteStripe: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  greenStripe: {
+    flex: 1,
+    backgroundColor: '#138808',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+    paddingVertical: 4,
   },
-
-  brandRow: {
+  headerLeftRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 3,
+    gap: 10,
+    flex: 1,
   },
-
-  brandSaffron: {
-    width: 15,
-    height: 3,
-    backgroundColor: COLORS.saffron,
-    marginRight: 5,
-    borderRadius: RADIUS.round,
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
   },
-
-  brandGreen: {
-    width: 15,
-    height: 3,
-    backgroundColor: COLORS.indiaGreen,
-    marginLeft: 5,
-    borderRadius: RADIUS.round,
-  },
-
-  appName: {
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
-  },
-
   headerTitle: {
-    fontSize: TYPOGRAPHY.heading,
+    fontSize: 18,
     fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.textPrimary,
+    color: COLORS.navy,
   },
-
+  headerSubtitle: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+    marginTop: 1,
+  },
   languageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1281,216 +978,129 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.round,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     ...SHADOWS.small,
   },
-
   languageText: {
     marginLeft: 5,
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 13,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.primary,
   },
 
   // ==========================================
-  // INTRO
+  // CITIZEN PROFILE BAR
   // ==========================================
-
-  introCard: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.primaryLight,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  introIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-
-  introContent: {
-    flex: 1,
-  },
-
-  introTitle: {
-    fontSize: TYPOGRAPHY.large,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.primaryDark,
-  },
-
-  introText: {
-    fontSize: TYPOGRAPHY.bodySmall,
-    color: COLORS.textSecondary,
-    lineHeight: TYPOGRAPHY.lineBody,
-    marginTop: 3,
-  },
-
-  // ==========================================
-  // INFO
-  // ==========================================
-
-  infoCard: {
+  citizenProfileBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+    gap: 10,
+    ...SHADOWS.small,
   },
-
-  infoIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.sm,
+  citizenIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.primaryLight,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.sm,
+    justifyContent: 'center',
   },
-
-  infoContent: {
+  citizenInfoCol: {
     flex: 1,
   },
-
-  infoLabel: {
-    fontSize: TYPOGRAPHY.xs,
+  citizenNameText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.navy,
+  },
+  citizenWardSub: {
+    fontSize: 11,
     color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.semiBold,
+    marginTop: 1,
+    fontWeight: '600',
   },
-
-  infoValue: {
-    fontSize: TYPOGRAPHY.medium,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.bold,
-    marginTop: 2,
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.successLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 3,
   },
-
-  autoText: {
-    fontSize: TYPOGRAPHY.xs,
+  verifiedText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: COLORS.success,
-    marginTop: 2,
   },
 
   // ==========================================
-  // SECTION
+  // SECTION HEADERS
   // ==========================================
-
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.sm,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
   },
-
   sectionIcon: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.sm,
   },
-
   sectionHeaderContent: {
     flex: 1,
   },
-
   sectionTitle: {
-    fontSize: TYPOGRAPHY.medium,
+    fontSize: 14,
     fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.textPrimary,
+    color: COLORS.navy,
   },
-
   sectionSubtitle: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     color: COLORS.textMuted,
-    marginTop: 2,
+    marginTop: 1,
   },
-
   required: {
     color: COLORS.error,
   },
 
   // ==========================================
-  // PROBLEM WARD
+  // WARD CARD
   // ==========================================
-
   wardCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
     ...SHADOWS.small,
   },
-
-  wardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  wardIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.sm,
-  },
-
-  wardTextBlock: {
-    flex: 1,
-  },
-
-  wardLabel: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.semiBold,
-  },
-
-  wardValue: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.medium,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.extraBold,
-  },
-
-  wardQuestionBox: {
-    marginTop: SPACING.md,
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-
   wardQuestion: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textPrimary,
+    fontSize: 13,
+    color: COLORS.navy,
     fontWeight: TYPOGRAPHY.bold,
     marginBottom: SPACING.sm,
   },
-
   wardChoiceRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
   },
-
   wardChoice: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 42,
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1498,100 +1108,129 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 6,
+    paddingHorizontal: 8,
   },
-
   wardChoiceActive: {
     borderColor: COLORS.success,
     backgroundColor: COLORS.successLight,
   },
-
   wardChoiceActiveSaffron: {
     borderColor: COLORS.saffron,
     backgroundColor: COLORS.accentLight,
   },
-
   wardChoiceText: {
-    fontSize: TYPOGRAPHY.small,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textSecondary,
   },
-
   wardChoiceTextActive: {
     color: COLORS.success,
   },
-
   wardChoiceTextSaffron: {
     color: COLORS.saffron,
   },
-
   wardOptionsWrap: {
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
   },
-
+  wardOptionsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   wardSelectLabel: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     color: COLORS.textMuted,
     fontWeight: TYPOGRAPHY.semiBold,
-    marginBottom: SPACING.sm,
   },
-
+  closeListBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  closeListText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
   wardOptionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
-
   wardOption: {
-    width: '22%',
-    paddingVertical: 9,
-    borderRadius: RADIUS.md,
+    width: '23%',
+    paddingVertical: 7,
+    borderRadius: RADIUS.sm,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
     alignItems: 'center',
   },
-
   wardOptionActive: {
     backgroundColor: COLORS.saffron,
     borderColor: COLORS.saffron,
   },
-
   wardOptionText: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.bold,
   },
-
   wardOptionTextActive: {
     color: COLORS.white,
   },
-
   selectedWardRow: {
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryLight,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    justifyContent: 'space-between',
   },
-
-  selectedWardText: {
+  selectedWardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     flex: 1,
-    fontSize: TYPOGRAPHY.xs,
+  },
+  selectedWardText: {
+    fontSize: 11,
     color: COLORS.textSecondary,
   },
-
   selectedWardBold: {
     color: COLORS.primary,
     fontWeight: TYPOGRAPHY.extraBold,
   },
+  changeWardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  changeWardText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.saffron,
+  },
 
   // ==========================================
-  // AUDIO
+  // AUDIO CARD
   // ==========================================
-
   audioCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
@@ -1600,174 +1239,147 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     ...SHADOWS.small,
   },
-
   audioTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   audioMicCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.sm,
   },
-
   audioMicCircleRecording: {
     backgroundColor: COLORS.errorLight,
   },
-
   audioTextBlock: {
     flex: 1,
   },
-
   audioTitle: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textPrimary,
+    fontSize: 13,
+    color: COLORS.navy,
     fontWeight: TYPOGRAPHY.extraBold,
   },
-
   audioDuration: {
-    marginTop: 3,
-    fontSize: TYPOGRAPHY.xs,
+    marginTop: 2,
+    fontSize: 11,
     color: COLORS.textMuted,
   },
-
   recordButton: {
-    minHeight: 42,
+    minHeight: 38,
     paddingHorizontal: 12,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
   },
-
   stopRecordButton: {
     backgroundColor: COLORS.error,
   },
-
   recordButtonText: {
     color: COLORS.white,
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.extraBold,
   },
-
   audioActions: {
-    marginTop: SPACING.md,
-    paddingTop: SPACING.md,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
     flexDirection: 'row',
     gap: SPACING.sm,
   },
-
   playAudioButton: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.successLight,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
   },
-
   playAudioText: {
     color: COLORS.success,
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.extraBold,
   },
-
   removeAudioButton: {
-    minHeight: 42,
-    paddingHorizontal: 13,
+    minHeight: 38,
+    paddingHorizontal: 12,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.errorLight,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
   },
-
   removeAudioText: {
     color: COLORS.error,
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.extraBold,
   },
 
   // ==========================================
-  // DESCRIPTION
+  // DESCRIPTION INPUT
   // ==========================================
-
   descriptionInput: {
-    minHeight: 145,
+    minHeight: 120,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
-    fontSize: TYPOGRAPHY.body,
+    fontSize: 13,
     color: COLORS.textPrimary,
+    lineHeight: 18,
   },
-
-  // ==========================================
-  // ==========================================
 
   // ==========================================
   // PHOTO
   // ==========================================
-
   photoRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
   },
-
   photoButton: {
     flex: 1,
-    minHeight: 125,
+    minHeight: 100,
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: SPACING.md,
+    padding: SPACING.sm,
     ...SHADOWS.small,
   },
-
   photoIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: RADIUS.md,
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: 5,
   },
-
   photoButtonTitle: {
-    fontSize: TYPOGRAPHY.bodySmall,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.textPrimary,
+    color: COLORS.navy,
     textAlign: 'center',
   },
-
   photoButtonSub: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 10,
     color: COLORS.textMuted,
-    marginTop: 3,
+    marginTop: 1,
     textAlign: 'center',
   },
-
-  // ==========================================
-  // IMAGE
-  // ==========================================
-
   imageCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
@@ -1776,183 +1388,151 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...SHADOWS.small,
   },
-
   previewImage: {
     width: '100%',
-    height: 210,
+    height: 180,
   },
-
   imageBottom: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: SPACING.md,
+    padding: 10,
   },
-
   imageSuccess: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   imageSuccessText: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.success,
-    marginLeft: 5,
+    marginLeft: 4,
   },
-
   removeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.xs,
+    padding: 4,
   },
-
   removeText: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.error,
-    marginLeft: 4,
+    marginLeft: 3,
   },
 
   // ==========================================
-  // LOCATION
+  // MERGED GPS LOCATION CARD
   // ==========================================
-
-  locationButton: {
-    minHeight: 68,
+  locationCard: {
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.md,
-    padding: SPACING.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: SPACING.md,
+    gap: 10,
+    ...SHADOWS.small,
   },
-
-  locationActive: {
+  locationCardActive: {
     borderColor: COLORS.success,
     backgroundColor: COLORS.successLight,
   },
-
-  locationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.sm,
+  locationIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.sm,
   },
-
-  locationContent: {
+  locationIconBoxActive: {
+    backgroundColor: '#DCFCE7',
+  },
+  locationInfoCol: {
     flex: 1,
   },
-
-  locationTitle: {
-    fontSize: TYPOGRAPHY.bodySmall,
+  locationCardTitle: {
+    fontSize: 13,
     fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.textPrimary,
+    color: COLORS.navy,
   },
-
-  locationValue: {
-    fontSize: TYPOGRAPHY.xs,
+  locationCardSub: {
+    fontSize: 11,
     color: COLORS.textMuted,
-    marginTop: 3,
+    marginTop: 1,
   },
-
-  // ==========================================
-  // REQUIRED
-  // ==========================================
-
-  requiredCard: {
-    flexDirection: 'row',
+  locationActionTag: {
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    marginTop: SPACING.md,
-  },
-
-  requiredCardText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
-    lineHeight: TYPOGRAPHY.lineSmall,
-    marginLeft: SPACING.sm,
+    justifyContent: 'center',
   },
 
   // ==========================================
+  // COMPLAINT BOX
   // ==========================================
-
   complaintBox: {
     backgroundColor: COLORS.primaryLight,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
+    padding: SPACING.md,
     marginTop: SPACING.md,
     alignItems: 'center',
   },
-
   complaintIcon: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.white,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: 4,
   },
-
   complaintLabel: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     color: COLORS.textMuted,
     fontWeight: TYPOGRAPHY.semiBold,
   },
-
   complaintId: {
-    fontSize: TYPOGRAPHY.title,
+    fontSize: 20,
     fontWeight: TYPOGRAPHY.black,
     color: COLORS.primary,
-    marginTop: 4,
+    marginTop: 2,
   },
-
   complaintHint: {
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     color: COLORS.textSecondary,
-    marginTop: 5,
+    marginTop: 4,
     textAlign: 'center',
   },
 
   // ==========================================
   // SUBMIT
   // ==========================================
-
   submitButton: {
-    height: 56,
+    height: 52,
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
-    marginTop: SPACING.xl,
+    marginTop: SPACING.lg,
+    gap: 8,
     ...SHADOWS.medium,
   },
-
   submitText: {
     color: COLORS.textWhite,
-    fontSize: TYPOGRAPHY.large,
+    fontSize: 15,
     fontWeight: TYPOGRAPHY.extraBold,
-    marginLeft: SPACING.sm,
   },
-
   bottomNote: {
     textAlign: 'center',
-    fontSize: TYPOGRAPHY.xs,
+    fontSize: 11,
     color: COLORS.textMuted,
     marginTop: SPACING.sm,
-    lineHeight: TYPOGRAPHY.lineSmall,
+    lineHeight: 15,
   },
 });

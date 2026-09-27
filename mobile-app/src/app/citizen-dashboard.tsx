@@ -33,6 +33,10 @@ type Citizen = {
   mobile?: string;
   village?: string;
   ward?: string;
+  wardNumber?: string;
+  district?: string;
+  block?: string;
+  state?: string;
   profileImage?: string | null;
 };
 
@@ -144,65 +148,9 @@ export default function CitizenDashboard() {
     router.push('/profile' as any);
   };
 
-  const reportProblemCategory = (categoryKey?: string) => {
-    router.push({
-      pathname: '/report',
-      params: categoryKey ? { initialCategory: categoryKey } : {},
-    } as any);
+  const openReportProblem = () => {
+    router.push('/report' as any);
   };
-
-  // List of 6 + 1 Problem Categories
-  const problemCategories = [
-    {
-      id: 'water',
-      icon: 'water-outline' as const,
-      label: isHindi ? 'पानी की आपूर्ति' : 'Water Supply',
-      bgColor: '#EFF6FF',
-      iconColor: '#2563EB',
-    },
-    {
-      id: 'electricity',
-      icon: 'flash-outline' as const,
-      label: isHindi ? 'स्ट्रीट लाइट / बिजली' : 'Street Lights & Power',
-      bgColor: '#FEF3C7',
-      iconColor: '#D97706',
-    },
-    {
-      id: 'road',
-      icon: 'construct-outline' as const,
-      label: isHindi ? 'सड़क व नाली मरम्मत' : 'Road & Drainage',
-      bgColor: '#F1F5F9',
-      iconColor: '#475569',
-    },
-    {
-      id: 'cleanliness',
-      icon: 'trash-outline' as const,
-      label: isHindi ? 'सफाई व कचरा प्रबंधन' : 'Sanitation & Waste',
-      bgColor: '#ECFDF5',
-      iconColor: '#059669',
-    },
-    {
-      id: 'school',
-      icon: 'school-outline' as const,
-      label: isHindi ? 'स्कूल व आंगनवाड़ी' : 'School & Anganwadi',
-      bgColor: '#FDF2F8',
-      iconColor: '#DB2777',
-    },
-    {
-      id: 'health',
-      icon: 'medkit-outline' as const,
-      label: isHindi ? 'स्वास्थ्य व चिकित्सा' : 'Health & Clinic',
-      bgColor: '#FFF1F2',
-      iconColor: '#E11D48',
-    },
-    {
-      id: 'other',
-      icon: 'add-circle-outline' as const,
-      label: isHindi ? 'अन्य समस्या' : 'Other Problem',
-      bgColor: '#F3E8FF',
-      iconColor: '#9333EA',
-    },
-  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -351,7 +299,7 @@ export default function CitizenDashboard() {
         </View>
 
         {/* =================================================
-            1. DEDICATED REPORT PROBLEM BOX (6-7 CATEGORIES)
+            1. DEDICATED SINGLE REPORT PROBLEM CARD
         ================================================= */}
         <View style={styles.sectionHeader}>
           <View>
@@ -360,38 +308,41 @@ export default function CitizenDashboard() {
             </Text>
             <Text style={styles.sectionSubtitle}>
               {isHindi
-                ? 'समस्या की श्रेणी चुनें और तुरंत दर्ज करें'
-                : 'Select issue category to report directly'}
+                ? 'गाँव की किसी भी समस्या को सीधे दर्ज करें'
+                : 'Directly register any village grievance'}
             </Text>
           </View>
 
           <View style={styles.aiBadge}>
-            <Ionicons name="add-circle" size={14} color={COLORS.primary} />
+            <Ionicons name="sparkles" size={13} color={COLORS.primary} />
             <Text style={styles.aiText}>
-              {isHindi ? 'नई शिकायत' : 'NEW'}
+              {isHindi ? 'AI सक्षम' : 'AI Powered'}
             </Text>
           </View>
         </View>
 
-        <View style={styles.reportCategoryCard}>
-          <View style={styles.categoryGrid}>
-            {problemCategories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={styles.categoryItem}
-                onPress={() => reportProblemCategory(cat.id)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.categoryIconCircle, { backgroundColor: cat.bgColor }]}>
-                  <Ionicons name={cat.icon} size={23} color={cat.iconColor} />
-                </View>
-                <Text style={styles.categoryItemLabel} numberOfLines={2}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        <TouchableOpacity
+          style={styles.singleReportCard}
+          onPress={openReportProblem}
+          activeOpacity={0.85}
+        >
+          <View style={styles.singleReportIconBox}>
+            <Ionicons name="megaphone" size={26} color={COLORS.primary} />
           </View>
-        </View>
+
+          <View style={styles.singleReportInfo}>
+            <Text style={styles.singleReportTitle}>
+              {isHindi ? 'नई शिकायत दर्ज करें' : 'Report a Problem'}
+            </Text>
+            <Text style={styles.singleReportHint}>
+              {isHindi ? 'बोलकर या लिखकर समस्या बताएं' : 'Speak or describe your issue'}
+            </Text>
+          </View>
+
+          <View style={styles.reportArrowCircle}>
+            <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
+          </View>
+        </TouchableOpacity>
 
         {/* =================================================
             2. DEDICATED PANCHAYAT SERVICES & RECORDS (2X2 GRID)
@@ -484,7 +435,11 @@ export default function CitizenDashboard() {
       <VillageInfoModal
         visible={villageInfoVisible}
         onClose={() => setVillageInfoVisible(false)}
-        villageName={user?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
+        villageName={user?.village || (isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat')}
+        district={user?.district}
+        block={user?.block}
+        state={user?.state || 'Madhya Pradesh'}
+        wardNumber={user?.wardNumber || user?.ward}
         isHindi={isHindi}
       />
 
@@ -675,44 +630,48 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: '600',
   },
-  reportCategoryCard: {
+  singleReportCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...SHADOWS.small,
-    marginBottom: 8,
-  },
-  categoryGrid: {
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#E0E7FF',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  categoryItem: {
-    width: '31%',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    backgroundColor: '#FAFAFA',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
+    gap: 14,
+    ...SHADOWS.small,
+    marginBottom: 14,
   },
-  categoryIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  singleReportIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
   },
-  categoryItemLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+  singleReportInfo: {
+    flex: 1,
+  },
+  singleReportTitle: {
+    fontSize: 16,
+    fontWeight: '800',
     color: COLORS.navy,
-    textAlign: 'center',
-    lineHeight: 14,
+  },
+  singleReportHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 3,
+    fontWeight: '500',
+  },
+  reportArrowCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.small,
   },
   servicesGridCard: {
     backgroundColor: '#FFFFFF',

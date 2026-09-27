@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { notificationApi } from '../services/api';
+import { DashboardBottomBar } from '../components/DashboardBottomBar';
 
 import {
   COLORS,
@@ -412,12 +413,10 @@ export default function Notifications() {
             </Text>
           </View>
         )}
-
-        {/* FOOTER */}
-        <Text style={styles.footerText}>
-          VillageApp • Notification Center
-        </Text>
       </ScrollView>
+
+      {/* UNIVERSAL BOTTOM NAVIGATION BAR */}
+      <DashboardBottomBar activeTab="notices" role="citizen" />
     </SafeAreaView>
   );
 }

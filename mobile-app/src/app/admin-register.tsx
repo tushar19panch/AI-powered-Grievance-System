@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../i18n/LanguageContext';
+import { LocationHierarchyPicker } from '../components/LocationHierarchyPicker';
 
 import {
   COLORS,
@@ -33,10 +34,16 @@ export default function AdminRegister() {
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [state, setState] = useState('Madhya Pradesh');
+  const [district, setDistrict] = useState('');
+  const [block, setBlock] = useState('');
   const [village, setVillage] = useState('');
+  const [ward, setWard] = useState('');
   const [adminId, setAdminId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -83,31 +90,45 @@ export default function AdminRegister() {
   const handleRegister = async () => {
     if (loading) return;
 
-    if (
-      !name.trim() ||
-      !mobile.trim() ||
-      !village.trim() ||
-      !adminId.trim() ||
-      !password ||
-      !confirmPassword
-    ) {
+    if (!name.trim()) {
       showAlert(
-        isHindi ? 'जानकारी अधूरी है' : 'Missing Information',
-        isHindi
-          ? 'कृपया सभी जानकारी भरें।'
-          : 'Please fill all fields.'
+        isHindi ? 'नाम आवश्यक है' : 'Name Required',
+        isHindi ? 'कृपया अपना पूरा नाम दर्ज करें।' : 'Please enter your name.'
       );
       return;
     }
 
     const cleanMobile = mobile.trim();
-    if (!/^\d{10}$/.test(cleanMobile)) {
+    if (!cleanMobile || !/^\d{10}$/.test(cleanMobile)) {
       showAlert(
         isHindi ? 'मोबाइल नंबर गलत है' : 'Invalid Mobile Number',
         isHindi
           ? 'कृपया 10 अंकों का मोबाइल नंबर दर्ज करें।'
           : 'Please enter a valid 10-digit mobile number.'
       );
+      return;
+    }
+
+    // LOCATION HIERARCHY VALIDATION (TEMPORARILY COMMENTED OUT - TO BE IMPLEMENTED LATER)
+    /*
+    if (!district.trim()) {
+      showAlert(isHindi ? 'जिला चुनें' : 'Select District', isHindi ? 'कृपया जिला चुनें।' : 'Please select a district.');
+      return;
+    }
+
+    if (!block.trim()) {
+      showAlert(isHindi ? 'ब्लॉक चुनें' : 'Select Block', isHindi ? 'कृपया ब्लॉक चुनें।' : 'Please select a block.');
+      return;
+    }
+    */
+
+    if (!village.trim()) {
+      showAlert(isHindi ? 'गाँव का नाम आवश्यक है' : 'Village Name Required', isHindi ? 'कृपया ग्राम पंचायत / गाँव का नाम दर्ज करें।' : 'Please enter village name.');
+      return;
+    }
+
+    if (!adminId.trim()) {
+      showAlert(isHindi ? 'एडमिन आईडी आवश्यक है' : 'Admin ID Required', isHindi ? 'कृपया एडमिन आईडी दर्ज करें।' : 'Please enter Admin ID.');
       return;
     }
 
@@ -139,7 +160,11 @@ export default function AdminRegister() {
         mobileNumber: cleanMobile,
         password: password,
         role: 'SARPANCH',
+        state: 'Madhya Pradesh',
+        district: district.trim(),
+        block: block.trim(),
         villageName: village.trim(),
+        wardNumber: ward.trim() || '1',
         officialId: adminId.trim(),
         adminId: adminId.trim(),
       });
@@ -215,6 +240,9 @@ export default function AdminRegister() {
       secureTextEntry?: boolean;
       maxLength?: number;
       autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+      isPassword?: boolean;
+      showPassword?: boolean;
+      onTogglePassword?: () => void;
     }
   ) => (
     <>
@@ -235,8 +263,25 @@ export default function AdminRegister() {
           placeholderTextColor={COLORS.textMuted}
           value={value}
           onChangeText={onChangeText}
-          {...options}
+          secureTextEntry={options?.isPassword ? !options.showPassword : options?.secureTextEntry}
+          keyboardType={options?.keyboardType}
+          maxLength={options?.maxLength}
+          autoCapitalize={options?.autoCapitalize}
         />
+
+        {options?.isPassword && options.onTogglePassword && (
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={options.onTogglePassword}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={options.showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={21}
+              color={COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
       </View>
     </>
   );
@@ -410,17 +455,41 @@ export default function AdminRegister() {
             }
           )}
 
-          {/* VILLAGE (LETTERS ONLY) */}
+          {/* VILLAGE NAME */}
           {renderInput(
-            'location-outline',
-            isHindi ? 'गांव' : 'Village',
-            isHindi
-              ? 'गांव का नाम दर्ज करें'
-              : 'Enter village name',
+            'home-outline',
+            isHindi ? 'ग्राम पंचायत / गाँव का नाम' : 'Gram Panchayat / Village',
+            isHindi ? 'गाँव का नाम दर्ज करें' : 'Enter village name',
             village,
-            (text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, '')),
+            setVillage,
             { autoCapitalize: 'words' }
           )}
+
+          {/* WARD NUMBER */}
+          {renderInput(
+            'location-outline',
+            isHindi ? 'वार्ड नंबर' : 'Ward Number',
+            isHindi ? 'जैसे: Ward 1 या 1' : 'e.g. Ward 1 or 1',
+            ward,
+            setWard,
+            { autoCapitalize: 'words' }
+          )}
+
+          {/* 
+          LOCATION HIERARCHY PICKER (TEMPORARILY COMMENTED OUT - TO BE IMPLEMENTED LATER)
+          <LocationHierarchyPicker
+            isHindi={isHindi}
+            selectedState={state}
+            selectedDistrict={district}
+            selectedBlock={block}
+            selectedVillage={village}
+            selectedWard={ward}
+            onDistrictChange={setDistrict}
+            onBlockChange={setBlock}
+            onVillageChange={setVillage}
+            onWardChange={setWard}
+          />
+          */}
 
           {/* ADMIN ID */}
           {renderInput(
@@ -445,7 +514,11 @@ export default function AdminRegister() {
               : 'Create password',
             password,
             setPassword,
-            { secureTextEntry: true }
+            {
+              isPassword: true,
+              showPassword: showPassword,
+              onTogglePassword: () => setShowPassword(!showPassword),
+            }
           )}
 
           {/* CONFIRM PASSWORD */}
@@ -459,7 +532,11 @@ export default function AdminRegister() {
               : 'Confirm password',
             confirmPassword,
             setConfirmPassword,
-            { secureTextEntry: true }
+            {
+              isPassword: true,
+              showPassword: showConfirmPassword,
+              onTogglePassword: () => setShowConfirmPassword(!showConfirmPassword),
+            }
           )}
 
           {/* INFO */}
@@ -764,6 +841,13 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.body,
     color: COLORS.textPrimary,
     marginLeft: SPACING.sm,
+  },
+
+  eyeButton: {
+    width: 40,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   infoBox: {
