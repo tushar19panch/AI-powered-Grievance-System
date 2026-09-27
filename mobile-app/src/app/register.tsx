@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { authApi } from '../services/api';
+import { authApi, villageApi, VillageData } from '../services/api';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -34,6 +34,8 @@ export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [village, setVillage] = useState('');
+  const [availableVillages, setAvailableVillages] = useState<VillageData[]>([]);
+  const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
   const [ward, setWard] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -77,6 +79,18 @@ export default function RegisterScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Fetch registered villages from database
+    villageApi
+      .getVillages()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setAvailableVillages(data);
+        }
+      })
+      .catch((err) => {
+        console.log('Error prefetching villages:', err);
+      });
   }, []);
 
   const toggleLanguage = () => {
@@ -143,6 +157,24 @@ export default function RegisterScreen() {
       return;
     }
 
+    // -----------------------------------------
+    // VILLAGE VALIDATION AGAINST DATABASE
+    // -----------------------------------------
+    const cleanVillage = village.trim();
+    const matchedVillage = availableVillages.find(
+      (v) => v.name.trim().toLowerCase() === cleanVillage.toLowerCase()
+    );
+
+    if (availableVillages.length > 0 && !matchedVillage) {
+      showAlert(
+        isHindi ? 'गांव पंजीकृत नहीं है' : 'Village Not Registered',
+        isHindi
+          ? `गांव "${cleanVillage}" डेटाबेस में पंजीकृत नहीं है। केवल पंजीकृत गांव के नागरिक ही पंजीकरण कर सकते हैं।`
+          : `Village "${cleanVillage}" is not registered in the system. Citizens can only register for villages that exist in the database.`
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       console.log('Sending registration request for:', cleanMobile);
@@ -152,7 +184,8 @@ export default function RegisterScreen() {
         mobileNumber: cleanMobile,
         password: password,
         role: 'CITIZEN',
-        villageName: village.trim(),
+        villageId: matchedVillage?.id || selectedVillageId || undefined,
+        villageName: matchedVillage?.name || cleanVillage,
         wardNumber: ward.trim(),
       });
 

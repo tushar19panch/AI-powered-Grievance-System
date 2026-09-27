@@ -60,9 +60,7 @@ public class ComplaintService {
         Village village = citizen.getVillage();
         if (village == null) {
             village = villageRepository.findAll().stream().findFirst()
-                    .orElseGet(() -> villageRepository.save(
-                            Village.builder().name("Main Village").build()
-                    ));
+                    .orElseThrow(() -> new RuntimeException("Village not found. Citizen must belong to a registered village."));
             citizen.setVillage(village);
             userRepository.save(citizen);
         }
