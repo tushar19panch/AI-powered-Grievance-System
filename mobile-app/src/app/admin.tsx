@@ -32,6 +32,7 @@ import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 import { VillageInfoModal } from '../components/VillageInfoModal';
+import { ComplaintOverviewSection } from '../components/ComplaintOverviewSection';
 
 const INDIA = {
   saffron: '#FF9933',
@@ -44,6 +45,8 @@ const INDIA = {
 type Complaint = {
   complaintId: string;
   status: string;
+  priority?: string;
+  classification?: string;
 };
 
 type Admin = {
@@ -119,6 +122,8 @@ export default function AdminScreen() {
             filtered.map((c: any) => ({
               complaintId: String(c.id || c.complaintNumber),
               status: c.status,
+              priority: c.priority,
+              classification: c.classification,
             }))
           );
           return;

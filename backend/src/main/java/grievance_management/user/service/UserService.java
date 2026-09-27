@@ -147,6 +147,44 @@ public class UserService {
 
     private Village findVillage(RegisterRequest request) {
 
+        // ---------------------------------------------------------
+        // Citizen constraint:
+        // A citizen CANNOT register unless their village exists & matches in the database.
+        // Prevents unregistered/random entries from polluting the system.
+        // ---------------------------------------------------------
+        if (request.getRole() == Role.CITIZEN) {
+
+            // Match by village ID if provided
+            if (request.getVillageId() != null) {
+                return villageRepository.findById(request.getVillageId())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Selected village does not exist in the database. Citizen registration is only permitted for registered villages."
+                                ));
+            }
+
+            // Match by village name (case-insensitive) if provided
+            if (request.getVillageName() != null &&
+                    !request.getVillageName().trim().isEmpty()) {
+
+                String trimmedName = request.getVillageName().trim();
+                return villageRepository
+                        .findByNameIgnoreCase(trimmedName)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Village '" + trimmedName + "' is not registered in the system. Citizen registration is only permitted for registered villages."
+                                ));
+            }
+
+            throw new RuntimeException(
+                    "Village is required for citizen registration. Please enter or select a valid registered village."
+            );
+        }
+
+        // ---------------------------------------------------------
+        // Administrative roles (Sarpanch / Secretary):
+        // ---------------------------------------------------------
+
         // First preference: villageId
         if (request.getVillageId() != null) {
 
@@ -175,16 +213,7 @@ public class UserService {
                             ));
         }
 
-        // Fallback: Default Village
-        return villageRepository.findAll().stream().findFirst()
-                .orElseGet(() ->
-                        villageRepository.save(
-                                Village.builder()
-                                        .name("Main Village")
-                                        .district("District")
-                                        .state("State")
-                                        .build()
-                        ));
+        throw new RuntimeException("Village is required for registration");
     }
 
     // =====================================================
