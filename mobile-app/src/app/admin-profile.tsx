@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
+import { villageApi } from '../services/api';
 
 import {
   COLORS,
@@ -264,6 +265,26 @@ export default function AdminProfile() {
     );
   };
 
+  const convertAssetToDataUrl = async (asset: ImagePicker.ImagePickerAsset): Promise<string> => {
+    if (asset.base64) {
+      return asset.base64.startsWith('data:') ? asset.base64 : `data:image/jpeg;base64,${asset.base64}`;
+    }
+    if (Platform.OS === 'web' && asset.uri && asset.uri.startsWith('blob:')) {
+      try {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        return await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.log('Error converting web blob image:', e);
+      }
+    }
+    return asset.uri;
+  };
+
   const applyVillagePhoto = async (photoUri: string | null) => {
     try {
       if (admin.village && photoUri) {
@@ -276,6 +297,14 @@ export default function AdminProfile() {
         await AsyncStorage.setItem('village_cover_photo', photoUri);
       } else {
         await AsyncStorage.removeItem('village_cover_photo');
+      }
+
+      // Sync with backend server so all citizen, secretary & admin devices display it
+      await villageApi.updatePhoto(admin.village || 'Gram Panchayat', photoUri);
+
+      // Broadcast event for active screens
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('village_photo_changed', { detail: photoUri }));
       }
 
       Alert.alert(
@@ -310,10 +339,7 @@ export default function AdminProfile() {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const uri = asset.base64
-          ? (asset.base64.startsWith('data:') ? asset.base64 : `data:image/jpeg;base64,${asset.base64}`)
-          : asset.uri;
+        const uri = await convertAssetToDataUrl(result.assets[0]);
         await applyVillagePhoto(uri);
       }
     } catch (error) {
@@ -342,10 +368,7 @@ export default function AdminProfile() {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const uri = asset.base64
-          ? (asset.base64.startsWith('data:') ? asset.base64 : `data:image/jpeg;base64,${asset.base64}`)
-          : asset.uri;
+        const uri = await convertAssetToDataUrl(result.assets[0]);
         await applyVillagePhoto(uri);
       }
     } catch (error) {
@@ -653,12 +676,6 @@ export default function AdminProfile() {
                   ? 'व्यक्तिगत जानकारी'
                   : 'Personal Information'}
               </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                {isHindi
-                  ? 'अपनी जानकारी अपडेट करें'
-                  : 'Update your information'}
-              </Text>
             </View>
 
             {!editing && (
@@ -877,9 +894,6 @@ export default function AdminProfile() {
             <View>
               <Text style={styles.sectionTitle}>
                 {isHindi ? 'खाता एवं सेटिंग्स' : 'Account & Settings'}
-              </Text>
-              <Text style={styles.sectionSubtitle}>
-                {isHindi ? 'खाता विकल्प और प्रबंधन' : 'Account options and management'}
               </Text>
             </View>
           </View>

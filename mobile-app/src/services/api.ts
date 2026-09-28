@@ -12,6 +12,9 @@ function getDefaultApiUrl(): string {
     return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
   }
   if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      return `http://${window.location.hostname}:8080`;
+    }
     return 'http://localhost:8080';
   }
   // Try to get host machine IP from Expo debugger/host URI when running on physical phone
@@ -53,16 +56,37 @@ export async function setApiBaseUrl(url: string): Promise<void> {
 }
 
 export async function getAuthToken(): Promise<string | null> {
-  return await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+  try {
+    let token = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+    if (token && token.trim()) return token.trim();
+
+    token = await AsyncStorage.getItem('token');
+    if (token && token.trim()) return token.trim();
+
+    const userSession = await AsyncStorage.getItem('user_session');
+    if (userSession) {
+      const parsed = JSON.parse(userSession);
+      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+        return parsed.token.trim();
+      }
+    }
+  } catch (err) {
+    console.log('Error reading auth token:', err);
+  }
+  return null;
 }
 
 export async function setAuthToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(TOKEN_STORAGE_KEY, token);
+  const clean = token ? token.trim() : '';
+  await AsyncStorage.setItem(TOKEN_STORAGE_KEY, clean);
+  await AsyncStorage.setItem('token', clean);
 }
 
 export async function removeAuthToken(): Promise<void> {
   await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
+  await AsyncStorage.removeItem('token');
   await AsyncStorage.removeItem(USER_STORAGE_KEY);
+  await AsyncStorage.removeItem('user_session');
 }
 
 // -------------------------------------------------------------
@@ -369,6 +393,29 @@ export const villageApi = {
       method: 'GET',
     });
   },
+
+  getPhoto: async (villageName?: string): Promise<{ photoUrl?: string }> => {
+    try {
+      const query = villageName ? `?village=${encodeURIComponent(villageName)}` : '';
+      return await request<{ photoUrl?: string }>(`/api/villages/photo${query}`, {
+        method: 'GET',
+      });
+    } catch {
+      return { photoUrl: '' };
+    }
+  },
+
+  updatePhoto: async (villageName: string, photoUrl: string | null): Promise<any> => {
+    try {
+      return await request('/api/villages/photo', {
+        method: 'POST',
+        body: JSON.stringify({ village: villageName, photoUrl: photoUrl || '' }),
+      });
+    } catch (e) {
+      console.log('Error updating village photo on backend:', e);
+      return null;
+    }
+  },
 };
 
 // -------------------------------------------------------------
@@ -379,6 +426,7 @@ export interface NotificationData {
   message: string;
   read: boolean;
   createdAt: string;
+  complaintId?: number | string | null;
 }
 
 export const notificationApi = {

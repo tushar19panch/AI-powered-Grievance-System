@@ -28,16 +28,22 @@ public class NotificationService {
 
         User citizen = complaint.getCitizen();
 
+        String statusDisplay = newStatus.name();
+        if (newStatus == ComplaintStatus.ACTION_TAKEN) {
+            statusDisplay = "ACTION_TAKEN (In Progress)";
+        }
+
         String message =
                 "Your complaint #"
                         + complaint.getId()
                         + " has been marked as "
-                        + newStatus.name()
+                        + statusDisplay
                         + ".";
 
         Notification notification =
                 Notification.builder()
                         .user(citizen)
+                        .complaintId(complaint.getId())
                         .message(message)
                         .isRead(false)
                         .build();
@@ -59,6 +65,7 @@ public class NotificationService {
             if (official != null) {
                 Notification notification = Notification.builder()
                         .user(official)
+                        .complaintId(complaint.getId())
                         .message(message)
                         .isRead(false)
                         .build();
@@ -71,6 +78,17 @@ public class NotificationService {
         if (user == null || message == null) return;
         Notification notification = Notification.builder()
                 .user(user)
+                .message(message)
+                .isRead(false)
+                .build();
+        notificationRepository.save(notification);
+    }
+
+    public void createNotification(User user, String message, Long complaintId) {
+        if (user == null || message == null) return;
+        Notification notification = Notification.builder()
+                .user(user)
+                .complaintId(complaintId)
                 .message(message)
                 .isRead(false)
                 .build();
@@ -90,7 +108,8 @@ public class NotificationService {
                                 notification.getId(),
                                 notification.getMessage(),
                                 notification.isRead(),
-                                notification.getCreatedAt()
+                                notification.getCreatedAt(),
+                                notification.getComplaintId()
                         )
                 )
                 .toList();

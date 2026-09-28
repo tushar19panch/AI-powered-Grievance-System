@@ -33,6 +33,8 @@ public class Complaint {
 
     private String department;
 
+    private String sentiment;
+
     private LocalDate deadline;
 
     // Photo path/URL or base64 data URI

@@ -472,12 +472,6 @@ export default function CitizenProfileScreen() {
               <Text style={styles.sectionTitle}>
                 {isHindi ? 'व्यक्तिगत जानकारी' : 'Personal Information'}
               </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                {isHindi
-                  ? 'अपनी जानकारी अपडेट करें'
-                  : 'Update your information'}
-              </Text>
             </View>
 
             {!editing && (
@@ -680,9 +674,6 @@ export default function CitizenProfileScreen() {
             <View>
               <Text style={styles.sectionTitle}>
                 {isHindi ? 'खाता एवं सेटिंग्स' : 'Account & Settings'}
-              </Text>
-              <Text style={styles.sectionSubtitle}>
-                {isHindi ? 'खाता विकल्प और प्रबंधन' : 'Account options and management'}
               </Text>
             </View>
           </View>

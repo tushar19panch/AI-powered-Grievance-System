@@ -2,13 +2,19 @@ package grievance_management.complaint.dto;
 
 import grievance_management.complaint.entity.ComplaintStatus;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
+@Setter
+@NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class ComplaintResponse {
 
     private Long id;
@@ -20,6 +26,8 @@ public class ComplaintResponse {
     private String priority;
 
     private String department;
+
+    private String sentiment;
 
     private LocalDate deadline;
 

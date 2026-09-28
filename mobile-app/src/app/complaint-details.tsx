@@ -143,9 +143,10 @@ export default function ComplaintDetailsScreen() {
 
         // 1. Fetch complaint from Backend Database API
         let foundComplaint: any = null;
-        if (/^\d+$/.test(String(complaintId))) {
+        const cleanId = String(complaintId).replace(/^[^\d]*/, '');
+        if (/^\d+$/.test(cleanId)) {
           try {
-            const apiComplaint = await complaintApi.getSingleComplaint(Number(complaintId));
+            const apiComplaint = await complaintApi.getSingleComplaint(Number(cleanId));
             if (apiComplaint && (apiComplaint.id || (apiComplaint as any).complaintNumber)) {
               foundComplaint = apiComplaint;
             }
@@ -163,7 +164,9 @@ export default function ComplaintDetailsScreen() {
             if (Array.isArray(list)) {
               foundComplaint = list.find((c: any) => 
                 String(c.id) === String(complaintId) || 
-                String(c.complaintNumber) === String(complaintId)
+                String(c.id) === String(cleanId) ||
+                String(c.complaintNumber) === String(complaintId) ||
+                String(c.complaintNumber) === String(cleanId)
               );
             }
           } catch (listErr) {
@@ -266,27 +269,25 @@ export default function ComplaintDetailsScreen() {
   // --------------------------------------------------
 
   const getStatusLabel = (status: string) => {
-    const normalizedStatus = String(
-      status || ''
-    ).toUpperCase();
+    const normalized = String(status || '').replace(/\s+/g, '_').toUpperCase();
 
-    switch (normalizedStatus) {
+    switch (normalized) {
       case 'SUBMITTED':
         return language === 'hi'
           ? 'जमा की गई'
           : 'Submitted';
 
-      case 'UNDER REVIEW':
+      case 'UNDER_REVIEW':
         return language === 'hi'
           ? 'समीक्षा में'
           : 'Under Review';
 
-      case 'ACTION TAKEN':
+      case 'ACTION_TAKEN':
         return language === 'hi'
-          ? 'कार्रवाई की गई'
-          : 'Action Taken';
+          ? 'कार्रवाई जारी (प्रगति में)'
+          : 'Action Taken (In Progress)';
 
-      case 'IN PROGRESS':
+      case 'IN_PROGRESS':
         return language === 'hi'
           ? 'प्रगति में'
           : 'In Progress';
@@ -303,7 +304,7 @@ export default function ComplaintDetailsScreen() {
 
       case 'CLOSED':
         return language === 'hi'
-          ? 'बंद'
+          ? 'सत्यापित बंद'
           : 'Closed';
 
       case 'REOPENED':
@@ -326,11 +327,9 @@ export default function ComplaintDetailsScreen() {
   // --------------------------------------------------
 
   const getStatusColors = (status: string) => {
-    const normalizedStatus = String(
-      status || ''
-    ).toUpperCase();
+    const normalized = String(status || '').replace(/\s+/g, '_').toUpperCase();
 
-    switch (normalizedStatus) {
+    switch (normalized) {
       case 'RESOLVED':
       case 'CLOSED':
         return {
@@ -338,14 +337,15 @@ export default function ComplaintDetailsScreen() {
           text: COLORS.indiaGreen,
         };
 
-      case 'IN PROGRESS':
-      case 'ACTION TAKEN':
+      case 'IN_PROGRESS':
+      case 'ACTION_TAKEN':
         return {
           background: COLORS.warningLight,
           text: COLORS.warning,
         };
 
       case 'VERIFICATION':
+      case 'UNDER_REVIEW':
         return {
           background: COLORS.infoLight,
           text: COLORS.info,
@@ -717,17 +717,25 @@ export default function ComplaintDetailsScreen() {
   // TIMELINE
   // --------------------------------------------------
 
-  const statuses = [
-    'SUBMITTED',
-    'UNDER REVIEW',
-    'ACTION TAKEN',
-    'IN PROGRESS',
-    'RESOLVED',
-    'CLOSED',
+  const timelineStages = [
+    { key: 'SUBMITTED', labelHi: 'जमा की गई', labelEn: 'Submitted' },
+    { key: 'UNDER_REVIEW', labelHi: 'समीक्षा व सत्यापन', labelEn: 'Under Review' },
+    { key: 'IN_PROGRESS', labelHi: 'कार्रवाई जारी (प्रगति में)', labelEn: 'Action Taken (In Progress)' },
+    { key: 'RESOLVED', labelHi: 'समाधान पूर्ण', labelEn: 'Resolved' },
+    { key: 'CLOSED', labelHi: 'सत्यापित बंद', labelEn: 'Closed' },
   ];
 
-  const currentIndex =
-    statuses.indexOf(normalizedStatus);
+  const getStageIndex = (status: string) => {
+    const s = String(status || '').replace(/\s+/g, '_').toUpperCase();
+    if (s === 'CLOSED') return 4;
+    if (s === 'RESOLVED') return 3;
+    if (s === 'IN_PROGRESS' || s === 'ACTION_TAKEN') return 2;
+    if (s === 'UNDER_REVIEW' || s === 'VERIFICATION') return 1;
+    if (s === 'SUBMITTED') return 0;
+    return 0;
+  };
+
+  const currentIndex = getStageIndex(normalizedStatus);
 
   // --------------------------------------------------
   // DATE FORMAT
@@ -958,7 +966,7 @@ export default function ComplaintDetailsScreen() {
             </Text>
           </View>
 
-          {statuses.map((status, index) => {
+          {timelineStages.map((stage, index) => {
             const completed =
               currentIndex >= 0 &&
               index <= currentIndex;
@@ -969,7 +977,7 @@ export default function ComplaintDetailsScreen() {
 
             return (
               <View
-                key={status}
+                key={stage.key}
                 style={styles.timelineItem}
               >
                 <View style={styles.timelineLeft}>
@@ -990,7 +998,7 @@ export default function ComplaintDetailsScreen() {
                   </View>
 
                   {index <
-                    statuses.length - 1 && (
+                    timelineStages.length - 1 && (
                       <View
                         style={[
                           styles.timelineLine,
@@ -1009,7 +1017,7 @@ export default function ComplaintDetailsScreen() {
                       styles.timelineStatusCompleted,
                     ]}
                   >
-                    {getStatusLabel(status)}
+                    {language === 'hi' ? stage.labelHi : stage.labelEn}
                   </Text>
 
                   {isCurrent && (

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +40,22 @@ import {
   TYPOGRAPHY,
 } from '../theme';
 
+interface SubmittedComplaintInfo {
+  id: string;
+  problemType: string;
+  category: string;
+  department: string;
+  priority: string;
+  sentiment: string;
+  ward: string;
+  location: string;
+  description: string;
+  status: string;
+  photo?: string | null;
+  audioUrl?: string | null;
+  isOffline?: boolean;
+}
+
 export default function ReportScreen() {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
@@ -50,12 +68,17 @@ export default function ReportScreen() {
   const [complaintId, setComplaintId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Success Modal State with AI details
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submittedData, setSubmittedData] = useState<SubmittedComplaintInfo | null>(null);
+
   const [userName, setUserName] = useState('');
   const [ward, setWard] = useState('');
   const [problemWard, setProblemWard] = useState('');
   const [differentWard, setDifferentWard] = useState(false);
   const [showWardList, setShowWardList] = useState(false);
 
+  // Audio Recording & Voice-to-Text State
   const audioRecorder = useAudioRecorder({
     ...RecordingPresets.HIGH_QUALITY,
     directory: 'document',
@@ -63,6 +86,8 @@ export default function ReportScreen() {
   const recorderState = useAudioRecorderState(audioRecorder);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const audioPlayer = useAudioPlayer(audioUri);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const speechRecognitionRef = useRef<any>(null);
 
   const wardOptions = Array.from(
     { length: 20 },
@@ -201,8 +226,66 @@ export default function ReportScreen() {
   };
 
   // ==========================================
-  // AUDIO RECORDING
+  // VOICE-TO-TEXT & AUDIO RECORDING
   // ==========================================
+  const startSpeechToText = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
+
+          recognition.onstart = () => {
+            setIsTranscribing(true);
+          };
+
+          recognition.onresult = (event: any) => {
+            let fullTranscript = '';
+            for (let i = 0; i < event.results.length; i++) {
+              fullTranscript += event.results[i][0].transcript + ' ';
+            }
+            if (fullTranscript.trim()) {
+              setDescription((prev) => {
+                // If previous was empty, set directly, otherwise append clean text
+                return fullTranscript.trim();
+              });
+            }
+          };
+
+          recognition.onerror = (e: any) => {
+            console.log('Speech recognition error:', e);
+            setIsTranscribing(false);
+          };
+
+          recognition.onend = () => {
+            setIsTranscribing(false);
+          };
+
+          recognition.start();
+          speechRecognitionRef.current = recognition;
+        } catch (err) {
+          console.log('Web speech init error:', err);
+        }
+      }
+    }
+  };
+
+  const stopSpeechToText = () => {
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {}
+      speechRecognitionRef.current = null;
+    }
+    setIsTranscribing(false);
+  };
+
   const startRecording = async () => {
     try {
       const permission = await AudioModule.requestRecordingPermissionsAsync();
@@ -223,6 +306,9 @@ export default function ReportScreen() {
 
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
+
+      // Also trigger real-time Voice-to-Text transcription
+      startSpeechToText();
     } catch (error) {
       console.log('Audio recording error:', error);
       Alert.alert(
@@ -240,8 +326,10 @@ export default function ReportScreen() {
       if (audioRecorder.uri) {
         setAudioUri(audioRecorder.uri);
       }
+      stopSpeechToText();
     } catch (error) {
       console.log('Audio stop error:', error);
+      stopSpeechToText();
     }
   };
 
@@ -336,7 +424,7 @@ export default function ReportScreen() {
   // ==========================================
   const submitProblem = async () => {
     const hasText = description.trim().length > 0;
-    const hasAudio = !!audioUri;
+    const hasAudio = !audioUri;
 
     if ((!hasText && !hasAudio) || !image || !problemWard) {
       Alert.alert(
@@ -386,43 +474,76 @@ export default function ReportScreen() {
 
       const effectiveWard = problemWard || ward || 'Ward 1';
 
-      // Smart Category & Priority inference
+      // Smart Category & Priority inference fallback
       const lowerDesc = finalDescription.toLowerCase();
       let deducedCategory = 'Village Issue';
       let deducedProblemType = 'General Problem';
       let deducedPriority = 'MEDIUM';
+      let deducedDepartment = 'General Grievance / Administration';
+      let deducedSentiment = 'NEUTRAL';
 
-      if (lowerDesc.includes('पानी') || lowerDesc.includes('जल') || lowerDesc.includes('नल') || lowerDesc.includes('पाइप') || lowerDesc.includes('water')) {
-        deducedCategory = 'Water';
-        deducedProblemType = 'Drinking Water Supply';
-      } else if (lowerDesc.includes('सड़क') || lowerDesc.includes('मार्ग') || lowerDesc.includes('रास्ता') || lowerDesc.includes('गड्ढा') || lowerDesc.includes('road')) {
-        deducedCategory = 'Roads';
-        deducedProblemType = 'Road & Street Work';
-      } else if (lowerDesc.includes('लाइट') || lowerDesc.includes('बल्ब') || lowerDesc.includes('अंधेरा') || lowerDesc.includes('light')) {
-        deducedCategory = 'Street Lights';
-        deducedProblemType = 'Street Lighting';
-      } else if (lowerDesc.includes('कचरा') || lowerDesc.includes('सफाई') || lowerDesc.includes('कूड़ा') || lowerDesc.includes('गंदगी') || lowerDesc.includes('garbage')) {
-        deducedCategory = 'Garbage/Sanitation';
-        deducedProblemType = 'Cleanliness & Waste';
-      } else if (lowerDesc.includes('नाली') || lowerDesc.includes('जल निकासी') || lowerDesc.includes('drain')) {
-        deducedCategory = 'Drainage';
-        deducedProblemType = 'Drainage System';
-      } else if (lowerDesc.includes('बिजली') || lowerDesc.includes('ट्रांसफार्मर') || lowerDesc.includes('तार') || lowerDesc.includes('करंट') || lowerDesc.includes('electric')) {
+      if (lowerDesc.includes('पानी') || lowerDesc.includes('जल') || lowerDesc.includes('नल') || lowerDesc.includes('पाइप') || lowerDesc.includes('water') || lowerDesc.includes('हैंडपंप') || lowerDesc.includes('tanker')) {
+        deducedCategory = 'Water Supply';
+        deducedProblemType = 'Water Supply';
+        deducedDepartment = 'Water Supply Department';
+      } else if (lowerDesc.includes('सड़क') || lowerDesc.includes('मार्ग') || lowerDesc.includes('रास्ता') || lowerDesc.includes('गड्ढा') || lowerDesc.includes('road') || lowerDesc.includes('pothole') || lowerDesc.includes('खड़ंजा') || lowerDesc.includes('पुलिया')) {
+        deducedCategory = 'Roads & Transportation';
+        deducedProblemType = 'Roads & Transportation';
+        deducedDepartment = 'Roads & Transportation Department';
+      } else if (lowerDesc.includes('लाइट') || lowerDesc.includes('बल्ब') || lowerDesc.includes('अंधेरा') || lowerDesc.includes('light') || lowerDesc.includes('बिजली') || lowerDesc.includes('तार') || lowerDesc.includes('करंट') || lowerDesc.includes('खंभा') || lowerDesc.includes('पोल') || lowerDesc.includes('ट्रांसफार्मर')) {
         deducedCategory = 'Electricity';
-        deducedProblemType = 'Electricity Grid';
+        deducedProblemType = 'Electricity';
+        deducedDepartment = 'Electricity Department';
+      } else if (lowerDesc.includes('कचरा') || lowerDesc.includes('सफाई') || lowerDesc.includes('कूड़ा') || lowerDesc.includes('गंदगी') || lowerDesc.includes('garbage') || lowerDesc.includes('waste') || lowerDesc.includes('कूड़ेदान')) {
+        deducedCategory = 'Waste Management';
+        deducedProblemType = 'Waste Management';
+        deducedDepartment = 'Waste Management Department';
+      } else if (lowerDesc.includes('नाली') || lowerDesc.includes('जल निकासी') || lowerDesc.includes('drain') || lowerDesc.includes('ganda paani') || lowerDesc.includes('गटर') || lowerDesc.includes('सीवर')) {
+        deducedCategory = 'Drainage';
+        deducedProblemType = 'Drainage';
+        deducedDepartment = 'Drainage Department';
+      } else if (lowerDesc.includes('शौचालय') || lowerDesc.includes('टॉयलेट') || lowerDesc.includes('toilet') || lowerDesc.includes('sanitation') || lowerDesc.includes('इज्जत घर')) {
+        deducedCategory = 'Sanitation';
+        deducedProblemType = 'Sanitation';
+        deducedDepartment = 'Sanitation Department';
+      } else if (lowerDesc.includes('अस्पताल') || lowerDesc.includes('दवा') || lowerDesc.includes('डॉक्टर') || lowerDesc.includes('hospital') || lowerDesc.includes('medicine') || lowerDesc.includes('clinic') || lowerDesc.includes('नर्स') || lowerDesc.includes('इलाज')) {
+        deducedCategory = 'Healthcare';
+        deducedProblemType = 'Healthcare';
+        deducedDepartment = 'Health Department';
+      } else if (lowerDesc.includes('स्कूल') || lowerDesc.includes('विद्यालय') || lowerDesc.includes('school') || lowerDesc.includes('शिक्षक') || lowerDesc.includes('मिड डे मील') || lowerDesc.includes('आंगनवाड़ी')) {
+        deducedCategory = 'Education';
+        deducedProblemType = 'Education';
+        deducedDepartment = 'Education Department';
+      } else if (lowerDesc.includes('पशु') || lowerDesc.includes('कुत्ता') || lowerDesc.includes('गाय') || lowerDesc.includes('भैंस') || lowerDesc.includes('animal') || lowerDesc.includes('dog') || lowerDesc.includes('मवेशी')) {
+        deducedCategory = 'Animal & Veterinary';
+        deducedProblemType = 'Animal & Veterinary';
+        deducedDepartment = 'Animal & Veterinary Department';
+      } else if (lowerDesc.includes('राशन') || lowerDesc.includes('पेंशन') || lowerDesc.includes('ration') || lowerDesc.includes('pension') || lowerDesc.includes('योजना')) {
+        deducedCategory = 'Welfare Services';
+        deducedProblemType = 'Welfare Services';
+        deducedDepartment = 'Welfare Services Department';
+      } else if (lowerDesc.includes('जमीन') || lowerDesc.includes('पटवारी') || lowerDesc.includes('खसरा') || lowerDesc.includes('property') || lowerDesc.includes('अतिक्रमण') || lowerDesc.includes('कब्जा')) {
+        deducedCategory = 'Property & Revenue';
+        deducedProblemType = 'Property & Revenue';
+        deducedDepartment = 'Property & Revenue Department';
       }
 
-      if (lowerDesc.includes('आपातकालीन') || lowerDesc.includes('खतरा') || lowerDesc.includes('करंट') || lowerDesc.includes('तुरंत') || lowerDesc.includes('emergency') || lowerDesc.includes('critical') || lowerDesc.includes('urgent') || lowerDesc.includes('danger')) {
-        deducedPriority = 'VERY_HIGH';
-      } else if (lowerDesc.includes('गंभीर') || lowerDesc.includes('भारी') || lowerDesc.includes('बंद पड़ा') || lowerDesc.includes('severe') || lowerDesc.includes('heavy') || lowerDesc.includes('blocked')) {
+      if (lowerDesc.includes('आपातकालीन') || lowerDesc.includes('खतरा') || lowerDesc.includes('करंट') || lowerDesc.includes('तुरंत') || lowerDesc.includes('emergency') || lowerDesc.includes('critical') || lowerDesc.includes('urgent') || lowerDesc.includes('danger') || lowerDesc.includes('जान का खतरा') || lowerDesc.includes('तार टूट')) {
+        deducedPriority = 'CRITICAL';
+      } else if (lowerDesc.includes('गंभीर') || lowerDesc.includes('भारी') || lowerDesc.includes('बंद पड़ा') || lowerDesc.includes('severe') || lowerDesc.includes('heavy') || lowerDesc.includes('blocked') || lowerDesc.includes('५ दिन') || lowerDesc.includes('5 दिन') || lowerDesc.includes('डॉक्टर नहीं')) {
         deducedPriority = 'HIGH';
-      } else if (lowerDesc.includes('छोटा') || lowerDesc.includes('हल्का') || lowerDesc.includes('minor') || lowerDesc.includes('routine')) {
+      } else if (lowerDesc.includes('छोटा') || lowerDesc.includes('हल्का') || lowerDesc.includes('minor') || lowerDesc.includes('routine') || lowerDesc.includes('निवेदन')) {
         deducedPriority = 'LOW';
+      }
+
+      if (lowerDesc.includes('नहीं') || lowerDesc.includes('खराब') || lowerDesc.includes('समस्या') || lowerDesc.includes('परेशान') || lowerDesc.includes('no') || lowerDesc.includes('bad') || lowerDesc.includes('broken')) {
+        deducedSentiment = 'NEGATIVE';
       }
 
       const payload = {
         problemType: deducedProblemType,
         category: deducedCategory,
+        department: deducedDepartment,
         priority: deducedPriority,
         description: finalDescription,
         location: location || `${effectiveWard}`,
@@ -434,11 +555,19 @@ export default function ReportScreen() {
 
       let backendId: string | null = null;
       let isSavedOffline = false;
+      let finalCategory = deducedCategory;
+      let finalDepartment = deducedDepartment;
+      let finalPriority = deducedPriority;
+      let finalSentiment = deducedSentiment;
 
       try {
         const apiRes = await complaintApi.createComplaint(payload);
         if (apiRes?.id) {
           backendId = String(apiRes.id);
+          if (apiRes.category) finalCategory = apiRes.category;
+          if (apiRes.department) finalDepartment = apiRes.department;
+          if (apiRes.priority) finalPriority = apiRes.priority;
+          if (apiRes.sentiment) finalSentiment = apiRes.sentiment;
         }
       } catch (apiErr) {
         console.log('Backend complaint submission failed, queuing offline:', apiErr);
@@ -459,22 +588,27 @@ export default function ReportScreen() {
       const newComplaintId = backendId || String(Date.now());
       setComplaintId(newComplaintId);
 
-      if (isSavedOffline) {
-        Alert.alert(
-          isHindi ? '📶 शिकायत ऑफलाइन सुरक्षित' : '📶 Complaint Saved Offline',
-          isHindi
-            ? `इंटरनेट न होने के कारण आपकी शिकायत सुरक्षित सेव कर ली गई है। कनेक्ट होने पर यह अपने आप सिंक हो जाएगी।\n\nअस्थायी आईडी: #${newComplaintId}`
-            : `Your complaint has been saved offline. It will synchronize automatically when online.\n\nOffline ID: #${newComplaintId}`
-        );
-      } else {
-        Alert.alert(
-          isHindi ? 'शिकायत सफलतापूर्वक दर्ज हुई' : 'Complaint Submitted Successfully',
-          isHindi
-            ? `आपकी शिकायत आईडी: #${newComplaintId}\nAI द्वारा समस्या को उपयुक्त विभाग में भेज दिया गया है।`
-            : `Complaint ID: #${newComplaintId}\nAI has routed your problem to the concerned department.`
-        );
-      }
+      // Set complete submitted details for the Pop-up Modal
+      setSubmittedData({
+        id: newComplaintId,
+        problemType: deducedProblemType,
+        category: finalCategory,
+        department: finalDepartment,
+        priority: finalPriority,
+        sentiment: finalSentiment,
+        ward: effectiveWard,
+        location: location || effectiveWard,
+        description: finalDescription,
+        status: 'SUBMITTED',
+        photo: image,
+        audioUrl: audioUri,
+        isOffline: isSavedOffline,
+      });
 
+      // Show Problem Details Pop-up Modal
+      setShowSuccessModal(true);
+
+      // Clear input fields
       setDescription('');
       setImage(null);
       setLocation(null);
@@ -492,6 +626,21 @@ export default function ReportScreen() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    const p = String(priority || '').toUpperCase();
+    if (p === 'CRITICAL' || p === 'VERY_HIGH' || p === 'VERY HIGH') return { bg: '#FEE2E2', text: '#B91C1C', border: '#FCA5A5' };
+    if (p === 'HIGH') return { bg: '#FFEDD5', text: '#C2410C', border: '#FDBA74' };
+    if (p === 'MEDIUM') return { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A' };
+    return { bg: '#DCFCE7', text: '#15803D', border: '#86EFAC' };
+  };
+
+  const getSentimentBadge = (sentiment: string) => {
+    const s = String(sentiment || '').toUpperCase();
+    if (s === 'NEGATIVE') return { label: isHindi ? 'नकारात्मक (Negative)' : 'Negative', icon: 'sad-outline', color: '#DC2626' };
+    if (s === 'POSITIVE') return { label: isHindi ? 'सकारात्मक (Positive)' : 'Positive', icon: 'happy-outline', color: '#16A34A' };
+    return { label: isHindi ? 'सामान्य (Neutral)' : 'Neutral', icon: 'help-circle-outline', color: '#475569' };
   };
 
   return (
@@ -570,9 +719,6 @@ export default function ReportScreen() {
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
               {isHindi ? 'समस्या का वार्ड' : 'Problem Ward'}
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi ? 'जिस वार्ड में समस्या मौजूद है' : 'Ward where the issue exists'}
             </Text>
           </View>
         </View>
@@ -686,7 +832,7 @@ export default function ReportScreen() {
         </View>
 
         {/* =================================================
-            2. VOICE RECORDING (MIC)
+            2. VOICE RECORDING & LIVE VOICE-TO-TEXT (MIC)
         ================================================= */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIcon}>
@@ -694,10 +840,7 @@ export default function ReportScreen() {
           </View>
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
-              {isHindi ? 'आवाज़ रिकॉर्ड करें' : 'Record Voice'}
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi ? 'माइक दबाकर समस्या बोलकर बताएं' : 'Speak to record your problem'}
+              {isHindi ? 'आवाज़ रिकॉर्ड करें (Voice to Text)' : 'Record Voice & Voice-to-Text'}
             </Text>
           </View>
         </View>
@@ -720,7 +863,7 @@ export default function ReportScreen() {
             <View style={styles.audioTextBlock}>
               <Text style={styles.audioTitle}>
                 {recorderState.isRecording
-                  ? isHindi ? 'रिकॉर्डिंग चल रही है...' : 'Recording in progress...'
+                  ? isHindi ? '🎙️ रिकॉर्डिंग व स्पीच-टू-टेक्स्ट जारी...' : '🎙️ Recording & Transcribing...'
                   : audioUri
                     ? isHindi ? 'ऑडियो रिकॉर्ड हो गया' : 'Audio Recorded'
                     : isHindi ? 'बोलकर समस्या बताएं' : 'Speak into Microphone'}
@@ -729,8 +872,8 @@ export default function ReportScreen() {
                 {recorderState.isRecording
                   ? `${Math.floor(recorderState.durationMillis / 1000)}s`
                   : audioUri
-                    ? isHindi ? 'ऑडियो सुरक्षित' : 'Audio Ready'
-                    : isHindi ? 'सुविधाजनक व आसान' : 'Optional & Convenient'}
+                    ? isHindi ? 'ऑडियो व टेक्स्ट तैयार' : 'Audio & Text Ready'
+                    : isHindi ? 'AI स्वतः टेक्स्ट में बदलेगा' : 'Auto converts speech to text'}
               </Text>
             </View>
 
@@ -754,6 +897,16 @@ export default function ReportScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* LIVE TRANSCRIBING BANNER */}
+          {isTranscribing && (
+            <View style={styles.transcribingBanner}>
+              <ActivityIndicator size="small" color="#EA580C" />
+              <Text style={styles.transcribingText}>
+                {isHindi ? 'आवाज़ को टेक्स्ट में लिखा जा रहा है...' : 'Converting speech to text in real-time...'}
+              </Text>
+            </View>
+          )}
 
           {audioUri && !recorderState.isRecording ? (
             <View style={styles.audioActions}>
@@ -797,10 +950,7 @@ export default function ReportScreen() {
           </View>
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
-              {isHindi ? 'समस्या का विवरण' : 'Problem Description'}
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi ? 'समस्या को अपने शब्दों में लिखें' : 'Write details in your own words'}
+              {isHindi ? 'समस्या का विवरण (AI इनपुट)' : 'Problem Description (AI Input)'}
             </Text>
           </View>
         </View>
@@ -809,8 +959,8 @@ export default function ReportScreen() {
           style={styles.descriptionInput}
           placeholder={
             isHindi
-              ? 'यहाँ समस्या का विवरण लिखें (जैसे: सड़क पर गड्ढा, पानी की लाइन टूटी, स्ट्रीट लाइट बंद आदि)...'
-              : 'Describe the issue (e.g. Broken road, no water supply, street light off)...'
+              ? 'यहाँ समस्या का विवरण लिखें या माइक से बोलें (जैसे: 5 दिन से पानी की सप्लाई बंद है, सड़क पर गड्ढा है)...'
+              : 'Describe the issue or dictate by voice (e.g. No water supply for 5 days, broken road)...'
           }
           placeholderTextColor={COLORS.textMuted}
           multiline
@@ -865,9 +1015,6 @@ export default function ReportScreen() {
             <Text style={styles.sectionTitle}>
               {isHindi ? 'समस्या की फोटो' : 'Problem Photo'}
               <Text style={styles.required}> *</Text>
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi ? 'समस्या की स्पष्ट फोटो जोड़ें' : 'Add a clear photo of the problem'}
             </Text>
           </View>
         </View>
@@ -968,24 +1115,6 @@ export default function ReportScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* COMPLAINT ID CONFIRMATION */}
-        {complaintId ? (
-          <View style={styles.complaintBox}>
-            <View style={styles.complaintIcon}>
-              <Ionicons name="document-text-outline" size={24} color={COLORS.primary} />
-            </View>
-            <Text style={styles.complaintLabel}>
-              {isHindi ? 'आपकी शिकायत आईडी' : 'Your Complaint ID'}
-            </Text>
-            <Text style={styles.complaintId}>{complaintId}</Text>
-            <Text style={styles.complaintHint}>
-              {isHindi
-                ? 'इस ID से आप कभी भी शिकायत की स्थिति देख सकते हैं।'
-                : 'Use this ID to track your complaint progress.'}
-            </Text>
-          </View>
-        ) : null}
-
         {/* SUBMIT BUTTON */}
         <TouchableOpacity
           style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]}
@@ -993,14 +1122,194 @@ export default function ReportScreen() {
           activeOpacity={0.88}
           disabled={isSubmitting}
         >
-          <Ionicons name="send" size={18} color={COLORS.white} />
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Ionicons name="send" size={18} color={COLORS.white} />
+          )}
           <Text style={styles.submitText}>
             {isSubmitting
-              ? isHindi ? 'शिकायत दर्ज हो रही है...' : 'Submitting...'
+              ? isHindi ? 'AI विश्लेषण व शिकायत दर्ज हो रही है...' : 'AI Analyzing & Submitting...'
               : isHindi ? 'शिकायत दर्ज करें' : 'Submit Problem'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* =================================================
+          PROBLEM DETAILS SUCCESS POP-UP MODAL
+      ================================================= */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {/* TRICOLOR TOP BAR */}
+            <View style={styles.modalTricolorBar}>
+              <View style={styles.saffronStripe} />
+              <View style={styles.whiteStripe} />
+              <View style={styles.greenStripe} />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+              {/* SUCCESS ICON & TITLE */}
+              <View style={styles.modalHeaderCenter}>
+                <View style={styles.modalSuccessCircle}>
+                  <Ionicons name="checkmark-done" size={32} color="#16A34A" />
+                </View>
+
+                <Text style={styles.modalTitle}>
+                  {submittedData?.isOffline
+                    ? isHindi ? '📶 शिकायत ऑफलाइन दर्ज हुई' : '📶 Complaint Saved Offline'
+                    : isHindi ? 'शिकायत सफलतापूर्वक दर्ज हुई' : 'Complaint Submitted Successfully'}
+                </Text>
+
+                <Text style={styles.modalSubtitle}>
+                  {isHindi
+                    ? 'AI द्वारा समस्या का विश्लेषण व विभाग आवंटन पूर्ण हुआ'
+                    : 'AI has analyzed and assigned your complaint to the concerned department.'}
+                </Text>
+
+                {/* TICKET ID BADGE */}
+                <View style={styles.modalTicketPill}>
+                  <Ionicons name="ticket" size={16} color={COLORS.primary} />
+                  <Text style={styles.modalTicketText}>
+                    {isHindi ? 'शिकायत आईडी:' : 'Complaint ID:'} #{submittedData?.id}
+                  </Text>
+                </View>
+              </View>
+
+              {/* AI & PROBLEM DETAILS BOX */}
+              <View style={styles.detailsCardBox}>
+                <View style={styles.detailsSectionTitleRow}>
+                  <Ionicons name="sparkles" size={16} color="#EA580C" />
+                  <Text style={styles.detailsSectionTitle}>
+                    {isHindi ? 'AI समस्या विश्लेषण विवरण' : 'AI Problem Details & Routing'}
+                  </Text>
+                </View>
+
+                {/* CATEGORY & DEPARTMENT ROW */}
+                <View style={styles.detailItemRow}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>{isHindi ? 'श्रेणी (Category)' : 'Category'}</Text>
+                    <View style={styles.categoryBadge}>
+                      <Ionicons name="folder-open" size={13} color={COLORS.primary} />
+                      <Text style={styles.categoryBadgeText}>{submittedData?.category || 'Village Issue'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>{isHindi ? 'आवंटित विभाग' : 'Department'}</Text>
+                    <Text style={styles.deptValueText} numberOfLines={2}>
+                      {submittedData?.department || 'General Grievance'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* PRIORITY & SENTIMENT ROW */}
+                <View style={[styles.detailItemRow, { marginTop: 10 }]}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>{isHindi ? 'प्राथमिकता (Priority)' : 'AI Priority'}</Text>
+                    {(() => {
+                      const pStyle = getPriorityColor(submittedData?.priority || 'MEDIUM');
+                      return (
+                        <View style={[styles.priorityBadge, { backgroundColor: pStyle.bg, borderColor: pStyle.border }]}>
+                          <Text style={[styles.priorityBadgeText, { color: pStyle.text }]}>
+                            ⚡ {submittedData?.priority || 'MEDIUM'}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>{isHindi ? 'भाव (Sentiment)' : 'Sentiment'}</Text>
+                    {(() => {
+                      const sBadge = getSentimentBadge(submittedData?.sentiment || 'NEUTRAL');
+                      return (
+                        <View style={styles.sentimentBadge}>
+                          <Ionicons name={sBadge.icon as any} size={14} color={sBadge.color} />
+                          <Text style={[styles.sentimentBadgeText, { color: sBadge.color }]}>
+                            {sBadge.label}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                </View>
+
+                {/* WARD & LOCATION */}
+                <View style={styles.detailDivider} />
+                <View style={styles.detailSingleRow}>
+                  <Ionicons name="location" size={15} color={COLORS.primary} />
+                  <Text style={styles.detailSingleLabel}>
+                    {isHindi ? 'समस्या वार्ड:' : 'Problem Ward:'}{' '}
+                    <Text style={styles.detailSingleValue}>{submittedData?.ward}</Text>
+                  </Text>
+                </View>
+
+                {/* DESCRIPTION */}
+                {Boolean(submittedData?.description) && (
+                  <View style={styles.descBox}>
+                    <Text style={styles.descBoxLabel}>{isHindi ? 'विवरण (Description):' : 'Description:'}</Text>
+                    <Text style={styles.descBoxText} numberOfLines={4}>
+                      "{submittedData?.description}"
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* ACTION BUTTONS */}
+              <View style={styles.modalActionGroup}>
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    if (submittedData?.id) {
+                      router.push({
+                        pathname: '/complaint-details',
+                        params: { id: submittedData.id },
+                      });
+                    }
+                  }}
+                  activeOpacity={0.88}
+                >
+                  <Ionicons name="eye-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.modalPrimaryBtnText}>
+                    {isHindi ? 'शिकायत की स्थिति ट्रैक करें' : 'Track Complaint Status'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalSecondaryBtn}
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    router.replace('/citizen-dashboard');
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="grid-outline" size={16} color={COLORS.primary} />
+                  <Text style={styles.modalSecondaryBtnText}>
+                    {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => setShowSuccessModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCloseBtnText}>
+                    {isHindi ? 'नई शिकायत दर्ज करें' : 'Report Another Problem'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1048,46 +1357,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
   },
   backButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: RADIUS.md,
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     ...SHADOWS.small,
   },
   headerTitle: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '900',
     color: '#0F172A',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#475569',
-    fontWeight: '600',
+    color: '#64748B',
     marginTop: 1,
   },
   languageButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: RADIUS.round,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    borderColor: '#E2E8F0',
+    gap: 4,
     ...SHADOWS.small,
   },
   languageText: {
-    marginLeft: 5,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#000080',
+    color: COLORS.primary,
   },
 
   // ==========================================
@@ -1097,69 +1404,67 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
-    gap: 10,
+    borderRadius: RADIUS.md,
+    padding: 10,
+    marginBottom: SPACING.md,
     ...SHADOWS.small,
   },
   citizenIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#E8E8F5',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
   },
   citizenInfoCol: {
     flex: 1,
   },
   citizenNameText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#0F172A',
   },
   citizenWardSub: {
     fontSize: 11.5,
-    color: '#475569',
+    color: '#64748B',
     marginTop: 1,
-    fontWeight: '600',
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EAF6E8',
+    backgroundColor: '#DCFCE7',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: RADIUS.round,
     gap: 3,
   },
   verifiedText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#138808',
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#166534',
   },
 
   // ==========================================
-  // SECTION HEADERS
+  // SECTIONS
   // ==========================================
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: SPACING.md,
-    marginBottom: SPACING.xs,
+    marginBottom: 8,
+    gap: 8,
   },
   sectionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: RADIUS.sm,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: '#E8E8F5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.sm,
   },
   sectionHeaderContent: {
     flex: 1,
@@ -1169,15 +1474,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0F172A',
   },
+  required: {
+    color: COLORS.error,
+  },
   sectionSubtitle: {
     fontSize: 11.5,
-    color: '#475569',
+    color: '#64748B',
     marginTop: 1,
-    fontWeight: '500',
-  },
-  required: {
-    color: '#DC2626',
-    fontWeight: '800',
   },
 
   // ==========================================
@@ -1185,61 +1488,60 @@ const styles = StyleSheet.create({
   // ==========================================
   wardCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.small,
   },
   wardQuestion: {
-    fontSize: 13.5,
-    color: '#0F172A',
-    fontWeight: '800',
-    marginBottom: SPACING.sm,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 10,
   },
   wardChoiceRow: {
     flexDirection: 'row',
-    gap: SPACING.sm,
+    gap: 10,
   },
   wardChoice: {
     flex: 1,
-    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: '#CBD5E1',
     backgroundColor: '#F8FAFC',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 8,
   },
   wardChoiceActive: {
-    borderColor: '#138808',
-    backgroundColor: '#EAF6E8',
+    borderColor: COLORS.success,
+    backgroundColor: '#F0FDF4',
   },
   wardChoiceActiveSaffron: {
-    borderColor: '#FF9933',
-    backgroundColor: '#FFF1E3',
+    borderColor: COLORS.saffron,
+    backgroundColor: '#FFFBEB',
   },
   wardChoiceText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#334155',
+    color: '#475569',
   },
   wardChoiceTextActive: {
-    color: '#138808',
+    color: '#166534',
     fontWeight: '800',
   },
   wardChoiceTextSaffron: {
-    color: '#D97706',
+    color: '#B45309',
     fontWeight: '800',
   },
   wardOptionsWrap: {
-    marginTop: SPACING.sm,
-    paddingTop: SPACING.sm,
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#EEF2F7',
+    borderTopColor: '#F1F5F9',
   },
   wardOptionsHeaderRow: {
     flexDirection: 'row',
@@ -1248,23 +1550,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   wardSelectLabel: {
-    fontSize: 11.5,
-    color: '#475569',
+    fontSize: 12,
     fontWeight: '700',
+    color: '#334155',
   },
   closeListBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    gap: 2,
   },
   closeListText: {
-    fontSize: 10.5,
+    fontSize: 11.5,
+    color: '#64748B',
     fontWeight: '700',
-    color: '#475569',
   },
   wardOptionsGrid: {
     flexDirection: 'row',
@@ -1272,77 +1570,72 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   wardOption: {
-    width: '23%',
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: RADIUS.sm,
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
+    borderColor: '#E2E8F0',
   },
   wardOptionActive: {
-    backgroundColor: '#FF9933',
-    borderColor: '#FF9933',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   wardOptionText: {
     fontSize: 11.5,
-    color: '#334155',
     fontWeight: '700',
+    color: '#334155',
   },
   wardOptionTextActive: {
     color: '#FFFFFF',
     fontWeight: '800',
   },
   selectedWardRow: {
-    marginTop: SPACING.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: RADIUS.sm,
-    backgroundColor: '#E8E8F5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: RADIUS.md,
+    marginTop: 10,
   },
   selectedWardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flex: 1,
   },
   selectedWardText: {
-    fontSize: 11.5,
-    color: '#334155',
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#475569',
   },
   selectedWardBold: {
-    color: '#000080',
-    fontWeight: '900',
+    fontWeight: '800',
+    color: '#0F172A',
   },
   changeWardButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    gap: 3,
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    gap: 4,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   changeWardText: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#B45309',
   },
 
   // ==========================================
-  // AUDIO CARD
+  // AUDIO & VOICE-TO-TEXT CARD
   // ==========================================
   audioCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.lg,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.small,
   },
@@ -1355,35 +1648,33 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: '#E8E8F5',
-    alignItems: 'center',
     justifyContent: 'center',
-    marginRight: SPACING.sm,
+    alignItems: 'center',
   },
   audioMicCircleRecording: {
-    backgroundColor: '#FEECEC',
+    backgroundColor: '#FEE2E2',
   },
   audioTextBlock: {
     flex: 1,
+    marginLeft: 12,
   },
   audioTitle: {
     fontSize: 13.5,
-    color: '#0F172A',
     fontWeight: '800',
+    color: '#0F172A',
   },
   audioDuration: {
-    marginTop: 2,
     fontSize: 11.5,
-    color: '#475569',
-    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 2,
   },
   recordButton: {
-    minHeight: 38,
-    paddingHorizontal: 12,
-    borderRadius: RADIUS.md,
-    backgroundColor: '#000080',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: RADIUS.md,
     gap: 5,
   },
   stopRecordButton: {
@@ -1391,62 +1682,76 @@ const styles = StyleSheet.create({
   },
   recordButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '800',
   },
-  audioActions: {
-    marginTop: SPACING.sm,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: '#EEF2F7',
+  transcribingBanner: {
     flexDirection: 'row',
-    gap: SPACING.sm,
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    marginTop: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  transcribingText: {
+    fontSize: 12,
+    color: '#C2410C',
+    fontWeight: '700',
+  },
+  audioActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
   playAudioButton: {
     flex: 1,
-    minHeight: 38,
-    borderRadius: RADIUS.md,
-    backgroundColor: '#EAF6E8',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#E8E8F5',
+    paddingVertical: 8,
+    borderRadius: RADIUS.md,
     gap: 5,
   },
   playAudioText: {
-    color: '#138808',
     fontSize: 12,
     fontWeight: '800',
+    color: COLORS.primary,
   },
   removeAudioButton: {
-    minHeight: 38,
-    paddingHorizontal: 12,
-    borderRadius: RADIUS.md,
-    backgroundColor: '#FEECEC',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
+    paddingHorizontal: 12,
+    backgroundColor: '#FEE2E2',
+    borderRadius: RADIUS.md,
+    gap: 4,
   },
   removeAudioText: {
-    color: '#DC2626',
     fontSize: 12,
     fontWeight: '800',
+    color: '#DC2626',
   },
 
   // ==========================================
   // DESCRIPTION INPUT
   // ==========================================
   descriptionInput: {
-    minHeight: 120,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     fontSize: 13.5,
     color: '#0F172A',
-    lineHeight: 20,
-    fontWeight: '500',
+    minHeight: 110,
+    ...SHADOWS.small,
   },
 
   // ==========================================
@@ -1454,47 +1759,44 @@ const styles = StyleSheet.create({
   // ==========================================
   photoRow: {
     flexDirection: 'row',
-    gap: SPACING.sm,
+    gap: 12,
   },
   photoButton: {
     flex: 1,
-    minHeight: 100,
     backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    justifyContent: 'center',
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
     alignItems: 'center',
-    padding: SPACING.sm,
-    ...SHADOWS.small,
+    justifyContent: 'center',
   },
   photoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.sm,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#E8E8F5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 6,
   },
   photoButtonTitle: {
     fontSize: 12.5,
     fontWeight: '800',
     color: '#0F172A',
-    textAlign: 'center',
   },
   photoButtonSub: {
     fontSize: 11,
     color: '#64748B',
     marginTop: 1,
-    textAlign: 'center',
   },
   imageCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    overflow: 'hidden',
     ...SHADOWS.small,
   },
   previewImage: {
@@ -1530,10 +1832,10 @@ const styles = StyleSheet.create({
   },
 
   // ==========================================
-  // MERGED GPS LOCATION CARD
+  // GPS LOCATION CARD
   // ==========================================
   locationCard: {
-    minHeight: 60,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -1551,9 +1853,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#EAF6E8',
   },
   locationIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#E8E8F5',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1565,12 +1867,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationCardTitle: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
   locationCardSub: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#475569',
     marginTop: 1,
   },
@@ -1580,49 +1882,7 @@ const styles = StyleSheet.create({
   },
 
   // ==========================================
-  // COMPLAINT BOX
-  // ==========================================
-  complaintBox: {
-    backgroundColor: '#E8E8F5',
-    borderWidth: 1.5,
-    borderColor: '#C7D2FE',
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginTop: SPACING.md,
-    alignItems: 'center',
-  },
-  complaintIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-    ...SHADOWS.small,
-  },
-  complaintLabel: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '700',
-  },
-  complaintId: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#000080',
-    marginTop: 2,
-    letterSpacing: 0.5,
-  },
-  complaintHint: {
-    fontSize: 11.5,
-    color: '#334155',
-    marginTop: 4,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-
-  // ==========================================
-  // SUBMIT
+  // SUBMIT BUTTON
   // ==========================================
   submitButton: {
     height: 52,
@@ -1683,5 +1943,238 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
+  },
+
+  // ==========================================
+  // SUCCESS POP-UP MODAL STYLES
+  // ==========================================
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.screen,
+  },
+  modalCard: {
+    width: '100%',
+    maxHeight: '88%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    ...SHADOWS.large,
+  },
+  modalTricolorBar: {
+    flexDirection: 'row',
+    height: 5,
+    width: '100%',
+  },
+  modalScroll: {
+    padding: SPACING.lg,
+  },
+  modalHeaderCenter: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  modalSuccessCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 3,
+    borderColor: '#86EFAC',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  modalTicketPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8E8F5',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: RADIUS.round,
+    marginTop: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  modalTicketText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+
+  /* DETAILS CARD BOX */
+  detailsCardBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  detailsSectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  detailsSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  detailItemRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  detailCol: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8E8F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.xs,
+    gap: 4,
+  },
+  categoryBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  deptValueText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 16,
+  },
+  priorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.xs,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  priorityBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  sentimentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 3,
+  },
+  sentimentBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  detailDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 10,
+  },
+  detailSingleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  detailSingleLabel: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  detailSingleValue: {
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  descBox: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  descBoxLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  descBoxText: {
+    fontSize: 11.5,
+    color: '#334155',
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+
+  /* MODAL ACTION GROUP */
+  modalActionGroup: {
+    gap: 10,
+  },
+  modalPrimaryBtn: {
+    height: 48,
+    backgroundColor: '#000080',
+    borderRadius: RADIUS.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    ...SHADOWS.medium,
+  },
+  modalPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  modalSecondaryBtn: {
+    height: 44,
+    backgroundColor: '#F1F5F9',
+    borderRadius: RADIUS.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  modalSecondaryBtnText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  modalCloseBtn: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  modalCloseBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
   },
 });

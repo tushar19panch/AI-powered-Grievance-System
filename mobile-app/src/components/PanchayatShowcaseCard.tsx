@@ -11,6 +11,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
+import { villageApi } from '../services/api';
+
+import { Platform } from 'react-native';
+
 interface PanchayatShowcaseCardProps {
   userName?: string;
   villageName?: string;
@@ -31,18 +35,55 @@ export function PanchayatShowcaseCard({
 
   useEffect(() => {
     loadVillagePhoto();
+    // Fast periodic check so changes from other devices/roles update automatically
+    const interval = setInterval(loadVillagePhoto, 3000);
+
+    const handlePhotoChanged = (e: any) => {
+      if (e?.detail) {
+        setVillagePhoto(e.detail);
+      } else if (e?.detail === null) {
+        setVillagePhoto(null);
+      } else {
+        loadVillagePhoto();
+      }
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('village_photo_changed', handlePhotoChanged);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.removeEventListener('village_photo_changed', handlePhotoChanged);
+      }
+    };
   }, [villageName]);
 
   const loadVillagePhoto = async () => {
     try {
-      const saved = await AsyncStorage.getItem(`village_photo_${villageName}`);
-      if (saved) {
-        setVillagePhoto(saved);
-        return;
-      }
+      // 1. Fast load from local storage
       const genericSaved = await AsyncStorage.getItem('village_cover_photo');
       if (genericSaved) {
         setVillagePhoto(genericSaved);
+      } else if (villageName) {
+        const saved = await AsyncStorage.getItem(`village_photo_${villageName}`);
+        if (saved) {
+          setVillagePhoto(saved);
+        }
+      }
+
+      // 2. Fetch latest photo from Backend Server
+      const res = await villageApi.getPhoto(villageName);
+      if (res?.photoUrl && res.photoUrl.trim()) {
+        setVillagePhoto(res.photoUrl);
+        await AsyncStorage.setItem('village_cover_photo', res.photoUrl);
+        if (villageName) {
+          await AsyncStorage.setItem(`village_photo_${villageName}`, res.photoUrl);
+        }
+      } else if (res && res.photoUrl === '') {
+        // If explicitly emptied on server, clear local
+        setVillagePhoto(null);
       }
     } catch (e) {
       console.log('Error loading village photo:', e);

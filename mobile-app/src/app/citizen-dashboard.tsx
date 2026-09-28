@@ -257,9 +257,6 @@ export default function CitizenDashboard() {
             <Text style={styles.sectionTitle}>
               {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
             </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi ? 'आपकी शिकायतों की वर्तमान स्थिति' : 'Current status of your grievances'}
-            </Text>
           </View>
 
           <View style={styles.sectionIcon}>
@@ -316,11 +313,6 @@ export default function CitizenDashboard() {
             <Text style={styles.sectionTitle}>
               {isHindi ? 'समस्या रिपोर्ट करें' : 'Report Grievance'}
             </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'गाँव की किसी भी समस्या को सीधे दर्ज करें'
-                : 'Directly register any village grievance'}
-            </Text>
           </View>
 
           <View style={styles.aiBadge}>
@@ -361,18 +353,6 @@ export default function CitizenDashboard() {
           <View>
             <Text style={styles.sectionTitle}>
               {isHindi ? 'पंचायत सेवाएं एवं रिकॉर्ड्स' : 'Panchayat Services & Records'}
-            </Text>
-            <Text style={styles.sectionSubtitle}>
-              {isHindi
-                ? 'शिकायत रिकॉर्ड्स, स्कोरकार्ड व गाँव की जानकारी'
-                : 'My complaints, ward scores & village details'}
-            </Text>
-          </View>
-
-          <View style={styles.aiBadge}>
-            <Ionicons name="grid-outline" size={14} color={COLORS.primary} />
-            <Text style={styles.aiText}>
-              {isHindi ? 'सेवाएं' : 'SERVICES'}
             </Text>
           </View>
         </View>

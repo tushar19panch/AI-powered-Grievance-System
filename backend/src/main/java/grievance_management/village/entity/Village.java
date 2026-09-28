@@ -27,4 +27,8 @@ public class Village {
 
     @Column(nullable = false)
     private String state;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String photoUrl;
 }

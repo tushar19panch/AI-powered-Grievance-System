@@ -30,6 +30,9 @@ public class Notification {
     @Column(nullable = false)
     private boolean isRead;
 
+    @Column(name = "complaint_id")
+    private Long complaintId;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 

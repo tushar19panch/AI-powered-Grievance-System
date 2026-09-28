@@ -92,7 +92,7 @@ public class SecurityConfig {
                         .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
                         // Notifications for all authenticated users
-                        .requestMatchers("/api/notifications/**")
+                        .requestMatchers("/api/notifications", "/api/notifications/**")
                         .authenticated()
 
                         // Everything else requires authentication

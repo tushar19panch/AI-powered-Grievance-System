@@ -195,26 +195,12 @@ export function ComplaintOverviewSection({
   return (
     <View style={styles.container}>
       {/* =================================================
-          1. PRIORITY SECTION (GENUINE PANCHAYAT DATA)
+          1. PRIORITY SECTION
       ================================================= */}
       <View style={styles.sectionHeader}>
-        <View style={{ flex: 1, marginRight: 8 }}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle} numberOfLines={1}>
-            {isHindi ? 'प्राथमिकता स्तर (Priority)' : 'Complaint Priority'}
-          </Text>
-          <Text style={styles.sectionSubtitle} numberOfLines={1}>
-            {isHindi ? 'गंभीरता अनुसार शिकायतों का वर्गीकरण' : 'Grievance severity breakdown'}
-          </Text>
-        </View>
-
-        <View style={[styles.aiBadge, { flexShrink: 0 }]}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={12}
-            color={COLORS.primary}
-          />
-          <Text style={styles.aiText}>
-            {isHindi ? 'प्राथमिकता' : 'PRIORITY'}
+            {isHindi ? 'शिकायत प्राथमिकता (Priority)' : 'Complaint Priority'}
           </Text>
         </View>
       </View>
@@ -260,26 +246,12 @@ export function ComplaintOverviewSection({
       </View>
 
       {/* =================================================
-          2. AI CLASSIFICATION SECTION (GENUINE PANCHAYAT DATA)
+          2. AI CLASSIFICATION SECTION
       ================================================= */}
       <View style={[styles.sectionHeader, { marginTop: 14 }]}>
-        <View style={{ flex: 1, marginRight: 8 }}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle} numberOfLines={1}>
-            {isHindi ? 'AI वर्गीकरण (Classification)' : 'AI Classification'}
-          </Text>
-          <Text style={styles.sectionSubtitle} numberOfLines={1}>
-            {isHindi ? 'वास्तविक, डुप्लीकेट व सत्यापन स्थिति' : 'Genuine, duplicate & verification status'}
-          </Text>
-        </View>
-
-        <View style={[styles.aiBadge, { flexShrink: 0 }]}>
-          <Ionicons
-            name="scan-outline"
-            size={12}
-            color={COLORS.primary}
-          />
-          <Text style={styles.aiText}>
-            {isHindi ? 'AI वर्गीकरण' : 'CLASSIFICATION'}
+            {isHindi ? 'AI वर्गीकरण (AI Classification)' : 'AI Classification'}
           </Text>
         </View>
       </View>

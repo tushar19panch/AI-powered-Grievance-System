@@ -341,8 +341,76 @@ export default function AdminScreen() {
         </Animated.View>
 
         {/* =================================================
-            COMPLAINT OVERVIEW / शिकायतों का अवलोकन
-            (PRIORITY & CLASSIFICATION BREAKDOWNS)
+            COMPLAINT OVERVIEW / STATS (3 STAT CARDS)
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle} numberOfLines={1}>
+              {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          {/* TOTAL */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('all')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+              <Ionicons name="document-text-outline" size={20} color={COLORS.primary} />
+            </View>
+            <Text style={styles.statNumber}>{complaints.length}</Text>
+            <Text style={styles.statLabel}>{isHindi ? 'कुल शिकायतें' : 'Total'}</Text>
+          </TouchableOpacity>
+
+          {/* IN PROGRESS */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('in-progress')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
+              <Ionicons name="time-outline" size={20} color={COLORS.warning} />
+            </View>
+            <Text style={styles.statNumber}>
+              {complaints.filter((c) => {
+                const s = String(c.status || '').toUpperCase();
+                return (
+                  s === 'IN_PROGRESS' ||
+                  s === 'IN PROGRESS' ||
+                  s === 'ACTION_TAKEN' ||
+                  s === 'ACTION TAKEN' ||
+                  s === 'UNDER_REVIEW' ||
+                  s === 'UNDER REVIEW'
+                );
+              }).length}
+            </Text>
+            <Text style={styles.statLabel}>{isHindi ? 'प्रगति में' : 'In Progress'}</Text>
+          </TouchableOpacity>
+
+          {/* RESOLVED */}
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => openComplaints('resolved')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
+              <Ionicons name="checkmark-circle-outline" size={20} color={COLORS.success} />
+            </View>
+            <Text style={styles.statNumber}>
+              {complaints.filter((c) => {
+                const s = String(c.status || '').toUpperCase();
+                return s === 'RESOLVED' || s === 'CLOSED' || s === 'VERIFICATION';
+              }).length}
+            </Text>
+            <Text style={styles.statLabel}>{isHindi ? 'निस्तारित' : 'Resolved'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* =================================================
+            COMPLAINT BREAKDOWNS (PRIORITY & CLASSIFICATION)
         ================================================= */}
         <ComplaintOverviewSection
           complaints={complaints}
@@ -354,23 +422,9 @@ export default function AdminScreen() {
             PANCHAYAT MANAGEMENT & SERVICES GRID
         ================================================= */}
         <View style={styles.sectionHeader}>
-          <View style={{ flex: 1, marginRight: 8 }}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.sectionTitle} numberOfLines={1}>
               {isHindi ? 'पंचायत प्रबंधन व सेवाएं' : 'Panchayat Services & Controls'}
-            </Text>
-            <Text style={styles.sectionSubtitle} numberOfLines={1}>
-              {isHindi ? 'शिकायतें, रिपोर्ट्स, वार्ड स्कोरकार्ड व सहायता' : 'Complaints, reports, ward scorecard & help'}
-            </Text>
-          </View>
-
-          <View style={[styles.aiBadge, { flexShrink: 0 }]}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={14}
-              color={COLORS.primary}
-            />
-            <Text style={styles.aiText}>
-              {isHindi ? 'सरपंच पोर्टल' : 'ADMIN PORTAL'}
             </Text>
           </View>
         </View>
@@ -930,6 +984,41 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.small,
     color: COLORS.textMuted,
     marginTop: 3,
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.small,
+  },
+  statIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.navy,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    fontWeight: '600',
   },
 
   // FOOTER

@@ -27,6 +27,7 @@ public class ComplaintService {
     private final VillageRepository villageRepository;
     private final WardRepository wardRepository;
     private final grievance_management.notification.service.NotificationService notificationService;
+    private final grievance_management.ai.service.AiService aiService;
 
     public ComplaintService(
             ComplaintRepository complaintRepository,
@@ -34,7 +35,8 @@ public class ComplaintService {
             UserRepository userRepository,
             VillageRepository villageRepository,
             WardRepository wardRepository,
-            grievance_management.notification.service.NotificationService notificationService) {
+            grievance_management.notification.service.NotificationService notificationService,
+            grievance_management.ai.service.AiService aiService) {
 
         this.complaintRepository = complaintRepository;
         this.statusHistoryRepository = statusHistoryRepository;
@@ -42,6 +44,7 @@ public class ComplaintService {
         this.villageRepository = villageRepository;
         this.wardRepository = wardRepository;
         this.notificationService = notificationService;
+        this.aiService = aiService;
     }
 
     // =========================================================
@@ -80,18 +83,41 @@ public class ComplaintService {
         }
 
         // ---------------------------------------------------------
-        // Problem type
+        // AI Analysis Pipeline (Category, Dept, Priority, Sentiment)
         // ---------------------------------------------------------
+        String descriptionText = request.getDescription() != null ? request.getDescription().trim() : "";
+        grievance_management.ai.dto.AiAnalysisResult aiResult = aiService.analyzeComplaint(descriptionText);
+
+        // AI Predictions take priority for automated categorization and routing
+        String category = aiResult.getCategory();
+        if (category == null || category.isBlank() || category.equalsIgnoreCase("Other")) {
+            category = request.getCategory();
+        }
+        if (category == null || category.isBlank()) {
+            category = "Other";
+        }
 
         String problemType = request.getProblemType();
-
-        if (problemType == null || problemType.isBlank()) {
-            problemType = request.getCategory();
+        if (problemType == null || problemType.isBlank() || problemType.equalsIgnoreCase("Other")) {
+            problemType = category;
         }
 
-        if (problemType == null || problemType.isBlank()) {
-            problemType = "Other";
+        String department = aiResult.getDepartment();
+        if (department == null || department.isBlank() || department.contains("General Grievance")) {
+            if (request.getDepartment() != null && !request.getDepartment().isBlank()) {
+                department = request.getDepartment();
+            }
         }
+        if (department == null || department.isBlank()) {
+            department = "General Grievance / Administration";
+        }
+
+        String priority = aiResult.getPriority();
+        if (priority == null || priority.isBlank()) {
+            priority = (request.getPriority() != null && !request.getPriority().isBlank()) ? request.getPriority() : "MEDIUM";
+        }
+
+        String sentiment = aiResult.getSentiment() != null && !aiResult.getSentiment().isBlank() ? aiResult.getSentiment() : "NEUTRAL";
 
         // ---------------------------------------------------------
         // Create complaint
@@ -99,21 +125,10 @@ public class ComplaintService {
 
         Complaint complaint = Complaint.builder()
                 .problemType(problemType.trim())
-                .category(
-                        request.getCategory() != null
-                                ? request.getCategory().trim()
-                                : null
-                )
-                .priority(
-                        request.getPriority() != null
-                                ? request.getPriority().trim()
-                                : null
-                )
-                .department(
-                        request.getDepartment() != null
-                                ? request.getDepartment().trim()
-                                : null
-                )
+                .category(category != null ? category.trim() : null)
+                .priority(priority != null ? priority.trim() : "MEDIUM")
+                .department(department != null ? department.trim() : null)
+                .sentiment(sentiment.trim())
                 .deadline(request.getDeadline())
                 .photo(
                         request.getPhoto() != null
@@ -131,7 +146,7 @@ public class ComplaintService {
                 .ward(citizen.getWard())
                 .citizen(citizen)
                 .location(request.getLocation().trim())
-                .description(request.getDescription().trim())
+                .description(descriptionText)
                 .status(ComplaintStatus.SUBMITTED)
                 .build();
 
@@ -272,24 +287,25 @@ public class ComplaintService {
                     complaint.getWard().getWardNumber();
         }
 
-        return new ComplaintResponse(
-                complaint.getId(),
-                complaint.getProblemType(),
-                complaint.getCategory(),
-                complaint.getPriority(),
-                complaint.getDepartment(),
-                complaint.getDeadline(),
-                complaint.getPhoto(),
-                complaint.getAudioUrl(),
-                complaint.getLatitude(),
-                complaint.getLongitude(),
-                villageName,
-                wardNumber,
-                complaint.getLocation(),
-                complaint.getDescription(),
-                complaint.getStatus(),
-                complaint.getCreatedAt(),
-                complaint.getUpdatedAt()
-        );
+        return ComplaintResponse.builder()
+                .id(complaint.getId())
+                .problemType(complaint.getProblemType())
+                .category(complaint.getCategory())
+                .priority(complaint.getPriority())
+                .department(complaint.getDepartment())
+                .sentiment(complaint.getSentiment())
+                .deadline(complaint.getDeadline())
+                .photo(complaint.getPhoto())
+                .audioUrl(complaint.getAudioUrl())
+                .latitude(complaint.getLatitude())
+                .longitude(complaint.getLongitude())
+                .villageName(villageName)
+                .wardNumber(wardNumber)
+                .location(complaint.getLocation())
+                .description(complaint.getDescription())
+                .status(complaint.getStatus())
+                .createdAt(complaint.getCreatedAt())
+                .updatedAt(complaint.getUpdatedAt())
+                .build();
     }
 }
