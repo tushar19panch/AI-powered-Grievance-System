@@ -196,11 +196,11 @@ public class CitizenComplaintController {
 
         checkCitizenAccess(citizen, complaint);
 
-        if (complaint.getStatus()
-                != ComplaintStatus.VERIFICATION) {
+        if (complaint.getStatus() != ComplaintStatus.VERIFICATION
+                && complaint.getStatus() != ComplaintStatus.RESOLVED) {
 
             throw new RuntimeException(
-                    "Complaint must be verified before closing");
+                    "Only a RESOLVED or VERIFICATION complaint can be closed");
         }
 
         ComplaintStatus oldStatus =

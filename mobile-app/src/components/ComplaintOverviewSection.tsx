@@ -9,6 +9,8 @@ interface ComplaintItem {
   status?: string;
   priority?: string;
   classification?: string;
+  category?: string;
+  description?: string;
 }
 
 interface ComplaintOverviewSectionProps {
@@ -22,60 +24,134 @@ export function ComplaintOverviewSection({
   onSelectFilter,
   isHindi = false,
 }: ComplaintOverviewSectionProps) {
-  const hasComplaints = complaints.length > 0;
+  // =====================================================
+  // GENUINE DYNAMIC PRIORITY COUNTS CALCULATION
+  // =====================================================
+  const countVeryHigh = complaints.filter((c) => {
+    const p = String(c.priority || '').toUpperCase();
+    const desc = String(c.description || '').toLowerCase();
+    return (
+      p === 'VERY_HIGH' ||
+      p === 'VERY HIGH' ||
+      p === 'CRITICAL' ||
+      p === 'URGENT' ||
+      desc.includes('आपातकालीन') ||
+      desc.includes('खतरा') ||
+      desc.includes('urgent') ||
+      desc.includes('critical')
+    );
+  }).length;
 
-  // Priority counts calculation
-  const countVeryHigh = hasComplaints
-    ? complaints.filter((c) => {
-        const p = String(c.priority || '').toUpperCase();
-        return p === 'VERY_HIGH' || p === 'VERY HIGH' || p === 'CRITICAL' || p === 'URGENT';
-      }).length
-    : 3;
+  const countHigh = complaints.filter((c) => {
+    const p = String(c.priority || '').toUpperCase();
+    const desc = String(c.description || '').toLowerCase();
+    const isVeryHigh =
+      p === 'VERY_HIGH' ||
+      p === 'VERY HIGH' ||
+      p === 'CRITICAL' ||
+      p === 'URGENT' ||
+      desc.includes('आपातकालीन') ||
+      desc.includes('खतरा') ||
+      desc.includes('urgent') ||
+      desc.includes('critical');
+    if (isVeryHigh) return false;
+    return (
+      p === 'HIGH' ||
+      desc.includes('गंभीर') ||
+      desc.includes('भारी') ||
+      desc.includes('severe')
+    );
+  }).length;
 
-  const countHigh = hasComplaints
-    ? complaints.filter((c) => String(c.priority || '').toUpperCase() === 'HIGH').length
-    : 9;
+  const countLow = complaints.filter((c) => {
+    const p = String(c.priority || '').toUpperCase();
+    return p === 'LOW';
+  }).length;
 
-  const countMedium = hasComplaints
-    ? complaints.filter((c) => {
-        const p = String(c.priority || '').toUpperCase();
-        return p === 'MEDIUM' || p === 'NORMAL' || (!c.priority && c.status !== 'RESOLVED');
-      }).length
-    : 21;
+  const countMedium = complaints.filter((c) => {
+    const p = String(c.priority || '').toUpperCase();
+    const desc = String(c.description || '').toLowerCase();
+    const isVeryHigh =
+      p === 'VERY_HIGH' ||
+      p === 'VERY HIGH' ||
+      p === 'CRITICAL' ||
+      p === 'URGENT' ||
+      desc.includes('आपातकालीन') ||
+      desc.includes('खतरा') ||
+      desc.includes('urgent') ||
+      desc.includes('critical');
+    const isHigh =
+      p === 'HIGH' ||
+      desc.includes('गंभीर') ||
+      desc.includes('भारी') ||
+      desc.includes('severe');
+    const isLow = p === 'LOW';
+    return !isVeryHigh && !isHigh && !isLow;
+  }).length;
 
-  const countLow = hasComplaints
-    ? complaints.filter((c) => String(c.priority || '').toUpperCase() === 'LOW').length
-    : 10;
+  // =====================================================
+  // GENUINE DYNAMIC AI CLASSIFICATION COUNTS CALCULATION
+  // =====================================================
+  const countDuplicate = complaints.filter((c) => {
+    const cl = String(c.classification || '').toUpperCase();
+    return cl === 'DUPLICATE' || cl === 'COPIED';
+  }).length;
 
-  // Classification counts calculation
-  const countGenuine = hasComplaints
-    ? complaints.filter((c) => {
-        const cl = String(c.classification || '').toUpperCase();
-        return cl === 'GENUINE' || cl === 'REAL' || (!cl && String(c.status || '').toUpperCase() !== 'CLOSED');
-      }).length
-    : 32;
+  const countFake = complaints.filter((c) => {
+    const cl = String(c.classification || '').toUpperCase();
+    const desc = String(c.description || '').toLowerCase();
+    return (
+      cl === 'FAKE' ||
+      cl === 'INVALID' ||
+      cl === 'SPAM' ||
+      desc.includes('test complaint') ||
+      desc.includes('fake') ||
+      desc.includes('spam')
+    );
+  }).length;
 
-  const countDuplicate = hasComplaints
-    ? complaints.filter((c) => {
-        const cl = String(c.classification || '').toUpperCase();
-        return cl === 'DUPLICATE' || cl === 'COPIED';
-      }).length
-    : 8;
+  const countNeedsVerification = complaints.filter((c) => {
+    const cl = String(c.classification || '').toUpperCase();
+    const st = String(c.status || '').toUpperCase();
+    const desc = String(c.description || '').toLowerCase();
+    const isFake =
+      cl === 'FAKE' ||
+      cl === 'INVALID' ||
+      cl === 'SPAM' ||
+      desc.includes('test complaint') ||
+      desc.includes('fake') ||
+      desc.includes('spam');
+    const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
+    if (isFake || isDup) return false;
+    return (
+      cl === 'NEEDS_VERIFICATION' ||
+      cl === 'VERIFICATION' ||
+      st === 'VERIFICATION' ||
+      st === 'UNDER_REVIEW' ||
+      st === 'UNDER REVIEW'
+    );
+  }).length;
 
-  const countFake = hasComplaints
-    ? complaints.filter((c) => {
-        const cl = String(c.classification || '').toUpperCase();
-        return cl === 'FAKE' || cl === 'INVALID' || cl === 'SPAM';
-      }).length
-    : 2;
-
-  const countNeedsVerification = hasComplaints
-    ? complaints.filter((c) => {
-        const cl = String(c.classification || '').toUpperCase();
-        const st = String(c.status || '').toUpperCase();
-        return cl === 'NEEDS_VERIFICATION' || cl === 'VERIFICATION' || st === 'VERIFICATION' || st === 'UNDER_REVIEW';
-      }).length
-    : 5;
+  const countGenuine = complaints.filter((c) => {
+    const cl = String(c.classification || '').toUpperCase();
+    const st = String(c.status || '').toUpperCase();
+    const desc = String(c.description || '').toLowerCase();
+    const isFake =
+      cl === 'FAKE' ||
+      cl === 'INVALID' ||
+      cl === 'SPAM' ||
+      desc.includes('test complaint') ||
+      desc.includes('fake') ||
+      desc.includes('spam');
+    const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
+    const isVerify =
+      cl === 'NEEDS_VERIFICATION' ||
+      cl === 'VERIFICATION' ||
+      st === 'VERIFICATION' ||
+      st === 'UNDER_REVIEW' ||
+      st === 'UNDER REVIEW';
+    return !isFake && !isDup && !isVerify;
+  }).length;
 
   const formatNumber = (num: number) => String(num).padStart(2, '0');
 
@@ -119,7 +195,7 @@ export function ComplaintOverviewSection({
   return (
     <View style={styles.container}>
       {/* =================================================
-          1. PRIORITY SECTION (COMPACT PANCHAYAT STYLE)
+          1. PRIORITY SECTION (GENUINE PANCHAYAT DATA)
       ================================================= */}
       <View style={styles.sectionHeader}>
         <View style={{ flex: 1, marginRight: 8 }}>
@@ -184,7 +260,7 @@ export function ComplaintOverviewSection({
       </View>
 
       {/* =================================================
-          2. CLASSIFICATION SECTION (COMPACT PANCHAYAT STYLE)
+          2. AI CLASSIFICATION SECTION (GENUINE PANCHAYAT DATA)
       ================================================= */}
       <View style={[styles.sectionHeader, { marginTop: 14 }]}>
         <View style={{ flex: 1, marginRight: 8 }}>

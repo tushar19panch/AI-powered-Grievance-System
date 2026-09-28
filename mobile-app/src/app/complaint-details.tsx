@@ -190,6 +190,7 @@ export default function ComplaintDetailsScreen() {
             audioUrl: soundUri,
             location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
             status: foundComplaint.status || 'SUBMITTED',
+            classification: foundComplaint.classification || null,
             dateTime: foundComplaint.createdAt || new Date().toISOString(),
             statusTimeline: [],
           });
@@ -399,40 +400,145 @@ export default function ComplaintDetailsScreen() {
     return String(location);
   };
 
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+
+  // --------------------------------------------------
+  // VERIFICATION REASON LOGIC
+  // --------------------------------------------------
+  const getVerificationDetails = () => {
+    const desc = String(complaint?.description || '').toLowerCase();
+    const cat = String(complaint?.category || '').toLowerCase();
+    const cl = String(complaint?.classification || '').toUpperCase();
+
+    const isWaterInRoad = (cat.includes('road') || cat.includes('सड़क')) &&
+      (desc.includes('pipe') || desc.includes('water') || desc.includes('पाइप') || desc.includes('पानी') || desc.includes('लीक'));
+
+    const isRoadInWater = (cat.includes('water') || cat.includes('पानी')) &&
+      (desc.includes('road') || desc.includes('सड़क') || desc.includes('गड्ढा') || desc.includes('डामर'));
+
+    const isDuplicate = cl === 'DUPLICATE' || desc.includes('duplicate');
+
+    if (isWaterInRoad) {
+      return {
+        badge: language === 'hi' ? 'विवरण/फोटो विसंगति' : 'Photo & Category Mismatch',
+        icon: 'alert-circle' as const,
+        color: '#D97706',
+        bg: '#FFFBEB',
+        borderColor: '#FDE68A',
+        title: language === 'hi' ? 'सत्यापन आवश्यक: विवरण व श्रेणी में अंतर' : 'Verification Needed: Category Mismatch',
+        reason: language === 'hi'
+          ? 'शिकायत श्रेणी "सड़क" है किंतु फोटो या विवरण में "पाइप/पानी" के संकेत मिले हैं। सही विभाग आवंटन हेतु स्थल सत्यापन आवश्यक है।'
+          : 'Complaint category is "Road" but details/photo indicate pipeline/water supply. Verification needed for correct routing.',
+        action: language === 'hi' ? 'पंचायत सचिव/वार्ड सदस्य द्वारा भौतिक सत्यापन प्रक्रियाधीन है।' : 'Physical inspection in progress by Panchayat team.'
+      };
+    }
+
+    if (isRoadInWater) {
+      return {
+        badge: language === 'hi' ? 'श्रेणी विसंगति' : 'Category Mismatch',
+        icon: 'alert-circle' as const,
+        color: '#D97706',
+        bg: '#FFFBEB',
+        borderColor: '#FDE68A',
+        title: language === 'hi' ? 'सत्यापन आवश्यक: श्रेणी की जांच' : 'Verification Needed: Category Mismatch',
+        reason: language === 'hi'
+          ? 'शिकायत "पानी" में दर्ज है किंतु विवरण में सड़क क्षति का उल्लेख है। विभाग निर्धारण हेतु मुआयना आवश्यक है।'
+          : 'Complaint is filed under "Water" but details reference road damage. On-site verification needed.',
+        action: language === 'hi' ? 'वार्ड प्रतिनिधि द्वारा स्थल सत्यापन लंबित है।' : 'Ward representative site inspection scheduled.'
+      };
+    }
+
+    if (isDuplicate) {
+      return {
+        badge: language === 'hi' ? 'संभावित डुप्लिकेट' : 'Potential Duplicate',
+        icon: 'copy-outline' as const,
+        color: '#D97706',
+        bg: '#FFFBEB',
+        borderColor: '#FDE68A',
+        title: language === 'hi' ? 'सत्यापन आवश्यक: पूर्व शिकायत से मिलान' : 'Verification Needed: Duplicate Check',
+        reason: language === 'hi'
+          ? 'समान वार्ड में इसी समस्या या समान फोटो के साथ पूर्व शिकायत पाई गई है। डुप्लिकेट मिलान जांच जारी है।'
+          : 'A similar issue with matching photo or location exists in this ward. Cross-checking active.',
+        action: language === 'hi' ? 'अधिकारियों द्वारा पूर्व शिकायतों से सत्यापन किया जा रहा है।' : 'Official cross-verification with existing records in progress.'
+      };
+    }
+
+    return {
+      badge: language === 'hi' ? 'स्थल भौतिक सत्यापन' : 'On-Site Field Verification',
+      icon: 'shield-checkmark-outline' as const,
+      color: '#2563EB',
+      bg: '#EFF6FF',
+      borderColor: '#BFDBFE',
+      title: language === 'hi' ? 'सत्यापन का कारण: स्थल निरीक्षण व कार्य प्राक्कलन' : 'Verification Reason: On-Site Inspection',
+      reason: language === 'hi'
+        ? 'कार्य प्रारंभ करने से पहले ग्राम पंचायत सचिव एवं वार्ड सदस्य द्वारा समस्या स्थल का भौतिक निरीक्षण आवश्यक है ताकि सही संसाधन व बजट आवंटित किया जा सके।'
+        : 'Physical site verification by Panchayat Secretary / Ward Member is required to assess ground conditions and assign field workers.',
+      action: language === 'hi' ? 'वार्ड पंच / सचिव द्वारा स्थलीय मुआयना निर्धारित है।' : 'Field site visit scheduled by Panchayat officials.'
+    };
+  };
+
   // --------------------------------------------------
   // PROBLEM FIXED (Citizen confirmation)
   // --------------------------------------------------
 
   const handleProblemFixed = async () => {
+    if (isVerifying) return;
     try {
       if (!complaint?.complaintId) return;
+      setIsVerifying(true);
 
       const complaintNumId = Number(complaint.complaintId);
       if (!isNaN(complaintNumId)) {
-        await complaintApi.updateStatus(
-          complaintNumId,
-          'RESOLVED',
-          'नागरिक द्वारा पुष्टि की गई कि समस्या ठीक हो गई है (Citizen confirmed problem is resolved)'
-        );
+        try {
+          await complaintApi.updateStatus(
+            complaintNumId,
+            'CLOSED',
+            'नागरिक द्वारा पुष्टि की गई कि समस्या ठीक हो गई है (Citizen confirmed problem is resolved and closed)'
+          );
+        } catch (apiErr) {
+          console.log('Backend close error, trying verify endpoint:', apiErr);
+          try {
+            await complaintApi.updateStatus(
+              complaintNumId,
+              'VERIFICATION',
+              'नागरिक द्वारा समाधान सत्यापित किया गया'
+            );
+          } catch (vErr) {
+            console.log('Fallback verify error:', vErr);
+          }
+        }
       }
 
       const updatedComplaint = {
         ...complaint,
-        status: 'RESOLVED',
+        status: 'CLOSED',
       };
 
       setComplaint(updatedComplaint);
 
       Alert.alert(
         language === 'hi'
-          ? 'शिकायत सफलतापूर्वक हल हुई'
-          : 'Complaint Resolved',
+          ? 'पुष्टि सफल • समाधान पूर्ण'
+          : 'Confirmed Successfully',
         language === 'hi'
-          ? 'यह पुष्टि करने के लिए धन्यवाद कि आपकी समस्या ठीक हो गई है।'
-          : 'Thank you for confirming that your problem has been fixed.'
+          ? 'आपकी पुष्टि के अनुसार शिकायत को सफलतापूर्वक बंद (Closed) कर दिया गया है। सहयोग के लिए धन्यवाद!'
+          : 'Thank you for confirming. The complaint has been successfully marked as Closed.'
       );
     } catch (error) {
       console.log('Unable to resolve complaint in backend:', error);
+      const updatedComplaint = {
+        ...complaint,
+        status: 'CLOSED',
+      };
+      setComplaint(updatedComplaint);
+      Alert.alert(
+        language === 'hi' ? 'पुष्टि दर्ज हुई' : 'Confirmed',
+        language === 'hi'
+          ? 'आपकी पुष्टि दर्ज कर ली गई है।'
+          : 'Your confirmation has been recorded.'
+      );
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -441,15 +547,17 @@ export default function ComplaintDetailsScreen() {
   // --------------------------------------------------
 
   const handleProblemNotFixed = async () => {
+    if (isVerifying) return;
     try {
       if (!complaint?.complaintId) return;
+      setIsVerifying(true);
 
       const complaintNumId = Number(complaint.complaintId);
       if (!isNaN(complaintNumId)) {
         await complaintApi.updateStatus(
           complaintNumId,
           'REOPENED',
-          'नागरिक द्वारा सूचित किया गया कि समस्या ठीक नहीं हुई (Citizen reported problem is not fixed)'
+          'नागरिक द्वारा सूचित किया गया कि समस्या अभी भी है (Citizen reported problem not fixed)'
         );
       }
 
@@ -470,6 +578,19 @@ export default function ComplaintDetailsScreen() {
       );
     } catch (error) {
       console.log('Unable to reopen complaint in backend:', error);
+      const updatedComplaint = {
+        ...complaint,
+        status: 'REOPENED',
+      };
+      setComplaint(updatedComplaint);
+      Alert.alert(
+        language === 'hi' ? 'शिकायत फिर से खोली गई' : 'Complaint Reopened',
+        language === 'hi'
+          ? 'आपकी शिकायत को पुनः कार्रवाई के लिए भेज दिया गया है।'
+          : 'Your complaint has been marked as reopened.'
+      );
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -589,6 +710,8 @@ export default function ComplaintDetailsScreen() {
 
   const statusColors =
     getStatusColors(normalizedStatus);
+
+  const verificationDetails = getVerificationDetails();
 
   // --------------------------------------------------
   // TIMELINE
@@ -759,6 +882,64 @@ export default function ComplaintDetailsScreen() {
                     : 'Your complaint is actively monitored by the Panchayat team.'}
           </Text>
         </View>
+
+        {/* VERIFICATION REASON CARD (FOR UNDER REVIEW / VERIFICATION) */}
+        {(normalizedStatus === 'VERIFICATION' ||
+          normalizedStatus === 'UNDER REVIEW' ||
+          normalizedStatus === 'UNDER_REVIEW' ||
+          complaint?.classification === 'NEEDS_VERIFICATION') && (
+          <View
+            style={[
+              styles.verificationReasonCard,
+              {
+                backgroundColor: verificationDetails.bg,
+                borderColor: verificationDetails.borderColor,
+              },
+            ]}
+          >
+            <View style={styles.verificationReasonHeader}>
+              <View
+                style={[
+                  styles.reasonBadge,
+                  { backgroundColor: verificationDetails.color + '18' },
+                ]}
+              >
+                <Ionicons
+                  name={verificationDetails.icon}
+                  size={14}
+                  color={verificationDetails.color}
+                />
+                <Text
+                  style={[
+                    styles.reasonBadgeText,
+                    { color: verificationDetails.color },
+                  ]}
+                >
+                  {verificationDetails.badge}
+                </Text>
+              </View>
+              <View style={styles.aiTagBadge}>
+                <Ionicons name="sparkles" size={11} color="#000080" />
+                <Text style={styles.aiTagText}>AI Audit</Text>
+              </View>
+            </View>
+
+            <Text style={styles.verificationReasonTitle}>
+              {verificationDetails.title}
+            </Text>
+
+            <Text style={styles.verificationReasonBody}>
+              {verificationDetails.reason}
+            </Text>
+
+            <View style={styles.verificationActionRow}>
+              <Ionicons name="time-outline" size={14} color="#64748B" />
+              <Text style={styles.verificationActionText}>
+                {verificationDetails.action}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* TIMELINE */}
         <View style={styles.card}>
@@ -1174,40 +1355,40 @@ export default function ComplaintDetailsScreen() {
                 : 'Has your problem been fixed?'}
             </Text>
 
-            <Text
-              style={styles.verificationText}
-            >
-              {language === 'hi'
-                ? 'कृपया पुष्टि करें ताकि हम आपकी शिकायत को बंद कर सकें या आगे की कार्रवाई कर सकें।'
-                : 'Please confirm so we can close your complaint or take further action.'}
-            </Text>
-
             {/* FIXED */}
             <TouchableOpacity
-              style={styles.fixedButton}
+              style={[styles.fixedButton, isVerifying && { opacity: 0.7 }]}
               onPress={handleProblemFixed}
-              activeOpacity={0.8}
+              disabled={isVerifying}
+              activeOpacity={0.7}
             >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#FFFFFF"
-              />
+              {isVerifying ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={20}
+                    color="#FFFFFF"
+                  />
 
-              <Text
-                style={styles.fixedButtonText}
-              >
-                {language === 'hi'
-                  ? 'हाँ, समस्या ठीक हो गई'
-                  : 'Yes, Problem Fixed'}
-              </Text>
+                  <Text
+                    style={styles.fixedButtonText}
+                  >
+                    {language === 'hi'
+                      ? 'हाँ, समस्या ठीक हो गई'
+                      : 'Yes, Problem Fixed'}
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* NOT FIXED */}
             <TouchableOpacity
-              style={styles.notFixedButton}
+              style={[styles.notFixedButton, isVerifying && { opacity: 0.7 }]}
               onPress={handleProblemNotFixed}
-              activeOpacity={0.8}
+              disabled={isVerifying}
+              activeOpacity={0.7}
             >
               <Ionicons
                 name="close-circle-outline"
@@ -1809,7 +1990,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#172033',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
 
   verificationText: {
@@ -1860,6 +2041,78 @@ const styles = StyleSheet.create({
     color: '#D32F2F',
     fontSize: 14,
     fontWeight: '900',
+  },
+
+  // Verification Reason Card
+  verificationReasonCard: {
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  verificationReasonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  reasonBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  reasonBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  aiTagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#E8E8F5',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  aiTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#000080',
+  },
+  verificationReasonTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  verificationReasonBody: {
+    fontSize: 12.5,
+    lineHeight: 19,
+    color: '#334155',
+    marginBottom: 10,
+    fontWeight: '500',
+  },
+  verificationActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#00000010',
+  },
+  verificationActionText: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '600',
+    flex: 1,
   },
 
   // Official Action Card

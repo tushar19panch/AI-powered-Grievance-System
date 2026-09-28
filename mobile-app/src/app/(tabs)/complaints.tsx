@@ -166,13 +166,55 @@ export default function ComplaintsScreen() {
       if (s !== 'REOPENED') return false;
     } else if (selectedFilter === 'priority-very-high') {
       const p = String(c.priority || '').toUpperCase();
-      if (p !== 'VERY_HIGH' && p !== 'VERY HIGH' && p !== 'CRITICAL' && p !== 'URGENT') return false;
+      const desc = String(c.description || '').toLowerCase();
+      const isVeryHigh =
+        p === 'VERY_HIGH' ||
+        p === 'VERY HIGH' ||
+        p === 'CRITICAL' ||
+        p === 'URGENT' ||
+        desc.includes('आपातकालीन') ||
+        desc.includes('खतरा') ||
+        desc.includes('urgent') ||
+        desc.includes('critical');
+      if (!isVeryHigh) return false;
     } else if (selectedFilter === 'priority-high') {
       const p = String(c.priority || '').toUpperCase();
-      if (p !== 'HIGH') return false;
+      const desc = String(c.description || '').toLowerCase();
+      const isVeryHigh =
+        p === 'VERY_HIGH' ||
+        p === 'VERY HIGH' ||
+        p === 'CRITICAL' ||
+        p === 'URGENT' ||
+        desc.includes('आपातकालीन') ||
+        desc.includes('खतरा') ||
+        desc.includes('urgent') ||
+        desc.includes('critical');
+      const isHigh =
+        !isVeryHigh &&
+        (p === 'HIGH' ||
+          desc.includes('गंभीर') ||
+          desc.includes('भारी') ||
+          desc.includes('severe'));
+      if (!isHigh) return false;
     } else if (selectedFilter === 'priority-medium') {
       const p = String(c.priority || '').toUpperCase();
-      if (p !== 'MEDIUM' && p !== 'NORMAL' && (p !== '' && c.priority)) return false;
+      const desc = String(c.description || '').toLowerCase();
+      const isVeryHigh =
+        p === 'VERY_HIGH' ||
+        p === 'VERY HIGH' ||
+        p === 'CRITICAL' ||
+        p === 'URGENT' ||
+        desc.includes('आपातकालीन') ||
+        desc.includes('खतरा') ||
+        desc.includes('urgent') ||
+        desc.includes('critical');
+      const isHigh =
+        p === 'HIGH' ||
+        desc.includes('गंभीर') ||
+        desc.includes('भारी') ||
+        desc.includes('severe');
+      const isLow = p === 'LOW';
+      if (isVeryHigh || isHigh || isLow) return false;
     } else if (selectedFilter === 'priority-low') {
       const p = String(c.priority || '').toUpperCase();
       if (p !== 'LOW') return false;
@@ -181,14 +223,55 @@ export default function ComplaintsScreen() {
       if (cl !== 'DUPLICATE' && cl !== 'COPIED') return false;
     } else if (selectedFilter === 'class-fake') {
       const cl = String((c as any).classification || '').toUpperCase();
-      if (cl !== 'FAKE' && cl !== 'INVALID' && cl !== 'SPAM') return false;
+      const desc = String(c.description || '').toLowerCase();
+      const isFake =
+        cl === 'FAKE' ||
+        cl === 'INVALID' ||
+        cl === 'SPAM' ||
+        desc.includes('test complaint') ||
+        desc.includes('fake') ||
+        desc.includes('spam');
+      if (!isFake) return false;
     } else if (selectedFilter === 'class-verification') {
       const cl = String((c as any).classification || '').toUpperCase();
       const st = String(c.status || '').toUpperCase();
-      if (cl !== 'NEEDS_VERIFICATION' && cl !== 'VERIFICATION' && st !== 'VERIFICATION' && st !== 'UNDER_REVIEW') return false;
+      const desc = String(c.description || '').toLowerCase();
+      const isFake =
+        cl === 'FAKE' ||
+        cl === 'INVALID' ||
+        cl === 'SPAM' ||
+        desc.includes('test complaint') ||
+        desc.includes('fake') ||
+        desc.includes('spam');
+      const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
+      const isVerify =
+        !isFake &&
+        !isDup &&
+        (cl === 'NEEDS_VERIFICATION' ||
+          cl === 'VERIFICATION' ||
+          st === 'VERIFICATION' ||
+          st === 'UNDER_REVIEW' ||
+          st === 'UNDER REVIEW');
+      if (!isVerify) return false;
     } else if (selectedFilter === 'class-genuine') {
       const cl = String((c as any).classification || '').toUpperCase();
-      if (cl === 'FAKE' || cl === 'INVALID' || cl === 'DUPLICATE') return false;
+      const st = String(c.status || '').toUpperCase();
+      const desc = String(c.description || '').toLowerCase();
+      const isFake =
+        cl === 'FAKE' ||
+        cl === 'INVALID' ||
+        cl === 'SPAM' ||
+        desc.includes('test complaint') ||
+        desc.includes('fake') ||
+        desc.includes('spam');
+      const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
+      const isVerify =
+        cl === 'NEEDS_VERIFICATION' ||
+        cl === 'VERIFICATION' ||
+        st === 'VERIFICATION' ||
+        st === 'UNDER_REVIEW' ||
+        st === 'UNDER REVIEW';
+      if (isFake || isDup || isVerify) return false;
     }
 
     if (selectedWard) {
@@ -439,7 +522,9 @@ export default function ComplaintsScreen() {
       case 'RESOLVED':
       case 'CLOSED':
         return {
-          label: isHindi ? 'हल हो गई' : 'Resolved',
+          label: st === 'CLOSED'
+            ? (isHindi ? 'सत्यापित बंद (Closed)' : 'Verified Closed')
+            : (isHindi ? 'समाधान हुआ (Resolved)' : 'Resolved'),
           bg: '#DCFCE7',
           color: '#15803D',
           dot: '#16A34A',

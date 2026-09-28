@@ -126,6 +126,8 @@ export default function SecretaryScreen() {
               status: c.status,
               priority: c.priority,
               classification: c.classification,
+              category: c.category || c.problemType,
+              description: c.description,
             }))
           );
           return;

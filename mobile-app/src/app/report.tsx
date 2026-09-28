@@ -386,9 +386,44 @@ export default function ReportScreen() {
 
       const effectiveWard = problemWard || ward || 'Ward 1';
 
+      // Smart Category & Priority inference
+      const lowerDesc = finalDescription.toLowerCase();
+      let deducedCategory = 'Village Issue';
+      let deducedProblemType = 'General Problem';
+      let deducedPriority = 'MEDIUM';
+
+      if (lowerDesc.includes('पानी') || lowerDesc.includes('जल') || lowerDesc.includes('नल') || lowerDesc.includes('पाइप') || lowerDesc.includes('water')) {
+        deducedCategory = 'Water';
+        deducedProblemType = 'Drinking Water Supply';
+      } else if (lowerDesc.includes('सड़क') || lowerDesc.includes('मार्ग') || lowerDesc.includes('रास्ता') || lowerDesc.includes('गड्ढा') || lowerDesc.includes('road')) {
+        deducedCategory = 'Roads';
+        deducedProblemType = 'Road & Street Work';
+      } else if (lowerDesc.includes('लाइट') || lowerDesc.includes('बल्ब') || lowerDesc.includes('अंधेरा') || lowerDesc.includes('light')) {
+        deducedCategory = 'Street Lights';
+        deducedProblemType = 'Street Lighting';
+      } else if (lowerDesc.includes('कचरा') || lowerDesc.includes('सफाई') || lowerDesc.includes('कूड़ा') || lowerDesc.includes('गंदगी') || lowerDesc.includes('garbage')) {
+        deducedCategory = 'Garbage/Sanitation';
+        deducedProblemType = 'Cleanliness & Waste';
+      } else if (lowerDesc.includes('नाली') || lowerDesc.includes('जल निकासी') || lowerDesc.includes('drain')) {
+        deducedCategory = 'Drainage';
+        deducedProblemType = 'Drainage System';
+      } else if (lowerDesc.includes('बिजली') || lowerDesc.includes('ट्रांसफार्मर') || lowerDesc.includes('तार') || lowerDesc.includes('करंट') || lowerDesc.includes('electric')) {
+        deducedCategory = 'Electricity';
+        deducedProblemType = 'Electricity Grid';
+      }
+
+      if (lowerDesc.includes('आपातकालीन') || lowerDesc.includes('खतरा') || lowerDesc.includes('करंट') || lowerDesc.includes('तुरंत') || lowerDesc.includes('emergency') || lowerDesc.includes('critical') || lowerDesc.includes('urgent') || lowerDesc.includes('danger')) {
+        deducedPriority = 'VERY_HIGH';
+      } else if (lowerDesc.includes('गंभीर') || lowerDesc.includes('भारी') || lowerDesc.includes('बंद पड़ा') || lowerDesc.includes('severe') || lowerDesc.includes('heavy') || lowerDesc.includes('blocked')) {
+        deducedPriority = 'HIGH';
+      } else if (lowerDesc.includes('छोटा') || lowerDesc.includes('हल्का') || lowerDesc.includes('minor') || lowerDesc.includes('routine')) {
+        deducedPriority = 'LOW';
+      }
+
       const payload = {
-        problemType: 'General Problem',
-        category: 'Village Issue',
+        problemType: deducedProblemType,
+        category: deducedCategory,
+        priority: deducedPriority,
         description: finalDescription,
         location: location || `${effectiveWard}`,
         photo: image || undefined,
@@ -965,12 +1000,6 @@ export default function ReportScreen() {
               : isHindi ? 'शिकायत दर्ज करें' : 'Submit Problem'}
           </Text>
         </TouchableOpacity>
-
-        <Text style={styles.bottomNote}>
-          {isHindi
-            ? '🤖 AI द्वारा आपकी समस्या का स्वतः वर्गीकरण कर संबंधित ग्राम पंचायत विभाग को भेजा जाएगा।'
-            : '🤖 AI will automatically classify and route your grievance to the concerned department.'}
-        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -979,7 +1008,7 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F8FAFC',
   },
   content: {
     padding: SPACING.screen,
@@ -1025,30 +1054,30 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E2E8F0',
     ...SHADOWS.small,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.navy,
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#0F172A',
   },
   headerSubtitle: {
-    fontSize: 11,
-    color: COLORS.textMuted,
+    fontSize: 12,
+    color: '#475569',
     fontWeight: '600',
     marginTop: 1,
   },
   languageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#CBD5E1',
     borderRadius: RADIUS.round,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -1057,8 +1086,8 @@ const styles = StyleSheet.create({
   languageText: {
     marginLeft: 5,
     fontSize: 13,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
+    fontWeight: '800',
+    color: '#000080',
   },
 
   // ==========================================
@@ -1081,7 +1110,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#E8E8F5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1089,20 +1118,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   citizenNameText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: COLORS.navy,
+    color: '#0F172A',
   },
   citizenWardSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
+    fontSize: 11.5,
+    color: '#475569',
     marginTop: 1,
     fontWeight: '600',
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.successLight,
+    backgroundColor: '#EAF6E8',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
@@ -1111,7 +1140,7 @@ const styles = StyleSheet.create({
   verifiedText: {
     fontSize: 10,
     fontWeight: '700',
-    color: COLORS.success,
+    color: '#138808',
   },
 
   // ==========================================
@@ -1127,7 +1156,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#E8E8F5',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.sm,
@@ -1136,34 +1165,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.navy,
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   sectionSubtitle: {
-    fontSize: 11,
-    color: COLORS.textMuted,
+    fontSize: 11.5,
+    color: '#475569',
     marginTop: 1,
+    fontWeight: '500',
   },
   required: {
-    color: COLORS.error,
+    color: '#DC2626',
+    fontWeight: '800',
   },
 
   // ==========================================
   // WARD CARD
   // ==========================================
   wardCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E2E8F0',
     padding: SPACING.md,
     ...SHADOWS.small,
   },
   wardQuestion: {
-    fontSize: 13,
-    color: COLORS.navy,
-    fontWeight: TYPOGRAPHY.bold,
+    fontSize: 13.5,
+    color: '#0F172A',
+    fontWeight: '800',
     marginBottom: SPACING.sm,
   },
   wardChoiceRow: {
@@ -1172,11 +1203,11 @@ const styles = StyleSheet.create({
   },
   wardChoice: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1184,29 +1215,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   wardChoiceActive: {
-    borderColor: COLORS.success,
-    backgroundColor: COLORS.successLight,
+    borderColor: '#138808',
+    backgroundColor: '#EAF6E8',
   },
   wardChoiceActiveSaffron: {
-    borderColor: COLORS.saffron,
-    backgroundColor: COLORS.accentLight,
+    borderColor: '#FF9933',
+    backgroundColor: '#FFF1E3',
   },
   wardChoiceText: {
-    fontSize: 12,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textSecondary,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#334155',
   },
   wardChoiceTextActive: {
-    color: COLORS.success,
+    color: '#138808',
+    fontWeight: '800',
   },
   wardChoiceTextSaffron: {
-    color: COLORS.saffron,
+    color: '#D97706',
+    fontWeight: '800',
   },
   wardOptionsWrap: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
+    borderTopColor: '#EEF2F7',
   },
   wardOptionsHeaderRow: {
     flexDirection: 'row',
@@ -1215,9 +1248,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   wardSelectLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.semiBold,
+    fontSize: 11.5,
+    color: '#475569',
+    fontWeight: '700',
   },
   closeListBtn: {
     flexDirection: 'row',
@@ -1229,9 +1262,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   closeListText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '700',
-    color: COLORS.textMuted,
+    color: '#475569',
   },
   wardOptionsGrid: {
     flexDirection: 'row',
@@ -1240,31 +1273,32 @@ const styles = StyleSheet.create({
   },
   wardOption: {
     width: '23%',
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: RADIUS.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
   },
   wardOptionActive: {
-    backgroundColor: COLORS.saffron,
-    borderColor: COLORS.saffron,
+    backgroundColor: '#FF9933',
+    borderColor: '#FF9933',
   },
   wardOptionText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.bold,
+    fontSize: 11.5,
+    color: '#334155',
+    fontWeight: '700',
   },
   wardOptionTextActive: {
-    color: COLORS.white,
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
   selectedWardRow: {
     marginTop: SPACING.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#E8E8F5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1276,12 +1310,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectedWardText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+    fontSize: 11.5,
+    color: '#334155',
+    fontWeight: '600',
   },
   selectedWardBold: {
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.extraBold,
+    color: '#000080',
+    fontWeight: '900',
   },
   changeWardButton: {
     flexDirection: 'row',
@@ -1291,23 +1326,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
     gap: 4,
   },
   changeWardText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.saffron,
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#D97706',
   },
 
   // ==========================================
   // AUDIO CARD
   // ==========================================
   audioCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E2E8F0',
     padding: SPACING.md,
     ...SHADOWS.small,
   },
@@ -1319,50 +1354,51 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#E8E8F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.sm,
   },
   audioMicCircleRecording: {
-    backgroundColor: COLORS.errorLight,
+    backgroundColor: '#FEECEC',
   },
   audioTextBlock: {
     flex: 1,
   },
   audioTitle: {
-    fontSize: 13,
-    color: COLORS.navy,
-    fontWeight: TYPOGRAPHY.extraBold,
+    fontSize: 13.5,
+    color: '#0F172A',
+    fontWeight: '800',
   },
   audioDuration: {
     marginTop: 2,
-    fontSize: 11,
-    color: COLORS.textMuted,
+    fontSize: 11.5,
+    color: '#475569',
+    fontWeight: '500',
   },
   recordButton: {
     minHeight: 38,
     paddingHorizontal: 12,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#000080',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   stopRecordButton: {
-    backgroundColor: COLORS.error,
+    backgroundColor: '#DC2626',
   },
   recordButtonText: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: TYPOGRAPHY.extraBold,
+    fontWeight: '800',
   },
   audioActions: {
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
+    borderTopColor: '#EEF2F7',
     flexDirection: 'row',
     gap: SPACING.sm,
   },
@@ -1370,31 +1406,31 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 38,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.successLight,
+    backgroundColor: '#EAF6E8',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   playAudioText: {
-    color: COLORS.success,
+    color: '#138808',
     fontSize: 12,
-    fontWeight: TYPOGRAPHY.extraBold,
+    fontWeight: '800',
   },
   removeAudioButton: {
     minHeight: 38,
     paddingHorizontal: 12,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.errorLight,
+    backgroundColor: '#FEECEC',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   removeAudioText: {
-    color: COLORS.error,
+    color: '#DC2626',
     fontSize: 12,
-    fontWeight: TYPOGRAPHY.extraBold,
+    fontWeight: '800',
   },
 
   // ==========================================
@@ -1402,14 +1438,15 @@ const styles = StyleSheet.create({
   // ==========================================
   descriptionInput: {
     minHeight: 120,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#CBD5E1',
     borderRadius: RADIUS.md,
     padding: SPACING.md,
-    fontSize: 13,
-    color: COLORS.textPrimary,
-    lineHeight: 18,
+    fontSize: 13.5,
+    color: '#0F172A',
+    lineHeight: 20,
+    fontWeight: '500',
   },
 
   // ==========================================
@@ -1422,10 +1459,10 @@ const styles = StyleSheet.create({
   photoButton: {
     flex: 1,
     minHeight: 100,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.sm,
@@ -1435,28 +1472,28 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#E8E8F5',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
   },
   photoButtonTitle: {
-    fontSize: 12,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.navy,
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
     textAlign: 'center',
   },
   photoButtonSub: {
-    fontSize: 10,
-    color: COLORS.textMuted,
+    fontSize: 11,
+    color: '#64748B',
     marginTop: 1,
     textAlign: 'center',
   },
   imageCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#CBD5E1',
     overflow: 'hidden',
     ...SHADOWS.small,
   },
@@ -1476,8 +1513,8 @@ const styles = StyleSheet.create({
   },
   imageSuccessText: {
     fontSize: 12,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.success,
+    fontWeight: '800',
+    color: '#138808',
     marginLeft: 4,
   },
   removeButton: {
@@ -1487,8 +1524,8 @@ const styles = StyleSheet.create({
   },
   removeText: {
     fontSize: 11,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.error,
+    fontWeight: '800',
+    color: '#DC2626',
     marginLeft: 3,
   },
 
@@ -1499,9 +1536,9 @@ const styles = StyleSheet.create({
     minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#CBD5E1',
     borderRadius: RADIUS.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1510,14 +1547,14 @@ const styles = StyleSheet.create({
     ...SHADOWS.small,
   },
   locationCardActive: {
-    borderColor: COLORS.success,
-    backgroundColor: COLORS.successLight,
+    borderColor: '#138808',
+    backgroundColor: '#EAF6E8',
   },
   locationIconBox: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#E8E8F5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1528,13 +1565,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationCardTitle: {
-    fontSize: 13,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.navy,
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   locationCardSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
+    fontSize: 11.5,
+    color: '#475569',
     marginTop: 1,
   },
   locationActionTag: {
@@ -1546,9 +1583,9 @@ const styles = StyleSheet.create({
   // COMPLAINT BOX
   // ==========================================
   complaintBox: {
-    backgroundColor: COLORS.primaryLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: '#E8E8F5',
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginTop: SPACING.md,
@@ -1558,27 +1595,30 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
+    ...SHADOWS.small,
   },
   complaintLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.semiBold,
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '700',
   },
   complaintId: {
-    fontSize: 20,
-    fontWeight: TYPOGRAPHY.black,
-    color: COLORS.primary,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000080',
     marginTop: 2,
+    letterSpacing: 0.5,
   },
   complaintHint: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+    fontSize: 11.5,
+    color: '#334155',
     marginTop: 4,
     textAlign: 'center',
+    fontWeight: '600',
   },
 
   // ==========================================
@@ -1586,7 +1626,7 @@ const styles = StyleSheet.create({
   // ==========================================
   submitButton: {
     height: 52,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#000080',
     borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1596,16 +1636,9 @@ const styles = StyleSheet.create({
     ...SHADOWS.medium,
   },
   submitText: {
-    color: COLORS.textWhite,
-    fontSize: 15,
-    fontWeight: TYPOGRAPHY.extraBold,
-  },
-  bottomNote: {
-    textAlign: 'center',
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: SPACING.sm,
-    lineHeight: 15,
+    color: '#FFFFFF',
+    fontSize: 15.5,
+    fontWeight: '900',
   },
 
   /* WARD MISMATCH BANNER */
@@ -1627,20 +1660,21 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   mismatchTitle: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '800',
     color: '#92400E',
   },
   mismatchSub: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: '#B45309',
     marginTop: 1,
+    fontWeight: '600',
   },
   syncWardBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: COLORS.saffron,
+    backgroundColor: '#FF9933',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,

@@ -304,6 +304,33 @@ export const complaintApi = {
     status: string,
     remarks?: string
   ): Promise<ComplaintData> => {
+    try {
+      const sessionData = await AsyncStorage.getItem('@village_user_session');
+      const fallbackSession = await AsyncStorage.getItem('user_session');
+      const session = sessionData ? JSON.parse(sessionData) : (fallbackSession ? JSON.parse(fallbackSession) : null);
+      const isCitizen = session?.role === 'CITIZEN' || session?.role === 'citizen';
+
+      if (isCitizen) {
+        if (status === 'REOPENED') {
+          return await request<ComplaintData>(`/api/citizen/complaints/${complaintId}/reopen`, {
+            method: 'PUT',
+          });
+        }
+        if (status === 'VERIFICATION') {
+          return await request<ComplaintData>(`/api/citizen/complaints/${complaintId}/verify`, {
+            method: 'PUT',
+          });
+        }
+        if (status === 'CLOSED') {
+          return await request<ComplaintData>(`/api/citizen/complaints/${complaintId}/close`, {
+            method: 'PUT',
+          });
+        }
+      }
+    } catch (err) {
+      console.log('Error checking citizen specific status endpoint:', err);
+    }
+
     return await request<ComplaintData>(
       `/api/sarpanch/complaints/${complaintId}/status`,
       {

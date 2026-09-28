@@ -1,74 +1,108 @@
 # 🚀 Village Grievance App (ग्राम समाधान) - Complete Deployment Guide
 
-इस गाइड में आपको Backend (Spring Boot + MySQL) को Cloud पर deploy करने और Mobile App का **Android APK** generate करने के पूरे स्टेप्स दिए गए हैं।
+> **Detailed step-by-step production deployment manual for Spring Boot Cloud Backend and React Native (Expo) Android APK Generation.**
 
 ---
 
 ## 📂 Architecture Overview
-1. **Backend**: Spring Boot 3 + Java 17 + Aiven Cloud MySQL Database + JWT Authentication.
-2. **Mobile App**: React Native (Expo Router) with Citizen, Sarpanch, and Secretary dashboards.
+
+1. **Backend**: Spring Boot 3 + Java 17 + Aiven Cloud MySQL Database + Stateless JWT Authentication.
+2. **Mobile App**: React Native (Expo Router) with dedicated Citizen, Sarpanch, and Secretary dashboards.
+3. **Database**: Aiven Managed Cloud MySQL (SSL enabled).
 
 ---
 
-## 🌐 PART 1: Backend Deployment (Render / Railway पर Free Deploy)
+## 🌐 PART 1: Backend Cloud Deployment (Render / Railway / Docker)
 
-Backend को 24/7 Live रखने के लिए आप **Render** (render.com) या **Railway** (railway.app) का उपयोग कर सकते हैं।
+### Option A: Deploy on Render.com (Recommended Free Cloud Hosting)
 
-### Step 1: GitHub पर Code Push करें
-1. अपने पूरे प्रोजेक्ट को GitHub repository पर push करें।
+1. **Push your code to GitHub Repository:**
+   ```bash
+   git add .
+   git commit -m "Prepare production deployment"
+   git push origin main
+   ```
 
-### Step 2: Render.com पर Web Service बनाएं
-1. [Render.com](https://render.com) पर जाएं और लॉगिन करें।
-2. **New +** -> **Web Service** पर क्लिक करें।
-3. अपनी GitHub Repository को कनेक्ट करें।
-4. Settings भरें:
-   - **Name**: `village-app-backend`
-   - **Root Directory**: `backend`
-   - **Runtime**: `Docker` (हमने `backend/Dockerfile` पहले से बना दिया है)
-   - **Region**: Singapore या Frankfurt
-   - **Instance Type**: Free
-5. **Environment Variables**:
-   - `PORT`: `8080`
-   - `SPRING_DATASOURCE_URL`: `${SPRING_DATASOURCE_URL}`
-   - `SPRING_DATASOURCE_USERNAME`: `${SPRING_DATASOURCE_USERNAME}`
-   - `SPRING_DATASOURCE_PASSWORD`: `${SPRING_DATASOURCE_PASSWORD}`
-6. **Deploy Web Service** पर क्लिक करें।
-7. Deploy होने के बाद आपको एक Live URL मिलेगा (उदा. `https://village-app-backend.onrender.com`).
+2. **Create a Web Service on Render:**
+   * Open [Render Dashboard](https://dashboard.render.com).
+   * Click **New +** ➔ **Web Service**.
+   * Connect your GitHub repository.
+   * Configure Service Settings:
+     * **Name:** `village-app-backend`
+     * **Root Directory:** `backend`
+     * **Runtime:** `Docker` (Render will automatically detect `backend/Dockerfile`)
+     * **Region:** Singapore or Frankfurt
+     * **Plan:** Free
+   * **Environment Variables (Add in Render UI):**
+     * `PORT`: `8080`
+     * `SPRING_DATASOURCE_URL`: `jdbc:mysql://avnadmin:AVNS_6-I1ATe-IUN7rbFuo2x@mysql-31858198-avverma7620-82ac.d.aivencloud.com:27112/defaultdb?ssl-mode=REQUIRED`
+     * `SPRING_DATASOURCE_USERNAME`: `avnadmin`
+     * `SPRING_DATASOURCE_PASSWORD`: `AVNS_6-I1ATe-IUN7rbFuo2x`
+     * `JWT_SECRET`: `MyVillageGrievanceSystemSecretKeyForJWT2026Secure`
+
+3. **Deploy:** Click **Create Web Service**. Once built, you'll receive your Live Backend URL (e.g., `https://village-app-backend.onrender.com`).
 
 ---
 
-## 📱 PART 2: Mobile App Deployment (Android APK Generate करना)
+### Option B: Deploy with Railway.app
 
-### Option A: Expo Cloud Build (EAS CLI) - सबसे आसान तरीका (1 Command)
-
-1. `mobile-app` फोल्डर में टर्मिनल खोलें:
-   ```bash
-   cd c:\Users\Acer\Desktop\VillageApp\mobile-app
-   ```
-2. EAS CLI install करें (यदि पहले से नहीं है):
-   ```bash
-   npm install -g eas-cli
-   ```
-3. Expo Account में Login करें:
-   ```bash
-   npx eas login
-   ```
-4. `.env` फाइल में अपने Backend का Live URL डालें:
-   ```env
-   EXPO_PUBLIC_API_URL=https://your-backend-url.onrender.com
-   ```
-5. Android APK build कमांड चलाएं:
-   ```bash
-   npx eas build -p android --profile preview
-   ```
-6. Build पूरा होने पर आपको सीधा **Download APK Link** और QR Code मिलेगा जिसे किसी भी Android फोन में install किया जा सकता है।
+1. Go to [Railway.app](https://railway.app) and create a **New Project**.
+2. Select **Deploy from GitHub repo** and choose your repo.
+3. Set the Root Directory to `/backend`.
+4. Add the environment variables (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `PORT=8080`).
+5. Generate Domain in Railway networking settings to get your live API URL.
 
 ---
 
-## 🔑 Role-Based Access Summary
+## 📱 PART 2: Mobile App Android APK Build (EAS Cloud)
 
-| Role | Dashboard URL / Screen | Key Features |
+### Step 1: Configure Backend URL in Mobile App
+Open `mobile-app/.env` (or create it) and enter your live cloud backend URL:
+
+```env
+EXPO_PUBLIC_API_URL=https://village-app-backend.onrender.com
+```
+
+### Step 2: Install EAS CLI
+```bash
+npm install -g eas-cli
+```
+
+### Step 3: Login to Expo Account
+```bash
+npx eas login
+```
+*(If you don't have an Expo account, create one free at [expo.dev](https://expo.dev)).*
+
+### Step 4: Run Android APK Build
+```bash
+cd mobile-app
+npx eas build -p android --profile preview
+```
+
+### Step 5: Download & Install APK
+When the build completes, the terminal will output a **direct APK download URL** and a **QR Code**. Scan or download it onto any Android smartphone to install the app.
+
+---
+
+## 🔑 Role-Based Access Reference
+
+| Role | Dashboard Screen | Key Functionalities |
 |---|---|---|
-| **नागरिक (Citizen)** | `/citizen-dashboard` | शिकायत दर्ज करना (फोटो + ऑडियो + लोकेशन), लाइव स्टेटस ट्रैकिंग, फीडबैक |
-| **सरपंच (Sarpanch)** | `/admin` / `/complaint-details` | गांव की सभी शिकायतें देखना, स्थिति अपडेट करना (In Progress, Resolved, Action Taken), टिप्पणी देना |
-| **ग्राम सचिव (Secretary)** | `/secretary` / `/complaint-details` | शिकायतों की निगरानी, सत्यापन और स्थिति प्रबंधन |
+| **नागरिक (Citizen)** | `/citizen-dashboard` | शिकायत दर्ज करना (फोटो + ऑडियो + लोकेशन), लाइव स्थिति ट्रैक करना |
+| **सरपंच (Sarpanch)** | `/admin` | ग्राम पंचायत की सभी शिकायतें देखना, स्थिति अपडेट करना, समाधान साक्ष्य अपलोड करना |
+| **ग्राम सचिव (Secretary)** | `/secretary` | पेंडेंसी मॉनिटरिंग, एस्केलेशन ट्रैकिंग, वार्ड-वार स्कोरकार्ड |
+
+---
+
+## 🛠️ Local Testing Over Wi-Fi (Physical Phone)
+
+If testing locally without deploying to cloud:
+1. Make sure your PC and Android phone are on the **same Wi-Fi network**.
+2. Find your PC's local IP address (run `ipconfig` in Command Prompt, e.g. `192.168.1.5`).
+3. Update `mobile-app/.env`:
+   ```env
+   EXPO_PUBLIC_API_URL=http://192.168.1.5:8080
+   ```
+4. Start backend (`.\mvnw.cmd spring-boot:run`) and Expo (`npx expo start -c`).
+5. Open **Expo Go** on your phone and scan the terminal QR code.

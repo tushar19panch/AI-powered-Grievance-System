@@ -1,12 +1,9 @@
-// src/app/profile.tsx
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  Animated,
   Image,
+  KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,12 +12,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
-import PhotoPreviewModal from '../components/PhotoPreviewModal';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 
 import {
@@ -31,78 +28,76 @@ import {
   SHADOWS,
 } from '../theme';
 
-export default function Profile() {
+type CitizenProfile = {
+  name: string;
+  mobile: string;
+  village: string;
+  ward: string;
+  profileImage?: string | null;
+};
+
+export default function CitizenProfileScreen() {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
+  const isHindi = language === 'hi';
 
-  const [user, setUser] = useState<any>(null);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [previewVisible, setPreviewVisible] = useState(false);
+  const [citizen, setCitizen] = useState<CitizenProfile>({
+    name: '',
+    mobile: '',
+    village: '',
+    ward: '',
+    profileImage: null,
+  });
+
   const [editing, setEditing] = useState(false);
-
-  const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [village, setVillage] = useState('');
-  const [ward, setWard] = useState('');
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const [previewVisible, setPreviewVisible] = useState(false);
 
   useEffect(() => {
-    loadProfile();
-
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadCitizen();
   }, []);
 
-  const loadProfile = async () => {
+  const loadCitizen = async () => {
     try {
       const sessionData = await AsyncStorage.getItem('user_session');
+      const citizenData = await AsyncStorage.getItem('citizen');
+
       const session = sessionData ? JSON.parse(sessionData) : null;
-      const storedCitizen = await AsyncStorage.getItem('citizen');
-      const citizenData = storedCitizen ? JSON.parse(storedCitizen) : {};
+      const citizenParsed = citizenData ? JSON.parse(citizenData) : null;
 
-      const currentMobile = session?.mobile || citizenData?.mobile || '';
-      const savedPhoto = currentMobile
-        ? await AsyncStorage.getItem(`profile_image_${currentMobile}`)
-        : null;
+      const activeData = { ...(citizenParsed || {}), ...(session || {}) };
+      const currentMobile = activeData.mobile || session?.mobile || '';
 
-      const mergedUser = {
-        name: session?.name || citizenData?.name || '',
+      let photoUri = activeData.profileImage || null;
+      if (currentMobile) {
+        const savedPhoto = await AsyncStorage.getItem(`profile_image_${currentMobile}`);
+        if (savedPhoto) photoUri = savedPhoto;
+      }
+
+      setCitizen({
+        name: activeData.name || '',
         mobile: currentMobile,
-        village: session?.village || citizenData?.village || '',
-        ward: session?.ward || citizenData?.ward || '',
-        profileImage: savedPhoto || null,
-      };
-
-      setUser(mergedUser);
-      setName(mergedUser.name);
-      setMobile(mergedUser.mobile);
-      setVillage(mergedUser.village);
-      setWard(mergedUser.ward);
-      setProfileImage(savedPhoto || null);
-    } catch (error) {
-      console.log('Profile loading error:', error);
+        village: activeData.village || '',
+        ward: activeData.ward || activeData.wardNumber || '',
+        profileImage: photoUri,
+      });
+    } catch {
+      Alert.alert(
+        isHindi ? 'त्रुटि' : 'Error',
+        isHindi ? 'प्रोफाइल लोड नहीं हो सकी।' : 'Unable to load profile.'
+      );
     }
   };
 
   const applyProfilePhoto = async (photoUri: string | null) => {
     try {
-      setProfileImage(photoUri);
+      setCitizen((prev) => ({
+        ...prev,
+        profileImage: photoUri,
+      }));
 
       const sessionData = await AsyncStorage.getItem('user_session');
       const session = sessionData ? JSON.parse(sessionData) : null;
-      const currentMobile = session?.mobile || mobile || user?.mobile || '';
+      const currentMobile = citizen.mobile || session?.mobile || '';
 
       if (currentMobile && photoUri) {
         await AsyncStorage.setItem(`profile_image_${currentMobile}`, photoUri);
@@ -116,35 +111,30 @@ export default function Profile() {
         await AsyncStorage.removeItem('profile_image');
       }
 
-      const updatedUser = {
-        ...(user || {}),
-        name: name || user?.name || '',
-        mobile: currentMobile,
-        village: village || user?.village || '',
-        ward: ward || user?.ward || '',
-        profileImage: photoUri,
-      };
-
-      await AsyncStorage.setItem('citizen', JSON.stringify(updatedUser));
       if (session) {
         session.profileImage = photoUri;
         await AsyncStorage.setItem('user_session', JSON.stringify(session));
       }
 
-      setUser(updatedUser);
+      const citizenData = await AsyncStorage.getItem('citizen');
+      const prevCitizen = citizenData ? JSON.parse(citizenData) : {};
+      await AsyncStorage.setItem(
+        'citizen',
+        JSON.stringify({ ...prevCitizen, ...citizen, profileImage: photoUri })
+      );
 
       Alert.alert(
-        language === 'hi' ? 'सफल' : 'Success',
-        language === 'hi'
+        isHindi ? 'सफल' : 'Success',
+        isHindi
           ? 'प्रोफाइल फोटो सफलतापूर्वक अपडेट हो गई।'
           : 'Profile photo updated successfully.'
       );
     } catch (err) {
-      console.log('Error saving profile photo:', err);
+      console.log('Error saving citizen profile photo:', err);
     }
   };
 
-  const processProfileAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+  const processCitizenAsset = async (asset: ImagePicker.ImagePickerAsset) => {
     if (asset.base64) {
       const uri = asset.base64.startsWith('data:')
         ? asset.base64
@@ -163,8 +153,8 @@ export default function Profile() {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
           Alert.alert(
-            language === 'hi' ? 'कैमरा अनुमति' : 'Camera Permission',
-            language === 'hi'
+            isHindi ? 'कैमरा अनुमति' : 'Camera Permission',
+            isHindi
               ? 'फोटो लेने के लिए कैमरे की अनुमति दें।'
               : 'Please allow camera access to take a photo.'
           );
@@ -180,7 +170,7 @@ export default function Profile() {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        await processProfileAsset(result.assets[0]);
+        await processCitizenAsset(result.assets[0]);
       }
     } catch (error) {
       console.log('Camera error:', error);
@@ -193,8 +183,8 @@ export default function Profile() {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
           Alert.alert(
-            language === 'hi' ? 'गैलरी अनुमति' : 'Gallery Permission',
-            language === 'hi'
+            isHindi ? 'गैलरी अनुमति' : 'Gallery Permission',
+            isHindi
               ? 'फोटो चुनने के लिए गैलरी की अनुमति दें।'
               : 'Please allow gallery access to select a photo.'
           );
@@ -210,37 +200,37 @@ export default function Profile() {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        await processProfileAsset(result.assets[0]);
+        await processCitizenAsset(result.assets[0]);
       }
     } catch (error) {
       console.log('Gallery error:', error);
     }
   };
 
-  const chooseImage = () => {
+  const pickImage = () => {
     Alert.alert(
-      language === 'hi' ? 'प्रोफाइल फोटो' : 'Profile Photo',
-      language === 'hi' ? 'विकल्प चुनें' : 'Select an option',
+      isHindi ? 'प्रोफाइल फोटो' : 'Profile Photo',
+      isHindi ? 'विकल्प चुनें' : 'Select an option',
       [
         {
-          text: language === 'hi' ? '📷 कैमरे से फोटो लें' : '📷 Take Photo',
+          text: isHindi ? '📷 कैमरे से फोटो लें' : '📷 Take Photo',
           onPress: pickFromCamera,
         },
         {
-          text: language === 'hi' ? '🖼️ गैलरी से चुनें' : '🖼️ Choose from Gallery',
+          text: isHindi ? '🖼️ गैलरी से चुनें' : '🖼️ Choose from Gallery',
           onPress: pickFromGallery,
         },
-        ...(profileImage
+        ...(citizen.profileImage
           ? [
               {
-                text: language === 'hi' ? '❌ फोटो हटाएं' : '❌ Remove Photo',
+                text: isHindi ? '❌ फोटो हटाएं' : '❌ Remove Photo',
                 style: 'destructive' as const,
                 onPress: () => applyProfilePhoto(null),
               },
             ]
           : []),
         {
-          text: language === 'hi' ? 'रद्द करें' : 'Cancel',
+          text: isHindi ? 'रद्द करें' : 'Cancel',
           style: 'cancel' as const,
         },
       ]
@@ -248,63 +238,69 @@ export default function Profile() {
   };
 
   const saveProfile = async () => {
+    if (!citizen.name.trim()) {
+      Alert.alert(
+        isHindi ? 'नाम आवश्यक है' : 'Name Required',
+        isHindi ? 'कृपया अपना नाम दर्ज करें।' : 'Please enter your name.'
+      );
+      return;
+    }
+
+    if (!citizen.mobile.trim()) {
+      Alert.alert(
+        isHindi ? 'मोबाइल आवश्यक है' : 'Mobile Required',
+        isHindi ? 'कृपया मोबाइल नंबर दर्ज करें।' : 'Please enter mobile number.'
+      );
+      return;
+    }
+
     try {
-      if (!name.trim() || !mobile.trim()) {
-        Alert.alert(
-          language === 'hi'
-            ? 'जानकारी अधूरी है'
-            : 'Incomplete Information',
-          language === 'hi'
-            ? 'कृपया नाम और मोबाइल नंबर भरें।'
-            : 'Please fill name and mobile number.'
-        );
-        return;
-      }
-
-      const cleanMobile = mobile.trim();
-      const updatedUser = {
-        ...user,
-        name: name.trim(),
-        mobile: cleanMobile,
-        village: village.trim(),
-        ward: ward.trim(),
-        profileImage,
-      };
-
-      await AsyncStorage.setItem('citizen', JSON.stringify(updatedUser));
-      if (cleanMobile && profileImage) {
-        await AsyncStorage.setItem(`profile_image_${cleanMobile}`, profileImage);
-      }
+      const cleanName = citizen.name.trim();
+      const cleanMobile = citizen.mobile.trim();
+      const cleanVillage = citizen.village.trim();
+      const cleanWard = citizen.ward.trim();
 
       const sessionData = await AsyncStorage.getItem('user_session');
       if (sessionData) {
         const session = JSON.parse(sessionData);
-        session.name = name.trim();
+        session.name = cleanName;
         session.mobile = cleanMobile;
-        session.village = village.trim();
-        session.ward = ward.trim();
-        session.profileImage = profileImage;
+        session.village = cleanVillage;
+        session.ward = cleanWard;
         await AsyncStorage.setItem('user_session', JSON.stringify(session));
       }
 
-      setUser(updatedUser);
+      await AsyncStorage.setItem(
+        'citizen',
+        JSON.stringify({
+          name: cleanName,
+          mobile: cleanMobile,
+          village: cleanVillage,
+          ward: cleanWard,
+          profileImage: citizen.profileImage,
+        })
+      );
+
       setEditing(false);
 
       Alert.alert(
-        language === 'hi' ? 'सफल' : 'Success',
-        language === 'hi'
+        isHindi ? 'सफल' : 'Success',
+        isHindi
           ? 'प्रोफाइल सफलतापूर्वक अपडेट हो गई।'
           : 'Profile updated successfully.'
       );
-    } catch (error) {
-      console.log('Profile save error:', error);
+    } catch {
+      Alert.alert(
+        isHindi ? 'त्रुटि' : 'Error',
+        isHindi ? 'प्रोफाइल सेव नहीं हो सकी।' : 'Unable to save profile.'
+      );
     }
   };
 
-  // LOGOUT
   const logout = async () => {
     const doLogout = async () => {
       try {
+        await AsyncStorage.removeItem('citizen');
         await AsyncStorage.removeItem('user_session');
         await AsyncStorage.removeItem('@village_jwt_token');
         await AsyncStorage.removeItem('@village_user_session');
@@ -317,13 +313,14 @@ export default function Profile() {
     };
 
     if (Platform.OS === 'web') {
-      const confirmLogout = typeof window !== 'undefined'
-        ? window.confirm(
-            language === 'hi'
-              ? 'क्या आप लॉग आउट करना चाहते हैं?'
-              : 'Are you sure you want to logout?'
-          )
-        : true;
+      const confirmLogout =
+        typeof window !== 'undefined'
+          ? window.confirm(
+              isHindi
+                ? 'क्या आप लॉग आउट करना चाहते हैं?'
+                : 'Are you sure you want to logout?'
+            )
+          : true;
       if (confirmLogout) {
         await doLogout();
       }
@@ -331,17 +328,17 @@ export default function Profile() {
     }
 
     Alert.alert(
-      language === 'hi' ? 'लॉग आउट' : 'Logout',
-      language === 'hi'
+      isHindi ? 'लॉग आउट' : 'Logout',
+      isHindi
         ? 'क्या आप लॉग आउट करना चाहते हैं?'
         : 'Are you sure you want to logout?',
       [
         {
-          text: language === 'hi' ? 'रद्द करें' : 'Cancel',
+          text: isHindi ? 'रद्द करें' : 'Cancel',
           style: 'cancel',
         },
         {
-          text: language === 'hi' ? 'लॉग आउट' : 'Logout',
+          text: isHindi ? 'लॉग आउट' : 'Logout',
           style: 'destructive',
           onPress: doLogout,
         },
@@ -349,155 +346,79 @@ export default function Profile() {
     );
   };
 
-  const labels = {
-    profile:
-      language === 'hi' ? 'मेरी प्रोफाइल' : 'My Profile',
+  const openMyComplaints = () => {
+    router.push('/(tabs)/complaints' as any);
+  };
 
-    citizen:
-      language === 'hi' ? 'नागरिक' : 'Citizen',
-
-    personalInfo:
-      language === 'hi'
-        ? 'व्यक्तिगत जानकारी'
-        : 'Personal Information',
-
-    name:
-      language === 'hi' ? 'नाम' : 'Name',
-
-    mobile:
-      language === 'hi' ? 'मोबाइल नंबर' : 'Mobile Number',
-
-    village:
-      language === 'hi' ? 'गाँव' : 'Village',
-
-    ward:
-      language === 'hi' ? 'वार्ड' : 'Ward',
-
-    edit:
-      language === 'hi'
-        ? 'प्रोफाइल एडिट करें'
-        : 'Edit Profile',
-
-    save:
-      language === 'hi'
-        ? 'सेव करें'
-        : 'Save Changes',
-
-    cancel:
-      language === 'hi'
-        ? 'रद्द करें'
-        : 'Cancel',
-
-    addPhoto:
-      language === 'hi'
-        ? 'प्रोफाइल फोटो जोड़ें'
-        : 'Add Profile Photo',
-
-    changePhoto:
-      language === 'hi'
-        ? 'प्रोफाइल फोटो बदलें'
-        : 'Change Profile Photo',
-
-    account:
-      language === 'hi'
-        ? 'अकाउंट'
-        : 'Account',
-
-    language:
-      language === 'hi'
-        ? 'भाषा'
-        : 'Language',
-
-    logout:
-      language === 'hi'
-        ? 'लॉग आउट'
-        : 'Logout',
+  const switchAccount = () => {
+    router.push('/role-selection');
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          }}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
         >
           {/* HEADER */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
-              activeOpacity={0.65}
             >
               <Ionicons
                 name="arrow-back-outline"
                 size={22}
-                color={COLORS.primary}
+                color={COLORS.navy}
               />
             </TouchableOpacity>
 
             <Text style={styles.headerTitle}>
-              {labels.profile}
+              {isHindi ? 'मेरी प्रोफाइल' : 'My Profile'}
             </Text>
 
             <TouchableOpacity
               style={styles.languageButton}
-              onPress={() =>
-                setLanguage(
-                  language === 'hi' ? 'en' : 'hi'
-                )
-              }
-              activeOpacity={0.65}
+              onPress={() => setLanguage(isHindi ? 'en' : 'hi')}
             >
               <Ionicons
                 name="language-outline"
-                size={18}
-                color={COLORS.primary}
+                size={19}
+                color={COLORS.navy}
               />
-
-              <Text style={styles.languageText}>
-                {language === 'hi' ? 'EN' : 'हि'}
-              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* PROFILE CARD */}
-          <View style={styles.profileCard}>
-            <View style={styles.avatarWrapper}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (profileImage) {
-                    setPreviewVisible(true);
-                  } else {
-                    chooseImage();
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                {profileImage ? (
-                  <Image
-                    source={{ uri: profileImage }}
-                    style={styles.avatarImage}
+          {/* PROFILE PHOTO & HERO */}
+          <View style={styles.profileSection}>
+            <TouchableOpacity
+              style={styles.photoWrapper}
+              onPress={() => setPreviewVisible(true)}
+              activeOpacity={0.85}
+            >
+              {citizen.profileImage ? (
+                <Image
+                  source={{ uri: citizen.profileImage }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons
+                    name="person-outline"
+                    size={55}
+                    color={COLORS.navy}
                   />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Ionicons
-                      name="person-outline"
-                      size={52}
-                      color={COLORS.primary}
-                    />
-                  </View>
-                )}
-              </TouchableOpacity>
+                </View>
+              )}
 
               <TouchableOpacity
                 style={styles.cameraButton}
-                onPress={chooseImage}
-                activeOpacity={0.7}
+                onPress={pickImage}
+                activeOpacity={0.8}
               >
                 <Ionicons
                   name="camera-outline"
@@ -505,130 +426,241 @@ export default function Profile() {
                   color={COLORS.textWhite}
                 />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
 
             <Text style={styles.profileName}>
-              {name ||
-                (language === 'hi'
-                  ? 'नागरिक'
-                  : 'Citizen')}
+              {citizen.name || (isHindi ? 'नागरिक' : 'Citizen')}
             </Text>
 
             <View style={styles.roleBadge}>
               <Ionicons
-                name="person-outline"
+                name="people-outline"
                 size={15}
-                color={COLORS.indiaGreen}
+                color={COLORS.navy}
               />
 
               <Text style={styles.roleText}>
-                {labels.citizen}
+                {isHindi ? 'नागरिक / ग्रामीण' : 'Citizen / Resident'}
               </Text>
             </View>
 
             <TouchableOpacity
               style={styles.photoButton}
-              onPress={chooseImage}
-              activeOpacity={0.7}
+              onPress={pickImage}
             >
               <Ionicons
                 name="image-outline"
-                size={19}
-                color={COLORS.indiaGreen}
+                size={17}
+                color={COLORS.navy}
               />
 
               <Text style={styles.photoButtonText}>
-                {profileImage
-                  ? labels.changePhoto
-                  : labels.addPhoto}
+                {citizen.profileImage
+                  ? isHindi
+                    ? 'फोटो बदलें'
+                    : 'Change Photo'
+                  : isHindi
+                  ? 'प्रोफाइल फोटो जोड़ें'
+                  : 'Add Profile Photo'}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* PERSONAL INFORMATION */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {labels.personalInfo}
-            </Text>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {isHindi ? 'व्यक्तिगत जानकारी' : 'Personal Information'}
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                {isHindi
+                  ? 'अपनी जानकारी अपडेट करें'
+                  : 'Update your information'}
+              </Text>
+            </View>
 
             {!editing && (
               <TouchableOpacity
+                style={styles.editButton}
                 onPress={() => setEditing(true)}
-                activeOpacity={0.65}
-                style={{ padding: 4 }}
               >
                 <Ionicons
                   name="create-outline"
-                  size={22}
-                  color={COLORS.accent}
+                  size={17}
+                  color={COLORS.navy}
                 />
+
+                <Text style={styles.editText}>
+                  {isHindi ? 'संपादित करें' : 'Edit'}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
 
-          <View style={styles.infoCard}>
-            <ProfileField
-              icon="person-outline"
-              label={labels.name}
-              value={name}
-              editable={editing}
-              onChangeText={(text) => setName(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
-            />
+          <View style={styles.formCard}>
+            {/* NAME */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                {isHindi ? 'नाम' : 'Name'}
+              </Text>
 
-            <ProfileField
-              icon="call-outline"
-              label={labels.mobile}
-              value={mobile}
-              editable={editing}
-              keyboardType="phone-pad"
-              onChangeText={(text) => setMobile(text.replace(/\D/g, '').slice(0, 10))}
-            />
+              <View
+                style={[
+                  styles.inputBox,
+                  !editing && styles.disabledBox,
+                ]}
+              >
+                <Ionicons
+                  name="person-outline"
+                  size={20}
+                  color={COLORS.textMuted}
+                />
 
-            <ProfileField
-              icon="location-outline"
-              label={labels.village}
-              value={village}
-              editable={editing}
-              onChangeText={(text) => setVillage(text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''))}
-            />
+                <TextInput
+                  style={styles.input}
+                  value={citizen.name || ''}
+                  onChangeText={(text) =>
+                    setCitizen({
+                      ...citizen,
+                      name: text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''),
+                    })
+                  }
+                  editable={editing}
+                  placeholder={isHindi ? 'अपना नाम' : 'Your name'}
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+            </View>
 
-            <ProfileField
-              icon="map-outline"
-              label={labels.ward}
-              value={ward}
-              editable={editing}
-              keyboardType="number-pad"
-              onChangeText={(text) => setWard(text.replace(/\D/g, '').slice(0, 4))}
-              last
-            />
+            {/* MOBILE */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'}
+              </Text>
+
+              <View
+                style={[
+                  styles.inputBox,
+                  !editing && styles.disabledBox,
+                ]}
+              >
+                <Ionicons
+                  name="call-outline"
+                  size={20}
+                  color={COLORS.textMuted}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  value={citizen.mobile || ''}
+                  onChangeText={(text) =>
+                    setCitizen({
+                      ...citizen,
+                      mobile: text.replace(/\D/g, '').slice(0, 10),
+                    })
+                  }
+                  editable={editing}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  placeholder={
+                    isHindi ? 'मोबाइल नंबर' : 'Mobile number'
+                  }
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+            </View>
+
+            {/* VILLAGE */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                {isHindi ? 'गांव' : 'Village'}
+              </Text>
+
+              <View
+                style={[
+                  styles.inputBox,
+                  !editing && styles.disabledBox,
+                ]}
+              >
+                <Ionicons
+                  name="location-outline"
+                  size={20}
+                  color={COLORS.textMuted}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  value={citizen.village || ''}
+                  onChangeText={(text) =>
+                    setCitizen({
+                      ...citizen,
+                      village: text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''),
+                    })
+                  }
+                  editable={editing}
+                  placeholder={isHindi ? 'गांव का नाम' : 'Village name'}
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+            </View>
+
+            {/* WARD NUMBER */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                {isHindi ? 'वार्ड संख्या' : 'Ward Number'}
+              </Text>
+
+              <View
+                style={[
+                  styles.inputBox,
+                  !editing && styles.disabledBox,
+                ]}
+              >
+                <Ionicons
+                  name="map-outline"
+                  size={20}
+                  color={COLORS.textMuted}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  value={citizen.ward || ''}
+                  onChangeText={(text) =>
+                    setCitizen({
+                      ...citizen,
+                      ward: text.replace(/\D/g, '').slice(0, 4),
+                    })
+                  }
+                  editable={editing}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  placeholder={isHindi ? 'वार्ड संख्या (उदा. 04)' : 'Ward number (e.g. 04)'}
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+            </View>
           </View>
 
           {/* EDIT ACTIONS */}
           {editing && (
-            <View style={styles.editActions}>
+            <View style={styles.bottomActions}>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
-                  setName(user?.name || '');
-                  setMobile(user?.mobile || '');
-                  setVillage(user?.village || '');
-                  setWard(user?.ward || '');
-                  setProfileImage(
-                    user?.profileImage || null
-                  );
                   setEditing(false);
+                  loadCitizen();
                 }}
-                activeOpacity={0.7}
               >
                 <Text style={styles.cancelText}>
-                  {labels.cancel}
+                  {isHindi ? 'रद्द करें' : 'Cancel'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={saveProfile}
-                activeOpacity={0.7}
+                activeOpacity={0.85}
               >
                 <Ionicons
                   name="checkmark-outline"
@@ -637,51 +669,115 @@ export default function Profile() {
                 />
 
                 <Text style={styles.saveText}>
-                  {labels.save}
+                  {isHindi ? 'सेव करें' : 'Save Changes'}
                 </Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* ACCOUNT */}
-          <Text style={styles.sectionTitleStandalone}>
-            {labels.account}
-          </Text>
+          {/* ACCOUNT & SETTINGS SECTION */}
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {isHindi ? 'खाता एवं सेटिंग्स' : 'Account & Settings'}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {isHindi ? 'खाता विकल्प और प्रबंधन' : 'Account options and management'}
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.accountCard}>
-            {/* LANGUAGE */}
+            {/* MY COMPLAINTS ROW */}
             <TouchableOpacity
               style={styles.accountRow}
-              onPress={() =>
-                setLanguage(
-                  language === 'hi' ? 'en' : 'hi'
-                )
-              }
+              onPress={openMyComplaints}
               activeOpacity={0.7}
             >
-              <View style={styles.accountIcon}>
+              <View style={styles.accountIconBox}>
                 <Ionicons
-                  name="language-outline"
-                  size={21}
+                  name="document-text-outline"
+                  size={20}
                   color={COLORS.primary}
                 />
               </View>
 
               <View style={styles.accountTextWrapper}>
                 <Text style={styles.accountTitle}>
-                  {labels.language}
+                  {isHindi ? 'मेरी शिकायतें' : 'My Complaints'}
                 </Text>
-
                 <Text style={styles.accountSubtitle}>
-                  {language === 'hi'
-                    ? 'हिंदी'
-                    : 'English'}
+                  {isHindi ? 'दर्ज की गई शिकायतों की स्थिति देखें' : 'View status of your registered complaints'}
                 </Text>
               </View>
 
               <Ionicons
                 name="chevron-forward-outline"
-                size={21}
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* SWITCH / ADD ACCOUNT */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={switchAccount}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accountIconBox}>
+                <Ionicons
+                  name="people-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={styles.accountTitle}>
+                  {isHindi ? 'खाता बदलें / जोड़ें' : 'Switch / Add Account'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'सरपंच, सचिव या अन्य रोल चुनें' : 'Select sarpanch, secretary or other role'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            {/* LANGUAGE */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={() => setLanguage(isHindi ? 'en' : 'hi')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accountIconBox}>
+                <Ionicons
+                  name="language-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={styles.accountTitle}>
+                  {isHindi ? 'भाषा (Language)' : 'Language'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'वर्तमान: हिंदी' : 'Current: English'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
                 color={COLORS.textMuted}
               />
             </TouchableOpacity>
@@ -694,97 +790,71 @@ export default function Profile() {
               onPress={logout}
               activeOpacity={0.7}
             >
-              <View style={styles.logoutIcon}>
+              <View style={[styles.accountIconBox, styles.logoutIconBox]}>
                 <Ionicons
                   name="log-out-outline"
-                  size={21}
+                  size={20}
                   color={COLORS.error}
                 />
               </View>
 
               <View style={styles.accountTextWrapper}>
-                <Text style={styles.logoutTitle}>
-                  {labels.logout}
+                <Text style={[styles.accountTitle, { color: COLORS.error }]}>
+                  {isHindi ? 'लॉग आउट' : 'Logout'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'सुरक्षित रूप से बाहर निकलें' : 'Sign out securely'}
                 </Text>
               </View>
 
               <Ionicons
                 name="chevron-forward-outline"
-                size={21}
+                size={20}
                 color={COLORS.error}
               />
             </TouchableOpacity>
           </View>
-        </Animated.View>
-      </ScrollView>
 
-      {/* BOTTOM NAVIGATION BAR */}
-      <DashboardBottomBar activeTab="profile" role="citizen" isHindi={language === 'hi'} />
+          {/* SECURITY INFO */}
+          <View style={styles.infoBox}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={22}
+              color={COLORS.success}
+            />
 
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>
+                {isHindi ? 'प्रोफाइल सुरक्षित है' : 'Profile Protected'}
+              </Text>
+
+              <Text style={styles.infoText}>
+                {isHindi
+                  ? 'आपकी प्रोफाइल जानकारी और शिकायतें डिजिटल रूप से सुरक्षित हैं।'
+                  : 'Your profile details and grievances are securely protected.'}
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* UNIVERSAL BOTTOM NAVIGATION BAR */}
+      <DashboardBottomBar activeTab="profile" role="citizen" isHindi={isHindi} />
+
+      {/* FULL ENLARGED PHOTO PREVIEW MODAL */}
       <PhotoPreviewModal
         visible={previewVisible}
-        imageUri={profileImage}
-        userName={name || (language === 'hi' ? 'नागरिक' : 'Citizen')}
-        userRole={labels.citizen}
+        imageUri={citizen.profileImage}
+        userName={citizen.name || (isHindi ? 'नागरिक' : 'Citizen')}
+        userRole={isHindi ? 'नागरिक / ग्रामीण' : 'Citizen / Resident'}
         onClose={() => setPreviewVisible(false)}
-        onChangePhoto={chooseImage}
+        onChangePhoto={() => {
+          setPreviewVisible(false);
+          pickImage();
+        }}
+        isHindi={isHindi}
       />
     </SafeAreaView>
-  );
-}
-
-function ProfileField({
-  icon,
-  label,
-  value,
-  editable,
-  onChangeText,
-  keyboardType,
-  last,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  editable: boolean;
-  onChangeText: (text: string) => void;
-  keyboardType?: any;
-  last?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.fieldRow,
-        last && styles.lastField,
-      ]}
-    >
-      <View style={styles.fieldIcon}>
-        <Ionicons
-          name={icon}
-          size={21}
-          color={COLORS.primary}
-        />
-      </View>
-
-      <View style={styles.fieldContent}>
-        <Text style={styles.fieldLabel}>
-          {label}
-        </Text>
-
-        {editable ? (
-          <TextInput
-            value={value}
-            onChangeText={onChangeText}
-            style={styles.input}
-            keyboardType={keyboardType}
-            placeholderTextColor={COLORS.textMuted}
-          />
-        ) : (
-          <Text style={styles.fieldValue}>
-            {value || '—'}
-          </Text>
-        )}
-      </View>
-    </View>
   );
 }
 
@@ -795,12 +865,16 @@ const styles = StyleSheet.create({
   },
 
   container: {
+    flex: 1,
+  },
+
+  content: {
     paddingHorizontal: SPACING.screen,
-    paddingBottom: 35,
+    paddingBottom: SPACING.xxl,
   },
 
   header: {
-    height: 64,
+    height: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -810,130 +884,118 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   headerTitle: {
-    fontSize: TYPOGRAPHY.title,
-    lineHeight: TYPOGRAPHY.lineTitle,
-    fontWeight: TYPOGRAPHY.bold,
+    fontSize: TYPOGRAPHY.subtitle,
+    fontWeight: TYPOGRAPHY.extraBold,
     color: COLORS.navy,
   },
 
   languageButton: {
-    height: 40,
-    minWidth: 52,
-    paddingHorizontal: SPACING.sm,
+    width: 42,
+    height: 42,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primaryLight,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
   },
 
-  languageText: {
-    color: COLORS.primary,
-    fontSize: TYPOGRAPHY.body,
-    fontWeight: TYPOGRAPHY.bold,
-  },
-
-  profileCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.xxl,
-    paddingVertical: 25,
+  profileSection: {
     alignItems: 'center',
-    marginTop: SPACING.sm,
-    ...SHADOWS.medium,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xl,
   },
 
-  avatarWrapper: {
+  photoWrapper: {
     position: 'relative',
     marginBottom: SPACING.md,
   },
 
-  avatarImage: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
+  profileImage: {
+    width: 116,
+    height: 116,
+    borderRadius: RADIUS.round,
+    borderWidth: 3,
+    borderColor: COLORS.primaryLight,
   },
 
-  avatarPlaceholder: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
+  photoPlaceholder: {
+    width: 116,
+    height: 116,
+    borderRadius: RADIUS.round,
     backgroundColor: COLORS.primaryLight,
-    borderWidth: 2,
-    borderColor: COLORS.navy,
+    borderWidth: 3,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   cameraButton: {
     position: 'absolute',
-    right: -2,
-    bottom: 2,
+    right: 1,
+    bottom: 3,
     width: 38,
     height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.accent,
+    borderRadius: RADIUS.round,
+    backgroundColor: COLORS.navy,
     borderWidth: 3,
-    borderColor: COLORS.white,
+    borderColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   profileName: {
-    fontSize: TYPOGRAPHY.subtitle + 5,
+    fontSize: TYPOGRAPHY.title,
     fontWeight: TYPOGRAPHY.extraBold,
     color: COLORS.textPrimary,
-    marginTop: 2,
+    textAlign: 'center',
   },
 
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.successLight,
+    backgroundColor: COLORS.primaryLight,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.round,
-    marginTop: 7,
+    borderRadius: RADIUS.sm,
+    marginTop: SPACING.sm,
+    gap: 5,
   },
 
   roleText: {
-    color: COLORS.indiaGreen,
-    fontSize: TYPOGRAPHY.bodySmall,
-    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.navy,
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.extraBold,
   },
 
   photoButton: {
-    marginTop: 17,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    borderWidth: 1,
-    borderColor: COLORS.indiaGreen,
-    backgroundColor: COLORS.successLight,
-    paddingHorizontal: SPACING.normal,
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
+    marginTop: SPACING.md,
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.primaryLight,
   },
 
   photoButtonText: {
-    color: COLORS.indiaGreen,
-    fontSize: TYPOGRAPHY.body,
+    color: COLORS.navy,
+    fontSize: TYPOGRAPHY.small,
     fontWeight: TYPOGRAPHY.bold,
   },
 
   sectionHeader: {
-    marginTop: SPACING.section,
-    marginBottom: 11,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
   },
 
   sectionTitle: {
@@ -942,174 +1004,190 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
 
-  sectionTitleStandalone: {
-    fontSize: TYPOGRAPHY.subtitle,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.textPrimary,
-    marginTop: SPACING.section,
-    marginBottom: 11,
+  sectionSubtitle: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textMuted,
+    marginTop: 3,
   },
 
-  infoCard: {
-    backgroundColor: COLORS.card,
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+  },
+
+  editText: {
+    color: COLORS.navy,
+    fontSize: TYPOGRAPHY.small,
+    fontWeight: TYPOGRAPHY.bold,
+  },
+
+  formCard: {
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
-    paddingHorizontal: SPACING.normal,
+    padding: SPACING.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.small,
   },
 
-  fieldRow: {
+  inputGroup: {
+    marginBottom: SPACING.normal,
+  },
+
+  label: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.bold,
+    marginBottom: SPACING.sm,
+  },
+
+  inputBox: {
+    height: 52,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    paddingHorizontal: SPACING.normal,
   },
 
-  lastField: {
-    borderBottomWidth: 0,
-  },
-
-  fieldIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 13,
-  },
-
-  fieldContent: {
-    flex: 1,
-  },
-
-  fieldLabel: {
-    fontSize: TYPOGRAPHY.small,
-    color: COLORS.textMuted,
-    fontWeight: TYPOGRAPHY.semiBold,
-    marginBottom: 3,
-  },
-
-  fieldValue: {
-    fontSize: TYPOGRAPHY.large,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.semiBold,
+  disabledBox: {
+    backgroundColor: COLORS.borderLight,
   },
 
   input: {
-    fontSize: TYPOGRAPHY.large,
+    flex: 1,
+    fontSize: TYPOGRAPHY.body,
     color: COLORS.textPrimary,
+    marginLeft: SPACING.sm,
     fontWeight: TYPOGRAPHY.semiBold,
-    paddingVertical: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.accent,
   },
 
-  editActions: {
+  bottomActions: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    marginTop: 15,
+    gap: SPACING.sm,
+    marginTop: SPACING.normal,
   },
 
   cancelButton: {
     flex: 1,
-    height: 50,
+    height: 51,
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
   },
 
   cancelText: {
     color: COLORS.textSecondary,
-    fontSize: TYPOGRAPHY.medium,
+    fontSize: TYPOGRAPHY.bodySmall,
     fontWeight: TYPOGRAPHY.bold,
   },
 
   saveButton: {
-    flex: 1,
-    height: 50,
+    flex: 1.5,
+    height: 51,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
+    backgroundColor: COLORS.navy,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     gap: 7,
+    ...SHADOWS.small,
   },
 
   saveText: {
     color: COLORS.textWhite,
-    fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.bold,
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: TYPOGRAPHY.extraBold,
+  },
+
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.successLight,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginTop: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  infoContent: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+  },
+
+  infoTitle: {
+    fontSize: TYPOGRAPHY.small,
+    color: COLORS.success,
+    fontWeight: TYPOGRAPHY.extraBold,
+  },
+
+  infoText: {
+    fontSize: TYPOGRAPHY.xs,
+    lineHeight: TYPOGRAPHY.lineSmall,
+    color: COLORS.textSecondary,
+    marginTop: 3,
   },
 
   accountCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.xl,
-    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    marginBottom: SPACING.md,
     ...SHADOWS.small,
   },
 
   accountRow: {
-    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: SPACING.card,
+    paddingVertical: 14,
   },
 
-  accountIcon: {
-    width: 42,
-    height: 42,
+  accountIconBox: {
+    width: 38,
+    height: 38,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 13,
   },
 
-  logoutIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS.md,
+  logoutIconBox: {
     backgroundColor: COLORS.errorLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 13,
   },
 
   accountTextWrapper: {
     flex: 1,
+    marginLeft: 12,
   },
 
   accountTitle: {
-    fontSize: TYPOGRAPHY.medium,
+    fontSize: TYPOGRAPHY.bodySmall,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
   },
 
   accountSubtitle: {
-    fontSize: TYPOGRAPHY.small,
+    fontSize: TYPOGRAPHY.xs,
     color: COLORS.textMuted,
     marginTop: 2,
-  },
-
-  logoutTitle: {
-    fontSize: TYPOGRAPHY.medium,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.error,
   },
 
   divider: {
     height: 1,
     backgroundColor: COLORS.borderLight,
-  },
-
-  footerText: {
-    textAlign: 'center',
-    marginTop: 25,
-    color: COLORS.textMuted,
-    fontSize: TYPOGRAPHY.small,
-    fontWeight: TYPOGRAPHY.semiBold,
+    marginLeft: 62,
   },
 });
