@@ -83,7 +83,17 @@ export default function CitizenDashboard() {
 
       // Load complaints from backend
       try {
-        const apiData = await complaintApi.getCitizenComplaints();
+        let apiData = await complaintApi.getCitizenComplaints();
+        if (!Array.isArray(apiData) || apiData.length === 0) {
+          try {
+            const offline = await AsyncStorage.getItem('offline_complaints');
+            const offlineArr = offline ? JSON.parse(offline) : [];
+            if (Array.isArray(offlineArr) && offlineArr.length > 0) {
+              apiData = offlineArr;
+            }
+          } catch (offErr) {}
+        }
+
         if (Array.isArray(apiData)) {
           let tot = 0;
           let inProg = 0;

@@ -69,7 +69,11 @@ export default function AdminProfile() {
       const adminParsed = adminData ? JSON.parse(adminData) : null;
       const secretaryParsed = secretaryData ? JSON.parse(secretaryData) : null;
 
-      const isSec = session?.role === 'secretary' || (!adminParsed && !!secretaryParsed);
+      const isSec = session?.role === 'secretary'
+        ? true
+        : session?.role === 'sarpanch' || session?.role === 'admin'
+        ? false
+        : !adminParsed && !!secretaryParsed;
 
       const activeData = isSec
         ? { ...(secretaryParsed || {}), ...(session || {}) }
@@ -86,7 +90,9 @@ export default function AdminProfile() {
         name: activeData.name || '',
         mobile: activeData.mobile || currentMobile || '',
         village: activeData.village || '',
-        officialId: activeData.secretaryId || activeData.adminId || activeData.officialId || '',
+        officialId: isSec
+          ? (activeData.secretaryId || activeData.officialId || session?.secretaryId || '')
+          : (activeData.adminId || activeData.officialId || session?.adminId || ''),
         role: isSec ? 'secretary' : 'sarpanch',
         profileImage: photoUri,
       });
@@ -587,14 +593,30 @@ export default function AdminProfile() {
                   : (admin.role === 'secretary' ? 'Panchayat Secretary' : 'Sarpanch / Admin'))}
             </Text>
 
-            <View style={styles.roleBadge}>
+            <View
+              style={[
+                styles.roleBadge,
+                admin.role === 'secretary' && { backgroundColor: COLORS.successLight },
+              ]}
+            >
               <Ionicons
-                name="shield-checkmark-outline"
+                name={
+                  admin.role === 'secretary'
+                    ? 'briefcase-outline'
+                    : 'shield-checkmark-outline'
+                }
                 size={15}
-                color={COLORS.accent}
+                color={
+                  admin.role === 'secretary' ? COLORS.success : COLORS.accent
+                }
               />
 
-              <Text style={styles.roleText}>
+              <Text
+                style={[
+                  styles.roleText,
+                  admin.role === 'secretary' && { color: COLORS.success },
+                ]}
+              >
                 {admin.role === 'secretary'
                   ? (isHindi ? 'ग्राम पंचायत सचिव / सुपरवाइजर' : 'Secretary / Supervisor')
                   : (isHindi ? 'ग्राम प्रधान / सरपंच' : 'Village Head / Sarpanch')}
@@ -774,12 +796,12 @@ export default function AdminProfile() {
               </View>
             </View>
 
-            {/* ADMIN ID */}
+            {/* ADMIN / SECRETARY ID */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
                 {admin.role === 'secretary'
                   ? (isHindi ? 'सचिव आईडी' : 'Secretary ID')
-                  : (isHindi ? 'एडमिन आईडी' : 'Admin ID')}
+                  : (isHindi ? 'सरपंच आईडी' : 'Sarpanch ID')}
               </Text>
 
               <View
@@ -798,7 +820,7 @@ export default function AdminProfile() {
                   style={styles.input}
                   value={admin.officialId || ''}
                   editable={false}
-                  placeholder={admin.role === 'secretary' ? 'Secretary ID' : 'Admin ID'}
+                  placeholder={admin.role === 'secretary' ? 'Secretary ID' : 'Sarpanch ID'}
                   placeholderTextColor={COLORS.textMuted}
                 />
 
@@ -812,7 +834,7 @@ export default function AdminProfile() {
               <Text style={styles.helperText}>
                 {admin.role === 'secretary'
                   ? (isHindi ? 'सचिव आईडी बदली नहीं जा सकती।' : 'Secretary ID cannot be changed.')
-                  : (isHindi ? 'एडमिन आईडी बदली नहीं जा सकती।' : 'Admin ID cannot be changed.')}
+                  : (isHindi ? 'सरपंच आईडी बदली नहीं जा सकती।' : 'Sarpanch ID cannot be changed.')}
               </Text>
             </View>
           </View>
