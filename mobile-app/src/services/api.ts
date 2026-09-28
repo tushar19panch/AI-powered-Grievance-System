@@ -55,18 +55,27 @@ export async function setApiBaseUrl(url: string): Promise<void> {
   await AsyncStorage.setItem(API_STORAGE_KEY, url.trim().replace(/\/+$/, ''));
 }
 
+export function isValidJwt(token: string | null | undefined): boolean {
+  if (!token || typeof token !== 'string') return false;
+  const trimmed = token.trim();
+  if (trimmed.startsWith('session_') || trimmed.startsWith('mock_') || trimmed.startsWith('OFFLINE_')) return false;
+  const parts = trimmed.split('.');
+  if (parts.length !== 3) return false;
+  return parts[0].length > 0 && parts[1].length > 0 && parts[2].length > 0;
+}
+
 export async function getAuthToken(): Promise<string | null> {
   try {
     let token = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
-    if (token && token.trim()) return token.trim();
+    if (isValidJwt(token)) return token!.trim();
 
     token = await AsyncStorage.getItem('token');
-    if (token && token.trim()) return token.trim();
+    if (isValidJwt(token)) return token!.trim();
 
     const userSession = await AsyncStorage.getItem('user_session');
     if (userSession) {
       const parsed = JSON.parse(userSession);
-      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+      if (isValidJwt(parsed?.token)) {
         return parsed.token.trim();
       }
     }
@@ -74,7 +83,7 @@ export async function getAuthToken(): Promise<string | null> {
     const citizen = await AsyncStorage.getItem('citizen');
     if (citizen) {
       const parsed = JSON.parse(citizen);
-      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+      if (isValidJwt(parsed?.token)) {
         return parsed.token.trim();
       }
     }
@@ -82,7 +91,7 @@ export async function getAuthToken(): Promise<string | null> {
     const admin = await AsyncStorage.getItem('admin');
     if (admin) {
       const parsed = JSON.parse(admin);
-      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+      if (isValidJwt(parsed?.token)) {
         return parsed.token.trim();
       }
     }
@@ -90,7 +99,7 @@ export async function getAuthToken(): Promise<string | null> {
     const secretary = await AsyncStorage.getItem('secretary');
     if (secretary) {
       const parsed = JSON.parse(secretary);
-      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+      if (isValidJwt(parsed?.token)) {
         return parsed.token.trim();
       }
     }
@@ -102,8 +111,10 @@ export async function getAuthToken(): Promise<string | null> {
 
 export async function setAuthToken(token: string): Promise<void> {
   const clean = token ? token.trim() : '';
-  await AsyncStorage.setItem(TOKEN_STORAGE_KEY, clean);
-  await AsyncStorage.setItem('token', clean);
+  if (isValidJwt(clean)) {
+    await AsyncStorage.setItem(TOKEN_STORAGE_KEY, clean);
+    await AsyncStorage.setItem('token', clean);
+  }
 }
 
 export async function removeAuthToken(): Promise<void> {
@@ -221,11 +232,16 @@ export interface ResetPasswordPayload {
 
 export const authApi = {
   login: async (payload: LoginPayload): Promise<LoginResponseData> => {
+    const cleanId = (payload.mobileNumber || payload.identifier || '').trim();
     const res = await request<LoginResponseData>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        mobileNumber: cleanId,
+        identifier: cleanId,
+      }),
     });
-    if (res?.token) {
+    if (res?.token && isValidJwt(res.token)) {
       await setAuthToken(res.token);
       await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(res));
     }

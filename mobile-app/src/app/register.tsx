@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { authApi, villageApi, VillageData } from '../services/api';
+import { authApi, villageApi, VillageData, setAuthToken, isValidJwt } from '../services/api';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -237,27 +237,35 @@ export default function RegisterScreen() {
       });
 
       // Auto login with newly created account
-      let loginData;
+      let loginData: any = null;
       try {
         loginData = await authApi.login({
+          mobileNumber: cleanMobile,
           identifier: cleanMobile,
           password: password,
           role: 'CITIZEN',
         });
       } catch (loginErr) {
-        console.log('Auto login failed, saving local session:', loginErr);
+        console.log('Auto login failed after registration:', loginErr);
+      }
+
+      const validToken = loginData?.token && isValidJwt(loginData.token) ? loginData.token : '';
+      if (validToken) {
+        await setAuthToken(validToken);
       }
 
       const citizenData = {
         name: name.trim(),
         mobile: cleanMobile,
+        password: password, // Saved to allow auto re-authentication
         state: 'Madhya Pradesh',
         district: district.trim(),
         block: block.trim(),
-        village: village.trim(),
+        village: matchedVillage?.name || cleanVillage,
         ward: ward.trim(),
-        token: loginData?.token || 'session_' + Date.now(),
+        token: validToken,
         role: 'citizen',
+        isLoggedIn: true,
       };
 
       await AsyncStorage.setItem('citizen', JSON.stringify(citizenData));

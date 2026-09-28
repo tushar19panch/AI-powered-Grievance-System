@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { authApi } from '../services/api';
+import { authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 
 import { useLanguage } from '../i18n/LanguageContext';
 import {
@@ -52,6 +52,17 @@ export default function LoginScreen() {
     checkExistingSession();
   }, []);
 
+  const routeByRole = (role?: string) => {
+    const r = String(role || '').toLowerCase();
+    if (r === 'citizen') {
+      router.replace('/citizen-dashboard');
+    } else if (r === 'sarpanch' || r === 'admin') {
+      router.replace('/admin');
+    } else if (r === 'secretary') {
+      router.replace('/secretary');
+    }
+  };
+
   const checkExistingSession = async () => {
     try {
       const session = await AsyncStorage.getItem('user_session');
@@ -60,14 +71,36 @@ export default function LoginScreen() {
         const parsedSession = JSON.parse(session);
 
         if (parsedSession?.isLoggedIn === true) {
-          const r = String(parsedSession?.role || '').toLowerCase();
-          if (r === 'citizen') {
-            router.replace('/citizen-dashboard');
-          } else if (r === 'sarpanch' || r === 'admin') {
-            router.replace('/admin');
-          } else if (r === 'secretary') {
-            router.replace('/secretary');
+          const token = await getAuthToken();
+          if (!token || !isValidJwt(token)) {
+            console.log('Stored session has no valid JWT. Checking credentials for auto-heal...');
+            const savedPass = parsedSession.password;
+            const savedMobile = parsedSession.mobile || parsedSession.adminId || parsedSession.secretaryId;
+            if (savedPass && savedMobile) {
+              try {
+                const refreshed = await authApi.login({
+                  mobileNumber: savedMobile,
+                  identifier: savedMobile,
+                  password: savedPass,
+                });
+                if (refreshed?.token && isValidJwt(refreshed.token)) {
+                  parsedSession.token = refreshed.token;
+                  await AsyncStorage.setItem('user_session', JSON.stringify(parsedSession));
+                  await setAuthToken(refreshed.token);
+                  routeByRole(parsedSession.role);
+                  return;
+                }
+              } catch (reauthErr) {
+                console.log('Auto re-authentication failed:', reauthErr);
+              }
+            }
+            if (savedMobile) {
+              setMobile(savedMobile);
+            }
+            return;
           }
+
+          routeByRole(parsedSession?.role);
         }
       }
     } catch (error) {
@@ -163,6 +196,10 @@ export default function LoginScreen() {
       const userMobileOrId = loginData?.mobileNumber || cleanIdentifier;
 
       // Save user session
+      const validToken = loginData?.token && isValidJwt(loginData.token) ? loginData.token : '';
+      if (validToken) {
+        await setAuthToken(validToken);
+      }
       await AsyncStorage.setItem(
         'user_session',
         JSON.stringify({
@@ -170,9 +207,10 @@ export default function LoginScreen() {
           role: roleStr,
           name: loginData?.name || '',
           mobile: userMobileOrId,
+          password: password,
           village: loginData?.villageName || '',
           ward: loginData?.wardNumber || '',
-          token: loginData?.token || '',
+          token: validToken,
           loginAt: new Date().toISOString(),
         })
       );

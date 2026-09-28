@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import { complaintApi, ComplaintData } from '../../services/api';
+import { complaintApi, ComplaintData, authApi, getAuthToken, setAuthToken, isValidJwt } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../../components/PhotoPreviewModal';
 import {
@@ -94,6 +94,24 @@ export default function ComplaintsScreen() {
       const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
       setUserRole(role);
 
+      let token = await getAuthToken();
+      if (!token || !isValidJwt(token)) {
+        const savedPass = session?.password;
+        const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
+        if (savedPass && savedMobile) {
+          try {
+            const loginRes = await authApi.login({
+              mobileNumber: savedMobile,
+              identifier: savedMobile,
+              password: savedPass,
+            });
+            if (loginRes?.token && isValidJwt(loginRes.token)) {
+              await setAuthToken(loginRes.token);
+            }
+          } catch {}
+        }
+      }
+
       let fetchedList: Complaint[] = [];
 
       try {
@@ -108,8 +126,42 @@ export default function ComplaintsScreen() {
             fetchedList = apiData.map(mapBackendComplaint);
           }
         }
-      } catch (apiErr) {
-        console.log('Backend complaint fetch error:', apiErr);
+      } catch (apiErr: any) {
+        if (apiErr?.message?.includes('Access Denied')) {
+          const savedPass = session?.password;
+          const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
+          if (savedPass && savedMobile) {
+            try {
+              const retryLogin = await authApi.login({
+                mobileNumber: savedMobile,
+                identifier: savedMobile,
+                password: savedPass,
+              });
+              if (retryLogin?.token && isValidJwt(retryLogin.token)) {
+                await setAuthToken(retryLogin.token);
+                const retryData = (role === 'sarpanch' || role === 'secretary')
+                  ? await complaintApi.getSarpanchComplaints()
+                  : await complaintApi.getCitizenComplaints();
+                if (Array.isArray(retryData)) {
+                  fetchedList = retryData.map(mapBackendComplaint);
+                }
+              }
+            } catch {}
+          }
+        }
+        if (fetchedList.length === 0) {
+          console.log('Backend complaint fetch notice:', apiErr?.message || apiErr);
+        }
+      }
+
+      if (fetchedList.length === 0) {
+        try {
+          const offline = await AsyncStorage.getItem('offline_complaints');
+          const offlineArr = offline ? JSON.parse(offline) : [];
+          if (Array.isArray(offlineArr) && offlineArr.length > 0) {
+            fetchedList = offlineArr.map(mapBackendComplaint);
+          }
+        } catch {}
       }
 
       fetchedList.sort(

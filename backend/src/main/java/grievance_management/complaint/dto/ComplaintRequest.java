@@ -33,4 +33,6 @@ public class ComplaintRequest {
 
     @NotBlank
     private String description;
+
+    private String sentiment;
 }

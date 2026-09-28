@@ -170,7 +170,7 @@ export function ComplaintOverviewSection({
   }) => (
     <TouchableOpacity
       style={styles.categoryCard}
-      onPress={() => handlePress(filterKey)}
+      onPress={() => onSelectFilter?.(filterKey)}
       activeOpacity={0.82}
     >
       <View style={[styles.categoryIcon, { backgroundColor: iconBg }]}>

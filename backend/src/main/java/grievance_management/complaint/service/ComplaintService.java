@@ -113,11 +113,20 @@ public class ComplaintService {
         }
 
         String priority = aiResult.getPriority();
+        if (priority == null || priority.isBlank() || (priority.equalsIgnoreCase("MEDIUM") && request.getPriority() != null && !request.getPriority().isBlank())) {
+            priority = (request.getPriority() != null && !request.getPriority().isBlank()) ? request.getPriority() : priority;
+        }
         if (priority == null || priority.isBlank()) {
-            priority = (request.getPriority() != null && !request.getPriority().isBlank()) ? request.getPriority() : "MEDIUM";
+            priority = "MEDIUM";
         }
 
-        String sentiment = aiResult.getSentiment() != null && !aiResult.getSentiment().isBlank() ? aiResult.getSentiment() : "NEUTRAL";
+        String sentiment = aiResult.getSentiment();
+        if (sentiment == null || sentiment.isBlank() || (sentiment.equalsIgnoreCase("NEUTRAL") && request.getSentiment() != null && !request.getSentiment().isBlank())) {
+            sentiment = (request.getSentiment() != null && !request.getSentiment().isBlank()) ? request.getSentiment() : sentiment;
+        }
+        if (sentiment == null || sentiment.isBlank()) {
+            sentiment = "NEUTRAL";
+        }
 
         // ---------------------------------------------------------
         // Create complaint

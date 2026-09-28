@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useLanguage } from '../i18n/LanguageContext';
-import { complaintApi, villageApi } from '../services/api';
+import { complaintApi, villageApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
@@ -100,7 +100,52 @@ export default function CitizenDashboard() {
 
       // Load complaints from backend
       try {
-        let apiData = await complaintApi.getCitizenComplaints();
+        let token = await getAuthToken();
+        if (!token || !isValidJwt(token)) {
+          const savedPass = session?.password || (citizen as any)?.password;
+          if (savedPass && currentMobile) {
+            try {
+              const loginRes = await authApi.login({
+                mobileNumber: currentMobile,
+                identifier: currentMobile,
+                password: savedPass,
+                role: 'CITIZEN',
+              });
+              if (loginRes?.token && isValidJwt(loginRes.token)) {
+                await setAuthToken(loginRes.token);
+              }
+            } catch (autoErr) {
+              console.log('Auto re-authentication failed in dashboard:', autoErr);
+            }
+          }
+        }
+
+        let apiData: any[] = [];
+        try {
+          apiData = await complaintApi.getCitizenComplaints();
+        } catch (err: any) {
+          if (err?.message?.includes('Access Denied')) {
+            const savedPass = session?.password || (citizen as any)?.password;
+            if (savedPass && currentMobile) {
+              try {
+                const retryLogin = await authApi.login({
+                  mobileNumber: currentMobile,
+                  identifier: currentMobile,
+                  password: savedPass,
+                  role: 'CITIZEN',
+                });
+                if (retryLogin?.token && isValidJwt(retryLogin.token)) {
+                  await setAuthToken(retryLogin.token);
+                  apiData = await complaintApi.getCitizenComplaints();
+                }
+              } catch {}
+            }
+          }
+          if (!apiData || apiData.length === 0) {
+            console.log('Backend complaint fetch notice for citizen:', err?.message || err);
+          }
+        }
+
         if (!Array.isArray(apiData) || apiData.length === 0) {
           try {
             const offline = await AsyncStorage.getItem('offline_complaints');
@@ -492,8 +537,8 @@ export default function CitizenDashboard() {
           <View style={styles.recentReportsList}>
             {recentComplaints.map((c, idx) => {
               const st = String(c.status || 'SUBMITTED').toUpperCase();
-              let badgeColor = COLORS.primary;
-              let badgeBg = COLORS.primaryLight;
+              let badgeColor: string = COLORS.primary;
+              let badgeBg: string = COLORS.primaryLight;
               let badgeLabel = isHindi ? 'लंबित' : 'Pending';
 
               if (st === 'RESOLVED' || st === 'CLOSED') {

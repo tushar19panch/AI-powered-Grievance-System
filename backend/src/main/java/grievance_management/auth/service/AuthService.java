@@ -28,10 +28,15 @@ public class AuthService {
 
     public LoginResponse login(LoginRequest request) {
 
+        String identifier = request.getEffectiveIdentifier();
+        if (identifier.isEmpty()) {
+            throw new RuntimeException("Mobile number or Official ID is required");
+        }
+
         // Find user using mobile number OR official ID (for Sarpanch / Secretary)
         User user = userRepository
-                .findByMobileNumber(request.getMobileNumber())
-                .or(() -> userRepository.findByOfficialId(request.getMobileNumber()))
+                .findByMobileNumber(identifier)
+                .or(() -> userRepository.findByOfficialId(identifier))
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Invalid ID / Mobile number or password"
@@ -48,10 +53,16 @@ public class AuthService {
             );
         }
 
+        // Subject for JWT
+        String subject = user.getMobileNumber();
+        if (subject == null || subject.isBlank()) {
+            subject = user.getOfficialId();
+        }
+
         // Generate JWT token
         String token = jwtService.generateToken(
                 user.getId(),
-                user.getMobileNumber(),
+                subject,
                 user.getRole().name()
         );
 

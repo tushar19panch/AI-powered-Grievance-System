@@ -1013,40 +1013,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...SHADOWS.small,
-  },
-  statIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.navy,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-    fontWeight: '600',
-  },
+
 
   // FOOTER
   footer: {

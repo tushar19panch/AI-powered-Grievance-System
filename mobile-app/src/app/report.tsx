@@ -28,7 +28,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useLanguage } from '../i18n/LanguageContext';
-import { complaintApi } from '../services/api';
+import { complaintApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 import { queueOfflineComplaint } from '../services/offlineSyncService';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 
@@ -560,8 +560,58 @@ export default function ReportScreen() {
       let finalPriority = deducedPriority;
       let finalSentiment = deducedSentiment;
 
+      let token = await getAuthToken();
+      if (!token || !isValidJwt(token)) {
+        try {
+          const sessionData = await AsyncStorage.getItem('user_session');
+          const session = sessionData ? JSON.parse(sessionData) : null;
+          const savedPass = session?.password;
+          const savedMobile = session?.mobile;
+          if (savedPass && savedMobile) {
+            const loginRes = await authApi.login({
+              mobileNumber: savedMobile,
+              identifier: savedMobile,
+              password: savedPass,
+              role: 'CITIZEN',
+            });
+            if (loginRes?.token && isValidJwt(loginRes.token)) {
+              await setAuthToken(loginRes.token);
+            }
+          }
+        } catch {}
+      }
+
       try {
-        const apiRes = await complaintApi.createComplaint(payload);
+        let apiRes: any = null;
+        try {
+          apiRes = await complaintApi.createComplaint(payload);
+        } catch (firstErr: any) {
+          if (firstErr?.message?.includes('Access Denied')) {
+            const sessionData = await AsyncStorage.getItem('user_session');
+            const session = sessionData ? JSON.parse(sessionData) : null;
+            const savedPass = session?.password;
+            const savedMobile = session?.mobile;
+            if (savedPass && savedMobile) {
+              const retryLogin = await authApi.login({
+                mobileNumber: savedMobile,
+                identifier: savedMobile,
+                password: savedPass,
+                role: 'CITIZEN',
+              });
+              if (retryLogin?.token && isValidJwt(retryLogin.token)) {
+                await setAuthToken(retryLogin.token);
+                apiRes = await complaintApi.createComplaint(payload);
+              } else {
+                throw firstErr;
+              }
+            } else {
+              throw firstErr;
+            }
+          } else {
+            throw firstErr;
+          }
+        }
+
         if (apiRes?.id) {
           backendId = String(apiRes.id);
           if (apiRes.category) finalCategory = apiRes.category;
@@ -570,7 +620,7 @@ export default function ReportScreen() {
           if (apiRes.sentiment) finalSentiment = apiRes.sentiment;
         }
       } catch (apiErr) {
-        console.log('Backend complaint submission failed, queuing offline:', apiErr);
+        console.log('Backend complaint submission notice, queuing offline:', apiErr);
         const offlineItem = await queueOfflineComplaint(payload, {
           citizenName: userName,
           ward: effectiveWard,

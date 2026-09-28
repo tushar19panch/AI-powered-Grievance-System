@@ -76,9 +76,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // SARPANCH → ROLE_SARPANCH
                     // SECRETARY → ROLE_SECRETARY
 
+                    String cleanRole = role.trim().toUpperCase();
+                    if (cleanRole.startsWith("ROLE_")) {
+                        cleanRole = cleanRole.substring(5);
+                    }
+
                     SimpleGrantedAuthority authority =
                             new SimpleGrantedAuthority(
-                                    "ROLE_" + role
+                                    "ROLE_" + cleanRole
                             );
 
                     // Create authentication object

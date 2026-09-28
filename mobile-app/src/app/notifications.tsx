@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -10,10 +9,11 @@ import {
   RefreshControl,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { notificationApi } from '../services/api';
+import { notificationApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -109,7 +109,54 @@ export default function Notifications() {
 
   const loadLiveNotifications = async () => {
     try {
-      const data = await notificationApi.getNotifications();
+      let token = await getAuthToken();
+      if (!token || !isValidJwt(token)) {
+        try {
+          const sessionData = await AsyncStorage.getItem('user_session');
+          const session = sessionData ? JSON.parse(sessionData) : null;
+          const savedPass = session?.password;
+          const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
+          if (savedPass && savedMobile) {
+            const loginRes = await authApi.login({
+              mobileNumber: savedMobile,
+              identifier: savedMobile,
+              password: savedPass,
+            });
+            if (loginRes?.token && isValidJwt(loginRes.token)) {
+              await setAuthToken(loginRes.token);
+            }
+          }
+        } catch {}
+      }
+
+      let data: any[] = [];
+      try {
+        data = await notificationApi.getNotifications();
+      } catch (apiErr: any) {
+        if (apiErr?.message?.includes('Access Denied')) {
+          try {
+            const sessionData = await AsyncStorage.getItem('user_session');
+            const session = sessionData ? JSON.parse(sessionData) : null;
+            const savedPass = session?.password;
+            const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
+            if (savedPass && savedMobile) {
+              const retryRes = await authApi.login({
+                mobileNumber: savedMobile,
+                identifier: savedMobile,
+                password: savedPass,
+              });
+              if (retryRes?.token && isValidJwt(retryRes.token)) {
+                await setAuthToken(retryRes.token);
+                data = await notificationApi.getNotifications();
+              }
+            }
+          } catch {}
+        }
+        if (!data || data.length === 0) {
+          console.log('Unable to load live notifications:', apiErr?.message || apiErr);
+        }
+      }
+
       if (Array.isArray(data) && data.length > 0) {
         const mapped: NotificationItem[] = data.map((n) => {
           let type: NotificationType = 'NEW';

@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -12,6 +11,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,7 +24,7 @@ import {
   SHADOWS,
 } from '../theme';
 
-import { complaintApi } from '../services/api';
+import { complaintApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 
 export default function ComplaintDetailsScreen() {
   const router = useRouter();
@@ -141,6 +141,24 @@ export default function ComplaintDetailsScreen() {
         const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
         setUserRole(role);
 
+        let token = await getAuthToken();
+        if (!token || !isValidJwt(token)) {
+          const savedPass = session?.password;
+          const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
+          if (savedPass && savedMobile) {
+            try {
+              const loginRes = await authApi.login({
+                mobileNumber: savedMobile,
+                identifier: savedMobile,
+                password: savedPass,
+              });
+              if (loginRes?.token && isValidJwt(loginRes.token)) {
+                await setAuthToken(loginRes.token);
+              }
+            } catch {}
+          }
+        }
+
         // 1. Fetch complaint from Backend Database API
         let foundComplaint: any = null;
         const cleanId = String(complaintId).replace(/^[^\d]*/, '');
@@ -150,8 +168,8 @@ export default function ComplaintDetailsScreen() {
             if (apiComplaint && (apiComplaint.id || (apiComplaint as any).complaintNumber)) {
               foundComplaint = apiComplaint;
             }
-          } catch (apiErr) {
-            console.log('Single complaint fetch error, checking list endpoints:', apiErr);
+          } catch (apiErr: any) {
+            // Quiet fallback to list endpoints
           }
         }
 
@@ -169,8 +187,8 @@ export default function ComplaintDetailsScreen() {
                 String(c.complaintNumber) === String(cleanId)
               );
             }
-          } catch (listErr) {
-            console.log('Error finding complaint in database list:', listErr);
+          } catch (listErr: any) {
+            // Handled gracefully
           }
         }
 

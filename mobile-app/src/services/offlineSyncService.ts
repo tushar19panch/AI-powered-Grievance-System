@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { complaintApi, ComplaintPayload, ComplaintData } from './api';
+import { complaintApi, ComplaintPayload, ComplaintData, getAuthToken, isValidJwt } from './api';
 
 export interface OfflineComplaint {
   id: string; // Temporary local ID, e.g. "OFFLINE_1727300000000"
@@ -98,12 +98,19 @@ export async function syncOfflineComplaints(): Promise<SyncResult> {
     return { total: 0, synced: 0, failed: 0, syncedIds: [] };
   }
 
+  // Only attempt sync if we have a valid JWT token
+  const token = await getAuthToken();
+  if (!token || !isValidJwt(token)) {
+    return { total: queue.length, synced: 0, failed: queue.length, syncedIds: [] };
+  }
+
   let synced = 0;
   let failed = 0;
   const syncedIds: string[] = [];
   const remainingQueue: OfflineComplaint[] = [];
 
-  for (const item of queue) {
+  for (let i = 0; i < queue.length; i++) {
+    const item = queue[i];
     try {
       const created = await complaintApi.createComplaint(item.payload);
       if (created && (created.id || (created as any).complaintNumber)) {
@@ -115,6 +122,18 @@ export async function syncOfflineComplaints(): Promise<SyncResult> {
         failed++;
       }
     } catch (err: any) {
+      if (err?.message?.includes('Access Denied')) {
+        item.retryCount = (item.retryCount || 0) + 1;
+        item.lastError = 'Access Denied: Please re-login to sync';
+        remainingQueue.push(item);
+        failed++;
+        // Append all remaining unattempted items and stop
+        for (let j = i + 1; j < queue.length; j++) {
+          remainingQueue.push(queue[j]);
+          failed++;
+        }
+        break;
+      }
       console.log(`Failed to sync offline complaint ${item.id}:`, err);
       item.retryCount = (item.retryCount || 0) + 1;
       item.lastError = err?.message || 'Network error';

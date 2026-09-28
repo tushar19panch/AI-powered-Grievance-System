@@ -83,17 +83,25 @@ public class SecurityConfig {
                                 "/uploads/**"
                         ).permitAll()
 
+                        // Notifications for all authenticated users
+                        .requestMatchers(
+                                "/api/notifications",
+                                "/api/notifications/**",
+                                "/api/citizen/notifications",
+                                "/api/citizen/notifications/**",
+                                "/api/sarpanch/notifications",
+                                "/api/sarpanch/notifications/**",
+                                "/api/secretary/notifications",
+                                "/api/secretary/notifications/**"
+                        ).authenticated()
+
                         // Citizen APIs
                         .requestMatchers("/api/citizen/**")
                         .hasRole("CITIZEN")
 
                         // Sarpanch, Secretary & District Super Admins
-                        .requestMatchers("/api/sarpanch/**")
+                        .requestMatchers("/api/sarpanch/**", "/api/secretary/**")
                         .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
-
-                        // Notifications for all authenticated users
-                        .requestMatchers("/api/notifications", "/api/notifications/**")
-                        .authenticated()
 
                         // Everything else requires authentication
                         .anyRequest().authenticated()

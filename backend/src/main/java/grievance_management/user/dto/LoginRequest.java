@@ -8,9 +8,20 @@ import lombok.Setter;
 @Setter
 public class LoginRequest {
 
-    @NotBlank
     private String mobileNumber;
 
-    @NotBlank
+    private String identifier;
+
+    @NotBlank(message = "Password is required")
     private String password;
+
+    public String getEffectiveIdentifier() {
+        if (mobileNumber != null && !mobileNumber.isBlank()) {
+            return mobileNumber.trim();
+        }
+        if (identifier != null && !identifier.isBlank()) {
+            return identifier.trim();
+        }
+        return "";
+    }
 }
