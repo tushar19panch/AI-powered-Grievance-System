@@ -1136,13 +1136,16 @@ export default function ReportScreen() {
       </ScrollView>
 
       {/* =================================================
-          PROBLEM DETAILS SUCCESS POP-UP MODAL
+          CLEAN CITIZEN CONFIRMATION POP-UP MODAL
       ================================================= */}
       <Modal
         visible={showSuccessModal}
         transparent
-        animationType="slide"
-        onRequestClose={() => setShowSuccessModal(false)}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSuccessModal(false);
+          router.replace('/citizen-dashboard');
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1153,113 +1156,42 @@ export default function ReportScreen() {
               <View style={styles.greenStripe} />
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-              {/* SUCCESS ICON & TITLE */}
-              <View style={styles.modalHeaderCenter}>
-                <View style={styles.modalSuccessCircle}>
-                  <Ionicons name="checkmark-done" size={32} color="#16A34A" />
-                </View>
+            <View style={styles.modalBodyContent}>
+              {/* SUCCESS ICON CIRCLE */}
+              <View style={styles.modalSuccessCircle}>
+                <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
+              </View>
 
-                <Text style={styles.modalTitle}>
-                  {submittedData?.isOffline
-                    ? isHindi ? '📶 शिकायत ऑफलाइन दर्ज हुई' : '📶 Complaint Saved Offline'
-                    : isHindi ? 'शिकायत सफलतापूर्वक दर्ज हुई' : 'Complaint Submitted Successfully'}
-                </Text>
+              {/* THANKS & MAIN TITLE */}
+              <Text style={styles.modalThankYouTitle}>
+                {isHindi ? 'धन्यवाद !' : 'Thank You!'}
+              </Text>
 
-                <Text style={styles.modalSubtitle}>
+              <Text style={styles.modalMainMessage}>
+                {isHindi
+                  ? 'आपकी समस्या सफलतापूर्वक दर्ज कर ली गई है।'
+                  : 'Your problem has been submitted successfully.'}
+              </Text>
+
+              {/* RESOLUTION ASSURANCE MESSAGE */}
+              <View style={styles.resolutionMessageBox}>
+                <Ionicons name="time" size={18} color="#EA580C" />
+                <Text style={styles.resolutionMessageText}>
                   {isHindi
-                    ? 'AI द्वारा समस्या का विश्लेषण व विभाग आवंटन पूर्ण हुआ'
-                    : 'AI has analyzed and assigned your complaint to the concerned department.'}
+                    ? 'आपकी समस्या का समाधान जल्द ही किया जाएगा।'
+                    : 'Your problem will be resolved soon.'}
                 </Text>
+              </View>
 
-                {/* TICKET ID BADGE */}
+              {/* COMPLAINT ID BADGE */}
+              {submittedData?.id ? (
                 <View style={styles.modalTicketPill}>
-                  <Ionicons name="ticket" size={16} color={COLORS.primary} />
+                  <Ionicons name="ticket-outline" size={16} color={COLORS.primary} />
                   <Text style={styles.modalTicketText}>
-                    {isHindi ? 'शिकायत आईडी:' : 'Complaint ID:'} #{submittedData?.id}
+                    {isHindi ? 'शिकायत संख्या:' : 'Complaint ID:'} #{submittedData?.id}
                   </Text>
                 </View>
-              </View>
-
-              {/* AI & PROBLEM DETAILS BOX */}
-              <View style={styles.detailsCardBox}>
-                <View style={styles.detailsSectionTitleRow}>
-                  <Ionicons name="sparkles" size={16} color="#EA580C" />
-                  <Text style={styles.detailsSectionTitle}>
-                    {isHindi ? 'AI समस्या विश्लेषण विवरण' : 'AI Problem Details & Routing'}
-                  </Text>
-                </View>
-
-                {/* CATEGORY & DEPARTMENT ROW */}
-                <View style={styles.detailItemRow}>
-                  <View style={styles.detailCol}>
-                    <Text style={styles.detailLabel}>{isHindi ? 'श्रेणी (Category)' : 'Category'}</Text>
-                    <View style={styles.categoryBadge}>
-                      <Ionicons name="folder-open" size={13} color={COLORS.primary} />
-                      <Text style={styles.categoryBadgeText}>{submittedData?.category || 'Village Issue'}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.detailCol}>
-                    <Text style={styles.detailLabel}>{isHindi ? 'आवंटित विभाग' : 'Department'}</Text>
-                    <Text style={styles.deptValueText} numberOfLines={2}>
-                      {submittedData?.department || 'General Grievance'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* PRIORITY & SENTIMENT ROW */}
-                <View style={[styles.detailItemRow, { marginTop: 10 }]}>
-                  <View style={styles.detailCol}>
-                    <Text style={styles.detailLabel}>{isHindi ? 'प्राथमिकता (Priority)' : 'AI Priority'}</Text>
-                    {(() => {
-                      const pStyle = getPriorityColor(submittedData?.priority || 'MEDIUM');
-                      return (
-                        <View style={[styles.priorityBadge, { backgroundColor: pStyle.bg, borderColor: pStyle.border }]}>
-                          <Text style={[styles.priorityBadgeText, { color: pStyle.text }]}>
-                            ⚡ {submittedData?.priority || 'MEDIUM'}
-                          </Text>
-                        </View>
-                      );
-                    })()}
-                  </View>
-
-                  <View style={styles.detailCol}>
-                    <Text style={styles.detailLabel}>{isHindi ? 'भाव (Sentiment)' : 'Sentiment'}</Text>
-                    {(() => {
-                      const sBadge = getSentimentBadge(submittedData?.sentiment || 'NEUTRAL');
-                      return (
-                        <View style={styles.sentimentBadge}>
-                          <Ionicons name={sBadge.icon as any} size={14} color={sBadge.color} />
-                          <Text style={[styles.sentimentBadgeText, { color: sBadge.color }]}>
-                            {sBadge.label}
-                          </Text>
-                        </View>
-                      );
-                    })()}
-                  </View>
-                </View>
-
-                {/* WARD & LOCATION */}
-                <View style={styles.detailDivider} />
-                <View style={styles.detailSingleRow}>
-                  <Ionicons name="location" size={15} color={COLORS.primary} />
-                  <Text style={styles.detailSingleLabel}>
-                    {isHindi ? 'समस्या वार्ड:' : 'Problem Ward:'}{' '}
-                    <Text style={styles.detailSingleValue}>{submittedData?.ward}</Text>
-                  </Text>
-                </View>
-
-                {/* DESCRIPTION */}
-                {Boolean(submittedData?.description) && (
-                  <View style={styles.descBox}>
-                    <Text style={styles.descBoxLabel}>{isHindi ? 'विवरण (Description):' : 'Description:'}</Text>
-                    <Text style={styles.descBoxText} numberOfLines={4}>
-                      "{submittedData?.description}"
-                    </Text>
-                  </View>
-                )}
-              </View>
+              ) : null}
 
               {/* ACTION BUTTONS */}
               <View style={styles.modalActionGroup}>
@@ -1267,46 +1199,28 @@ export default function ReportScreen() {
                   style={styles.modalPrimaryBtn}
                   onPress={() => {
                     setShowSuccessModal(false);
-                    if (submittedData?.id) {
-                      router.push({
-                        pathname: '/complaint-details',
-                        params: { id: submittedData.id },
-                      });
-                    }
+                    router.replace('/citizen-dashboard');
                   }}
                   activeOpacity={0.88}
                 >
-                  <Ionicons name="eye-outline" size={18} color="#FFFFFF" />
+                  <Ionicons name="grid-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.modalPrimaryBtnText}>
-                    {isHindi ? 'शिकायत की स्थिति ट्रैक करें' : 'Track Complaint Status'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.modalSecondaryBtn}
-                  onPress={() => {
-                    setShowSuccessModal(false);
-                    router.replace('/citizen-dashboard');
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="grid-outline" size={16} color={COLORS.primary} />
-                  <Text style={styles.modalSecondaryBtnText}>
                     {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.modalCloseBtn}
+                  style={styles.modalSecondaryBtn}
                   onPress={() => setShowSuccessModal(false)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.85}
                 >
-                  <Text style={styles.modalCloseBtnText}>
-                    {isHindi ? 'नई शिकायत दर्ज करें' : 'Report Another Problem'}
+                  <Ionicons name="checkmark" size={16} color={COLORS.primary} />
+                  <Text style={styles.modalSecondaryBtnText}>
+                    {isHindi ? 'ठीक है' : 'OK'}
                   </Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1968,63 +1882,73 @@ const styles = StyleSheet.create({
     height: 5,
     width: '100%',
   },
-  modalScroll: {
-    padding: SPACING.lg,
-  },
-  modalHeaderCenter: {
+  modalBodyContent: {
+    padding: SPACING.xl,
     alignItems: 'center',
-    marginBottom: SPACING.md,
   },
   modalSuccessCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#DCFCE7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
     borderWidth: 3,
     borderColor: '#86EFAC',
+    ...SHADOWS.small,
   },
-  modalTitle: {
-    fontSize: 18,
+  modalThankYouTitle: {
+    fontSize: 22,
     fontWeight: '900',
     color: '#0F172A',
     textAlign: 'center',
+    marginBottom: 6,
   },
-  modalSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
+  modalMainMessage: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
     textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 16,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  resolutionMessageBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    marginBottom: 14,
+    width: '100%',
+  },
+  resolutionMessageText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#C2410C',
+    lineHeight: 18,
   },
   modalTicketPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#E8E8F5',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: RADIUS.round,
-    marginTop: 10,
+    marginBottom: 18,
     gap: 6,
     borderWidth: 1,
     borderColor: '#C7D2FE',
   },
   modalTicketText: {
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 13.5,
+    fontWeight: '800',
     color: COLORS.primary,
-  },
-
-  /* DETAILS CARD BOX */
-  detailsCardBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
   },
   detailsSectionTitleRow: {
     flexDirection: 'row',

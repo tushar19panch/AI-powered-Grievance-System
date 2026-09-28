@@ -70,6 +70,30 @@ export async function getAuthToken(): Promise<string | null> {
         return parsed.token.trim();
       }
     }
+
+    const citizen = await AsyncStorage.getItem('citizen');
+    if (citizen) {
+      const parsed = JSON.parse(citizen);
+      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+        return parsed.token.trim();
+      }
+    }
+
+    const admin = await AsyncStorage.getItem('admin');
+    if (admin) {
+      const parsed = JSON.parse(admin);
+      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+        return parsed.token.trim();
+      }
+    }
+
+    const secretary = await AsyncStorage.getItem('secretary');
+    if (secretary) {
+      const parsed = JSON.parse(secretary);
+      if (parsed?.token && typeof parsed.token === 'string' && parsed.token.trim()) {
+        return parsed.token.trim();
+      }
+    }
   } catch (err) {
     console.log('Error reading auth token:', err);
   }
@@ -414,6 +438,26 @@ export const villageApi = {
     } catch (e) {
       console.log('Error updating village photo on backend:', e);
       return null;
+    }
+  },
+
+  getOfficials: async (
+    villageName?: string
+  ): Promise<{
+    sarpanch?: { name?: string; mobile?: string; village?: string } | null;
+    secretary?: { name?: string; mobile?: string; village?: string } | null;
+  }> => {
+    try {
+      const query = villageName ? `?village=${encodeURIComponent(villageName)}` : '';
+      return await request<{
+        sarpanch?: { name?: string; mobile?: string; village?: string } | null;
+        secretary?: { name?: string; mobile?: string; village?: string } | null;
+      }>(`/api/villages/officials${query}`, {
+        method: 'GET',
+      });
+    } catch (err) {
+      console.log('Error fetching village officials from backend:', err);
+      return { sarpanch: null, secretary: null };
     }
   },
 };

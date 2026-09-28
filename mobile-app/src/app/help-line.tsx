@@ -5,6 +5,7 @@ import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View, P
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../i18n/LanguageContext';
+import { villageApi } from '../services/api';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../theme';
 
 type OfficialContact = {
@@ -34,21 +35,33 @@ export default function HelpLine() {
     try {
       const adminData = await AsyncStorage.getItem('admin');
       const secretaryData = await AsyncStorage.getItem('secretary');
+      const citizenData = await AsyncStorage.getItem('citizen');
       const sessionData = await AsyncStorage.getItem('user_session');
 
       let currentRole: 'citizen' | 'sarpanch' | 'secretary' | 'admin' = 'citizen';
+      let userVillage = '';
 
       if (sessionData) {
         try {
           const session = JSON.parse(sessionData);
           if (session?.role) {
-            currentRole = session.role;
+            currentRole = String(session.role).toLowerCase() as any;
+          }
+          if (session?.village) {
+            userVillage = session.village;
           }
           if (session?.role === 'sarpanch' && session?.mobile) {
-            setSarpanch((prev) => prev || { name: session.name, mobile: session.mobile, village: session.village });
+            setSarpanch({ name: session.name, mobile: session.mobile, village: session.village });
           } else if (session?.role === 'secretary' && session?.mobile) {
-            setSecretary((prev) => prev || { name: session.name, mobile: session.mobile, village: session.village });
+            setSecretary({ name: session.name, mobile: session.mobile, village: session.village });
           }
+        } catch {}
+      }
+
+      if (citizenData && !userVillage) {
+        try {
+          const parsed = JSON.parse(citizenData);
+          if (parsed?.village) userVillage = parsed.village;
         } catch {}
       }
 
@@ -57,6 +70,7 @@ export default function HelpLine() {
           const parsed = JSON.parse(adminData);
           if (parsed && parsed.mobile) {
             setSarpanch(parsed);
+            if (!userVillage && parsed.village) userVillage = parsed.village;
           }
         } catch {}
       }
@@ -66,11 +80,35 @@ export default function HelpLine() {
           const parsed = JSON.parse(secretaryData);
           if (parsed && parsed.mobile) {
             setSecretary(parsed);
+            if (!userVillage && parsed.village) userVillage = parsed.village;
           }
         } catch {}
       }
 
       setUserRole(currentRole);
+
+      // Fetch official contacts from Backend for this village
+      try {
+        const officials = await villageApi.getOfficials(userVillage);
+        if (officials?.sarpanch && officials.sarpanch.mobile) {
+          setSarpanch((prev) => ({
+            ...prev,
+            name: officials.sarpanch?.name || prev?.name,
+            mobile: officials.sarpanch?.mobile || prev?.mobile,
+            village: officials.sarpanch?.village || prev?.village,
+          }));
+        }
+        if (officials?.secretary && officials.secretary.mobile) {
+          setSecretary((prev) => ({
+            ...prev,
+            name: officials.secretary?.name || prev?.name,
+            mobile: officials.secretary?.mobile || prev?.mobile,
+            village: officials.secretary?.village || prev?.village,
+          }));
+        }
+      } catch (backendErr) {
+        console.log('Error fetching backend village officials in helpline:', backendErr);
+      }
     } catch (err) {
       console.log('Error loading official helpline contacts:', err);
     }

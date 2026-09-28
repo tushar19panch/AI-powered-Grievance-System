@@ -1,5 +1,8 @@
 package grievance_management.village.controller;
 
+import grievance_management.user.entity.Role;
+import grievance_management.user.entity.User;
+import grievance_management.user.repository.UserRepository;
 import grievance_management.village.entity.Village;
 import grievance_management.village.repository.VillageRepository;
 
@@ -17,9 +20,13 @@ import java.util.Optional;
 public class VillageController {
 
     private final VillageRepository villageRepository;
+    private final UserRepository userRepository;
 
-    public VillageController(VillageRepository villageRepository) {
+    public VillageController(
+            VillageRepository villageRepository,
+            UserRepository userRepository) {
         this.villageRepository = villageRepository;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
@@ -90,6 +97,53 @@ public class VillageController {
 
         response.put("message", "Village photo updated successfully");
         response.put("photoUrl", photoUrl != null ? photoUrl : "");
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/officials")
+    public ResponseEntity<Map<String, Object>> getVillageOfficials(@RequestParam(required = false) String village) {
+        Map<String, Object> response = new HashMap<>();
+        Map<String, String> sarpanchInfo = new HashMap<>();
+        Map<String, String> secretaryInfo = new HashMap<>();
+
+        List<User> users = userRepository.findAll();
+        for (User u : users) {
+            boolean matchesVillage = true;
+            if (village != null && !village.isBlank() && !village.equalsIgnoreCase("मुख्य ग्राम") && !village.equalsIgnoreCase("Gram Panchayat")) {
+                matchesVillage = u.getVillage() != null &&
+                        u.getVillage().getName().trim().equalsIgnoreCase(village.trim());
+            }
+
+            if (matchesVillage) {
+                if (u.getRole() == Role.SARPANCH && sarpanchInfo.isEmpty()) {
+                    sarpanchInfo.put("name", u.getName());
+                    sarpanchInfo.put("mobile", u.getMobileNumber());
+                    sarpanchInfo.put("village", u.getVillage() != null ? u.getVillage().getName() : (village != null ? village : ""));
+                } else if (u.getRole() == Role.SECRETARY && secretaryInfo.isEmpty()) {
+                    secretaryInfo.put("name", u.getName());
+                    secretaryInfo.put("mobile", u.getMobileNumber());
+                    secretaryInfo.put("village", u.getVillage() != null ? u.getVillage().getName() : (village != null ? village : ""));
+                }
+            }
+        }
+
+        // Fallback: If no exact village match was found, look for any Sarpanch or Secretary in DB
+        if (sarpanchInfo.isEmpty() || secretaryInfo.isEmpty()) {
+            for (User u : users) {
+                if (u.getRole() == Role.SARPANCH && sarpanchInfo.isEmpty()) {
+                    sarpanchInfo.put("name", u.getName());
+                    sarpanchInfo.put("mobile", u.getMobileNumber());
+                    sarpanchInfo.put("village", u.getVillage() != null ? u.getVillage().getName() : (village != null ? village : ""));
+                } else if (u.getRole() == Role.SECRETARY && secretaryInfo.isEmpty()) {
+                    secretaryInfo.put("name", u.getName());
+                    secretaryInfo.put("mobile", u.getMobileNumber());
+                    secretaryInfo.put("village", u.getVillage() != null ? u.getVillage().getName() : (village != null ? village : ""));
+                }
+            }
+        }
+
+        response.put("sarpanch", sarpanchInfo.isEmpty() ? null : sarpanchInfo);
+        response.put("secretary", secretaryInfo.isEmpty() ? null : secretaryInfo);
         return ResponseEntity.ok(response);
     }
 }

@@ -149,18 +149,28 @@ export default function ComplaintsScreen() {
   const filteredComplaints = complaints.filter((c) => {
     if (selectedFilter === 'pending') {
       const s = String(c.status || '').toUpperCase();
-      if (s !== 'SUBMITTED' && s !== 'UNDER REVIEW' && s !== 'UNDER_REVIEW') return false;
+      const isInProg =
+        s === 'IN PROGRESS' ||
+        s === 'IN_PROGRESS' ||
+        s === 'ACTION TAKEN' ||
+        s === 'ACTION_TAKEN' ||
+        s === 'UNDER REVIEW' ||
+        s === 'UNDER_REVIEW';
+      const isRes = s === 'RESOLVED' || s === 'CLOSED' || s === 'VERIFICATION';
+      if (isInProg || isRes) return false;
     } else if (selectedFilter === 'in-progress') {
       const s = String(c.status || '').toUpperCase();
       if (
         s !== 'IN PROGRESS' &&
         s !== 'IN_PROGRESS' &&
         s !== 'ACTION TAKEN' &&
-        s !== 'ACTION_TAKEN'
+        s !== 'ACTION_TAKEN' &&
+        s !== 'UNDER REVIEW' &&
+        s !== 'UNDER_REVIEW'
       ) return false;
     } else if (selectedFilter === 'resolved') {
       const s = String(c.status || '').toUpperCase();
-      if (s !== 'RESOLVED' && s !== 'CLOSED') return false;
+      if (s !== 'RESOLVED' && s !== 'CLOSED' && s !== 'VERIFICATION') return false;
     } else if (selectedFilter === 'reopened') {
       const s = String(c.status || '').toUpperCase();
       if (s !== 'REOPENED') return false;

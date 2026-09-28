@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useLanguage } from '../i18n/LanguageContext';
-import { complaintApi } from '../services/api';
+import { complaintApi, villageApi } from '../services/api';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
@@ -47,8 +47,12 @@ export default function CitizenDashboard() {
 
   const [user, setUser] = useState<Citizen | null>(null);
   const [totalComplaints, setTotalComplaints] = useState(0);
+  const [pendingComplaints, setPendingComplaints] = useState(0);
   const [inProgressComplaints, setInProgressComplaints] = useState(0);
   const [resolvedComplaints, setResolvedComplaints] = useState(0);
+  const [recentComplaints, setRecentComplaints] = useState<any[]>([]);
+  const [sarpanchName, setSarpanchName] = useState<string>('');
+  const [secretaryName, setSecretaryName] = useState<string>('');
   const [previewVisible, setPreviewVisible] = useState(false);
   const [villageInfoVisible, setVillageInfoVisible] = useState(false);
 
@@ -81,6 +85,19 @@ export default function CitizenDashboard() {
 
       setUser(mergedCitizen);
 
+      // Fetch village officials for this village
+      try {
+        const officials = await villageApi.getOfficials(mergedCitizen.village);
+        if (officials?.sarpanch?.name) {
+          setSarpanchName(officials.sarpanch.name);
+        }
+        if (officials?.secretary?.name) {
+          setSecretaryName(officials.secretary.name);
+        }
+      } catch (offErr) {
+        console.log('Error fetching village officials for citizen dashboard:', offErr);
+      }
+
       // Load complaints from backend
       try {
         let apiData = await complaintApi.getCitizenComplaints();
@@ -96,6 +113,7 @@ export default function CitizenDashboard() {
 
         if (Array.isArray(apiData)) {
           let tot = 0;
+          let pending = 0;
           let inProg = 0;
           let res = 0;
 
@@ -111,12 +129,16 @@ export default function CitizenDashboard() {
               s === 'ACTION_TAKEN'
             ) {
               inProg++;
+            } else {
+              pending++;
             }
           });
 
           setTotalComplaints(tot);
+          setPendingComplaints(pending);
           setInProgressComplaints(inProg);
           setResolvedComplaints(res);
+          setRecentComplaints(apiData.slice(0, 5));
         }
       } catch (err) {
         console.log('Backend complaint fetch error for citizen:', err);
@@ -250,7 +272,7 @@ export default function CitizenDashboard() {
         </Animated.View>
 
         {/* =================================================
-            COMPLAINT OVERVIEW / STATS (3 STAT CARDS)
+            COMPLAINT OVERVIEW / STATS (4 STAT CARDS)
         ================================================= */}
         <View style={styles.sectionHeader}>
           <View>
@@ -264,45 +286,68 @@ export default function CitizenDashboard() {
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          {/* TOTAL */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('all')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
-              <Ionicons name="document-text-outline" size={20} color={COLORS.primary} />
-            </View>
-            <Text style={styles.statNumber}>{totalComplaints}</Text>
-            <Text style={styles.statLabel}>{t.total}</Text>
-          </TouchableOpacity>
+        <View style={styles.servicesGridCard}>
+          <View style={styles.servicesGrid}>
+            {/* TOTAL */}
+            <TouchableOpacity
+              style={styles.serviceActionCard}
+              onPress={() => openComplaints('all')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+                <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
+              </View>
+              <Text style={styles.statNumber}>{totalComplaints}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>
+                {isHindi ? 'कुल शिकायतें' : 'Total Grievances'}
+              </Text>
+            </TouchableOpacity>
 
-          {/* IN PROGRESS */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('in-progress')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
-              <Ionicons name="time-outline" size={20} color={COLORS.warning} />
-            </View>
-            <Text style={styles.statNumber}>{inProgressComplaints}</Text>
-            <Text style={styles.statLabel}>{t.inProgress}</Text>
-          </TouchableOpacity>
+            {/* PENDING */}
+            <TouchableOpacity
+              style={styles.serviceActionCard}
+              onPress={() => openComplaints('pending')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.statIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+              </View>
+              <Text style={styles.statNumber}>{pendingComplaints}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>
+                {isHindi ? 'लंबित' : 'Pending'}
+              </Text>
+            </TouchableOpacity>
 
-          {/* RESOLVED */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('resolved')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
-              <Ionicons name="checkmark-circle-outline" size={20} color={COLORS.success} />
-            </View>
-            <Text style={styles.statNumber}>{resolvedComplaints}</Text>
-            <Text style={styles.statLabel}>{t.resolved}</Text>
-          </TouchableOpacity>
+            {/* IN PROGRESS */}
+            <TouchableOpacity
+              style={styles.serviceActionCard}
+              onPress={() => openComplaints('in-progress')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
+                <Ionicons name="time-outline" size={18} color={COLORS.warning} />
+              </View>
+              <Text style={styles.statNumber}>{inProgressComplaints}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>
+                {isHindi ? 'प्रगति में' : 'In Progress'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* RESOLVED */}
+            <TouchableOpacity
+              style={styles.serviceActionCard}
+              onPress={() => openComplaints('resolved')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
+                <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.success} />
+              </View>
+              <Text style={styles.statNumber}>{resolvedComplaints}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>
+                {isHindi ? 'निस्तारित' : 'Resolved'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* =================================================
@@ -416,6 +461,101 @@ export default function CitizenDashboard() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* =================================================
+            3. RECENT REPORTS / RECENT COMPLAINTS LIST
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'हालिया शिकायतें' : 'Recent Grievances'}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => openComplaints('all')} activeOpacity={0.7}>
+            <Text style={styles.viewAllLink}>{isHindi ? 'सभी देखें →' : 'View All →'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentComplaints.length === 0 ? (
+          <View style={styles.emptyReportsCard}>
+            <Ionicons name="document-text-outline" size={32} color={COLORS.textMuted} />
+            <Text style={styles.emptyReportsTitle}>
+              {isHindi ? 'अभी कोई शिकायत दर्ज नहीं है' : 'No reports submitted yet'}
+            </Text>
+            <Text style={styles.emptyReportsSub}>
+              {isHindi
+                ? 'समस्या होने पर ऊपर दिए गए "नई शिकायत दर्ज करें" पर टैप करें।'
+                : 'Tap "Report a Problem" above to register a complaint.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.recentReportsList}>
+            {recentComplaints.map((c, idx) => {
+              const st = String(c.status || 'SUBMITTED').toUpperCase();
+              let badgeColor = COLORS.primary;
+              let badgeBg = COLORS.primaryLight;
+              let badgeLabel = isHindi ? 'लंबित' : 'Pending';
+
+              if (st === 'RESOLVED' || st === 'CLOSED') {
+                badgeColor = COLORS.success;
+                badgeBg = COLORS.successLight;
+                badgeLabel = isHindi ? 'समाधान' : 'Resolved';
+              } else if (
+                st === 'IN PROGRESS' ||
+                st === 'IN_PROGRESS' ||
+                st === 'ACTION TAKEN' ||
+                st === 'ACTION_TAKEN'
+              ) {
+                badgeColor = COLORS.warning;
+                badgeBg = COLORS.warningLight;
+                badgeLabel = isHindi ? 'प्रगति में' : 'In Progress';
+              }
+
+              return (
+                <TouchableOpacity
+                  key={String(c.id || idx)}
+                  style={styles.recentReportItem}
+                  onPress={() => {
+                    if (c.id) {
+                      router.push({
+                        pathname: '/complaint-details',
+                        params: { id: c.id },
+                      } as any);
+                    } else {
+                      openComplaints('all');
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.recentReportTop}>
+                    <View style={styles.recentReportCategoryRow}>
+                      <Ionicons name="folder-open" size={14} color={COLORS.primary} />
+                      <Text style={styles.recentReportCategory} numberOfLines={1}>
+                        {c.category || c.problemType || (isHindi ? 'ग्राम समस्या' : 'Village Issue')}
+                      </Text>
+                    </View>
+                    <View style={[styles.recentStatusBadge, { backgroundColor: badgeBg }]}>
+                      <Text style={[styles.recentStatusText, { color: badgeColor }]}>
+                        {badgeLabel}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.recentReportDesc} numberOfLines={2}>
+                    {c.description || (isHindi ? 'विवरण उपलब्ध नहीं' : 'No description provided')}
+                  </Text>
+
+                  <View style={styles.recentReportFooter}>
+                    <Text style={styles.recentReportId}>#{c.id || idx + 1}</Text>
+                    <Text style={styles.recentReportWard}>
+                      {c.wardNumber || c.ward || c.location || (isHindi ? 'वार्ड' : 'Ward')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       {/* UNIVERSAL BOTTOM NAVIGATION BAR (HOME, NOTICES, PROFILE) */}
@@ -430,6 +570,8 @@ export default function CitizenDashboard() {
         block={user?.block}
         state={user?.state || 'Madhya Pradesh'}
         wardNumber={user?.wardNumber || user?.ward}
+        sarpanchName={sarpanchName}
+        secretaryName={secretaryName}
         isHindi={isHindi}
       />
 
@@ -715,6 +857,96 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 11,
     color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+  viewAllLink: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  emptyReportsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    ...SHADOWS.small,
+  },
+  emptyReportsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.navy,
+    marginTop: 8,
+  },
+  emptyReportsSub: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  recentReportsList: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  recentReportItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.small,
+  },
+  recentReportTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recentReportCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  recentReportCategory: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: COLORS.navy,
+  },
+  recentStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.xs,
+  },
+  recentStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  recentReportDesc: {
+    fontSize: 12.5,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  recentReportFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 6,
+  },
+  recentReportId: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  recentReportWard: {
+    fontSize: 11,
+    color: '#64748B',
     fontWeight: '600',
   },
 });

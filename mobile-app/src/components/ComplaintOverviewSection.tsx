@@ -153,15 +153,6 @@ export function ComplaintOverviewSection({
     return !isFake && !isDup && !isVerify;
   }).length;
 
-  const formatNumber = (num: number) => String(num).padStart(2, '0');
-
-  const handlePress = (filterKey: string) => {
-    if (onSelectFilter) {
-      onSelectFilter(filterKey);
-    }
-  };
-
-  // Action Tile matching Panchayat Services CategoryCard (Compact Size)
   const Tile = ({
     icon,
     iconColor,
@@ -185,7 +176,7 @@ export function ComplaintOverviewSection({
       <View style={[styles.categoryIcon, { backgroundColor: iconBg }]}>
         <Ionicons name={icon} size={18} color={iconColor} />
       </View>
-      <Text style={styles.countText}>{formatNumber(count)}</Text>
+      <Text style={styles.countText}>{count}</Text>
       <Text style={styles.categoryText} numberOfLines={1}>
         {label}
       </Text>
@@ -195,7 +186,7 @@ export function ComplaintOverviewSection({
   return (
     <View style={styles.container}>
       {/* =================================================
-          1. PRIORITY SECTION
+          1. PRIORITY SECTION (2X2 GRID)
       ================================================= */}
       <View style={styles.sectionHeader}>
         <View style={{ flex: 1 }}>
@@ -246,7 +237,7 @@ export function ComplaintOverviewSection({
       </View>
 
       {/* =================================================
-          2. AI CLASSIFICATION SECTION
+          2. AI CLASSIFICATION SECTION (2X2 GRID)
       ================================================= */}
       <View style={[styles.sectionHeader, { marginTop: 14 }]}>
         <View style={{ flex: 1 }}>
@@ -304,7 +295,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Section Header (Compact)
+  // Section Header
   sectionHeader: {
     marginTop: 14,
     marginBottom: 8,
@@ -317,28 +308,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.extraBold,
     color: COLORS.textPrimary,
   },
-  sectionSubtitle: {
-    marginTop: 1,
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
 
-  aiBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  aiText: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.extraBold,
-    color: COLORS.primary,
-  },
-
-  // ProblemCard Container (Compact)
+  // ProblemCard Container (2x2 Grid wrapper)
   problemCard: {
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.lg,
@@ -348,7 +319,6 @@ const styles = StyleSheet.create({
     ...SHADOWS.small,
   },
 
-  // 2-Column Category Grid
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -356,7 +326,6 @@ const styles = StyleSheet.create({
     rowGap: 8,
   },
 
-  // CategoryCard Tile (Smaller & Compact)
   categoryCard: {
     width: '48.5%',
     minHeight: 74,
@@ -370,7 +339,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
   },
 
-  // CategoryIcon (Smaller & Compact)
   categoryIcon: {
     width: 32,
     height: 32,

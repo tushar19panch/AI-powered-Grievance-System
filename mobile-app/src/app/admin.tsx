@@ -114,18 +114,19 @@ export default function AdminScreen() {
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
         if (Array.isArray(apiComplaints)) {
-          const filtered = parsedAdmin?.village && parsedAdmin?.role !== 'SUPER_ADMIN'
-            ? apiComplaints.filter((c: any) => !c.villageName || c.villageName === parsedAdmin.village)
-            : apiComplaints;
-
           setComplaints(
-            filtered.map((c: any) => ({
+            apiComplaints.map((c: any) => ({
               complaintId: String(c.id || c.complaintNumber),
+              id: c.id,
               status: c.status,
               priority: c.priority,
               classification: c.classification,
               category: c.category || c.problemType,
               description: c.description,
+              location: c.location,
+              wardNumber: c.wardNumber,
+              ward: c.ward,
+              createdAt: c.createdAt,
             }))
           );
           return;
@@ -169,7 +170,20 @@ export default function AdminScreen() {
 
   const resolved = complaints.filter((item) => {
     const st = String(item.status || '').toUpperCase();
-    return st === 'RESOLVED' || st === 'CLOSED';
+    return st === 'RESOLVED' || st === 'CLOSED' || st === 'VERIFICATION';
+  }).length;
+
+  const pending = complaints.filter((item) => {
+    const st = String(item.status || '').toUpperCase();
+    const isInProg =
+      st === 'ACTION TAKEN' ||
+      st === 'ACTION_TAKEN' ||
+      st === 'IN PROGRESS' ||
+      st === 'IN_PROGRESS' ||
+      st === 'UNDER REVIEW' ||
+      st === 'UNDER_REVIEW';
+    const isRes = st === 'RESOLVED' || st === 'CLOSED' || st === 'VERIFICATION';
+    return !isInProg && !isRes;
   }).length;
 
   const toggleLanguage = () => {
@@ -351,62 +365,68 @@ export default function AdminScreen() {
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          {/* TOTAL */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('all')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
-              <Ionicons name="document-text-outline" size={20} color={COLORS.primary} />
-            </View>
-            <Text style={styles.statNumber}>{complaints.length}</Text>
-            <Text style={styles.statLabel}>{isHindi ? 'कुल शिकायतें' : 'Total'}</Text>
-          </TouchableOpacity>
+        <View style={styles.problemCard}>
+          <View style={styles.categoryGrid}>
+            {/* TOTAL */}
+            <TouchableOpacity
+              style={styles.categoryCard}
+              onPress={() => openComplaints('all')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.categoryIcon, { backgroundColor: COLORS.primaryLight }]}>
+                <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
+              </View>
+              <Text style={styles.countText}>{total}</Text>
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {isHindi ? 'कुल शिकायतें' : 'Total Grievances'}
+              </Text>
+            </TouchableOpacity>
 
-          {/* IN PROGRESS */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('in-progress')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.warningLight }]}>
-              <Ionicons name="time-outline" size={20} color={COLORS.warning} />
-            </View>
-            <Text style={styles.statNumber}>
-              {complaints.filter((c) => {
-                const s = String(c.status || '').toUpperCase();
-                return (
-                  s === 'IN_PROGRESS' ||
-                  s === 'IN PROGRESS' ||
-                  s === 'ACTION_TAKEN' ||
-                  s === 'ACTION TAKEN' ||
-                  s === 'UNDER_REVIEW' ||
-                  s === 'UNDER REVIEW'
-                );
-              }).length}
-            </Text>
-            <Text style={styles.statLabel}>{isHindi ? 'प्रगति में' : 'In Progress'}</Text>
-          </TouchableOpacity>
+            {/* PENDING */}
+            <TouchableOpacity
+              style={styles.categoryCard}
+              onPress={() => openComplaints('pending')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.categoryIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+              </View>
+              <Text style={styles.countText}>{pending}</Text>
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {isHindi ? 'लंबित' : 'Pending'}
+              </Text>
+            </TouchableOpacity>
 
-          {/* RESOLVED */}
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={() => openComplaints('resolved')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
-              <Ionicons name="checkmark-circle-outline" size={20} color={COLORS.success} />
-            </View>
-            <Text style={styles.statNumber}>
-              {complaints.filter((c) => {
-                const s = String(c.status || '').toUpperCase();
-                return s === 'RESOLVED' || s === 'CLOSED' || s === 'VERIFICATION';
-              }).length}
-            </Text>
-            <Text style={styles.statLabel}>{isHindi ? 'निस्तारित' : 'Resolved'}</Text>
-          </TouchableOpacity>
+            {/* IN PROGRESS */}
+            <TouchableOpacity
+              style={styles.categoryCard}
+              onPress={() => openComplaints('in-progress')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.categoryIcon, { backgroundColor: COLORS.warningLight }]}>
+                <Ionicons name="time-outline" size={18} color={COLORS.warning} />
+              </View>
+              <Text style={styles.countText}>{inProgress}</Text>
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {isHindi ? 'प्रगति में' : 'In Progress'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* RESOLVED */}
+            <TouchableOpacity
+              style={styles.categoryCard}
+              onPress={() => openComplaints('resolved')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.categoryIcon, { backgroundColor: COLORS.successLight }]}>
+                <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.success} />
+              </View>
+              <Text style={styles.countText}>{resolved}</Text>
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {isHindi ? 'निस्तारित' : 'Resolved'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* =================================================
@@ -938,13 +958,20 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 5,
+    marginBottom: 4,
+  },
+
+  countText: {
+    fontSize: 18,
+    fontWeight: TYPOGRAPHY.extraBold,
+    color: COLORS.textPrimary,
+    marginVertical: 1,
   },
 
   categoryText: {
     fontSize: 11.5,
     fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.textSecondary,
     textAlign: 'center',
   },
 
@@ -1040,5 +1067,95 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: TYPOGRAPHY.small,
     fontWeight: TYPOGRAPHY.semiBold,
+  },
+  viewAllLink: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  emptyReportsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    ...SHADOWS.small,
+  },
+  emptyReportsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.navy,
+    marginTop: 8,
+  },
+  emptyReportsSub: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  recentReportsList: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  recentReportItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.small,
+  },
+  recentReportTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recentReportCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  recentReportCategory: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: COLORS.navy,
+  },
+  recentStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.xs,
+  },
+  recentStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  recentReportDesc: {
+    fontSize: 12.5,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  recentReportFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 6,
+  },
+  recentReportId: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  recentReportWard: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
   },
 });
