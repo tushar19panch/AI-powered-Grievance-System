@@ -21,6 +21,7 @@ import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 import { VillageInfoModal } from '../components/VillageInfoModal';
+import { GramMitraModal } from '../components/GramMitraModal';
 import {
   COLORS,
   TYPOGRAPHY,
@@ -59,6 +60,7 @@ export default function CitizenDashboard() {
   const [secretaryMobile, setSecretaryMobile] = useState<string>('9876543210');
   const [previewVisible, setPreviewVisible] = useState(false);
   const [villageInfoVisible, setVillageInfoVisible] = useState(false);
+  const [gramMitraVisible, setGramMitraVisible] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -497,6 +499,43 @@ export default function CitizenDashboard() {
         </TouchableOpacity>
 
         {/* =================================================
+            GRAM MITRA CITIZEN AI ASSISTANT CARD
+        ================================================= */}
+        <TouchableOpacity
+          style={styles.gramMitraCard}
+          onPress={() => setGramMitraVisible(true)}
+          activeOpacity={0.88}
+        >
+          <View style={styles.gramMitraIconBox}>
+            <Ionicons name="chatbubbles" size={24} color="#FFFFFF" />
+            <View style={styles.mitraBadge}>
+              <Text style={styles.mitraBadgeText}>AI</Text>
+            </View>
+          </View>
+
+          <View style={styles.gramMitraInfo}>
+            <View style={styles.gramMitraTitleRow}>
+              <Text style={styles.gramMitraTitle}>
+                {isHindi ? 'ग्राम मित्र AI सहायक' : 'Gram Mitra AI Assistant'}
+              </Text>
+              <View style={styles.onlineBadge}>
+                <View style={styles.greenPulse} />
+                <Text style={styles.onlineText}>{isHindi ? 'सहायक' : 'AI Help'}</Text>
+              </View>
+            </View>
+            <Text style={styles.gramMitraHint} numberOfLines={2}>
+              {isHindi
+                ? 'बोलकर या लिखकर शिकायत दर्ज करें • #ID से स्थिति जानें'
+                : 'Chat to register complaint • Track status with #ID'}
+            </Text>
+          </View>
+
+          <View style={styles.gramMitraArrowCircle}>
+            <Ionicons name="sparkles" size={17} color={COLORS.primary} />
+          </View>
+        </TouchableOpacity>
+
+        {/* =================================================
             2. DEDICATED PANCHAYAT SERVICES & RECORDS (2X2 GRID)
         ================================================= */}
         <View style={styles.sectionHeader}>
@@ -598,6 +637,26 @@ export default function CitizenDashboard() {
           openProfile();
         }}
         isHindi={isHindi}
+      />
+
+      {/* FLOATING ACTION BUTTON (GRAM MITRA AI) */}
+      <TouchableOpacity
+        style={styles.floatingMitraBtn}
+        onPress={() => setGramMitraVisible(true)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
+        <Text style={styles.floatingMitraLabel}>
+          {isHindi ? 'ग्राम मित्र' : 'Gram Mitra'}
+        </Text>
+        <View style={styles.floatingAiDot} />
+      </TouchableOpacity>
+
+      {/* GRAM MITRA AI ASSISTANT MODAL */}
+      <GramMitraModal
+        visible={gramMitraVisible}
+        onClose={() => setGramMitraVisible(false)}
+        initialLanguage={isHindi ? 'hi' : 'en'}
       />
     </SafeAreaView>
   );
@@ -815,6 +874,116 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...SHADOWS.small,
+  },
+  gramMitraCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    ...SHADOWS.medium,
+    marginBottom: 16,
+  },
+  gramMitraIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  mitraBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  mitraBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  gramMitraInfo: {
+    flex: 1,
+  },
+  gramMitraTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 3,
+  },
+  gramMitraTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: COLORS.navy,
+  },
+  onlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 4,
+  },
+  greenPulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
+  onlineText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  gramMitraHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    lineHeight: 16,
+  },
+  gramMitraArrowCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingMitraBtn: {
+    position: 'absolute',
+    bottom: 74,
+    right: 18,
+    backgroundColor: '#4F46E5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 28,
+    gap: 8,
+    ...SHADOWS.large,
+    elevation: 8,
+    zIndex: 999,
+  },
+  floatingMitraLabel: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  floatingAiDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#34D399',
   },
   servicesGridCard: {
     backgroundColor: '#FFFFFF',

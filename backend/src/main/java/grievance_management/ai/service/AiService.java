@@ -76,6 +76,27 @@ public class AiService {
         return fallback(description);
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> understandChatMessage(String message, String activeIntent) {
+        try {
+            String url = aiServiceUrl.replace("/analyze", "/chat/understand");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("message", message);
+            payload.put("active_intent", activeIntent);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return (Map<String, Object>) response.getBody();
+            }
+        } catch (Exception e) {
+            log.debug("Python NLU service at [{}] not reachable: {}. Using native rule engine.", aiServiceUrl, e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
+
     private AiAnalysisResult fallback(String text) {
         String lower = text != null ? text.toLowerCase().trim() : "";
 

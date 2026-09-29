@@ -290,6 +290,40 @@ def transcribe_and_analyze():
         return jsonify({"error": str(e)}), 500
 
 
+from pipeline.chat_nlu import understand_user_message
+
+
+@app.route("/chat/understand", methods=["POST"])
+@app.route("/api/chat/understand", methods=["POST"])
+def chat_understand():
+    """
+    Conversational NLU Endpoint for Gram Mitra.
+    Identifies intents: SUBMIT_COMPLAINT, TRACK_COMPLAINT, COMPLAINT_STATUS, HOW_TO_COMPLAIN,
+    UPDATE_COMPLAINT, ESCALATE_COMPLAINT, GENERAL_FAQ, UNKNOWN.
+    Detects generic triggers, vague complaints, and extracts entities (ID, Ward).
+    """
+    try:
+        data = request.get_json(silent=True, force=True) or {}
+        if not data and request.form:
+            data = request.form.to_dict()
+
+        message = data.get("message") or data.get("text") or ""
+        active_intent = data.get("active_intent")
+
+        result = understand_user_message(message, active_intent=active_intent)
+        return jsonify({
+            "status": "SUCCESS",
+            **result
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "ERROR",
+            "error": str(e),
+            "intent": "UNKNOWN"
+        }), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"[AI SERVICE] Multimodal Grievance Analysis Microservice running on http://127.0.0.1:{port}")

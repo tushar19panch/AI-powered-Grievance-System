@@ -18,6 +18,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { complaintApi, ComplaintData, authApi, getAuthToken, setAuthToken, isValidJwt, resolvePhotoUrl } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../../components/PhotoPreviewModal';
+import { GramMitraModal } from '../../components/GramMitraModal';
 import {
   COLORS,
   RADIUS,
@@ -128,6 +129,7 @@ export default function ComplaintsScreen() {
   const [userRole, setUserRole] = useState<'citizen' | 'sarpanch' | 'secretary'>('citizen');
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string>('');
+  const [gramMitraVisible, setGramMitraVisible] = useState(false);
 
   const toggleLanguage = () => {
     setLanguage(language === 'hi' ? 'en' : 'hi');
@@ -748,14 +750,25 @@ export default function ComplaintsScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.languageButton}
-          onPress={toggleLanguage}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="language-outline" size={15} color={COLORS.primary} />
-          <Text style={styles.languageText}>{isHindi ? 'EN' : 'हि'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRightActions}>
+          <TouchableOpacity
+            style={styles.headerMitraBtn}
+            onPress={() => setGramMitraVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chatbubbles" size={15} color="#4F46E5" />
+            <Text style={styles.headerMitraText}>{isHindi ? 'ग्राम मित्र' : 'Mitra'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.languageButton}
+            onPress={toggleLanguage}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="language-outline" size={15} color={COLORS.primary} />
+            <Text style={styles.languageText}>{isHindi ? 'EN' : 'हि'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -982,6 +995,13 @@ export default function ComplaintsScreen() {
         onClose={() => setPreviewPhoto(null)}
         isHindi={isHindi}
       />
+
+      {/* GRAM MITRA ASSISTANT MODAL */}
+      <GramMitraModal
+        visible={gramMitraVisible}
+        onClose={() => setGramMitraVisible(false)}
+        initialLanguage={isHindi ? 'hi' : 'en'}
+      />
     </SafeAreaView>
   );
 }
@@ -1031,6 +1051,27 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontWeight: '500',
     marginTop: 1,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerMitraBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  headerMitraText: {
+    color: '#4F46E5',
+    fontSize: 12,
+    fontWeight: '800',
   },
   languageButton: {
     flexDirection: 'row',
