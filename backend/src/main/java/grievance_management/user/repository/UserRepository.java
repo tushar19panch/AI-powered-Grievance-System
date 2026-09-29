@@ -14,4 +14,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByOfficialId(String officialId);
 
     Optional<User> findByOfficialId(String officialId);
+
+    java.util.List<User> findByVillage(grievance_management.village.entity.Village village);
+
+    java.util.List<User> findByVillageId(Long villageId);
 }

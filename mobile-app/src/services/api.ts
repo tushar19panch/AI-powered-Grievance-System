@@ -268,6 +268,18 @@ export const authApi = {
     });
   },
 
+  getVillageOfficials: async (villageName?: string, villageId?: number): Promise<any> => {
+    let query = '';
+    if (villageName) {
+      query = `?villageName=${encodeURIComponent(villageName)}`;
+    } else if (villageId) {
+      query = `?villageId=${villageId}`;
+    }
+    return await request(`/api/users/officials${query}`, {
+      method: 'GET',
+    });
+  },
+
   logout: async (): Promise<void> => {
     await removeAuthToken();
   },

@@ -26,4 +26,13 @@ public class UserController {
 
         return ResponseEntity.ok(response);
     }
-}
+
+    @GetMapping("/officials")
+    public ResponseEntity<grievance_management.user.dto.VillageOfficialsResponse> getOfficials(
+            @RequestParam(required = false) String villageName,
+            @RequestParam(required = false) Long villageId) {
+
+        grievance_management.user.dto.VillageOfficialsResponse response = userService.getVillageOfficials(villageName, villageId);
+        return ResponseEntity.ok(response);
+    }
+}

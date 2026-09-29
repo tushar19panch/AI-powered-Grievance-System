@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
+import { PanchayatPhotoManagerModal } from './PanchayatPhotoManagerModal';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
 import { villageApi } from '../services/api';
@@ -19,78 +20,65 @@ interface PanchayatShowcaseCardProps {
   userName?: string;
   villageName?: string;
   isHindi?: boolean;
+  canManagePhotos?: boolean;
 }
 
 // High-quality representative Gram Panchayat Bhavan image
-const DEFAULT_VILLAGE_IMAGE =
-  'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?q=80&w=1200&auto=format&fit=crop';
+const DEFAULT_VILLAGE_IMAGES = [
+  'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?q=80&w=1200&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?q=80&w=1200&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?q=80&w=1200&auto=format&fit=crop',
+];
 
 export function PanchayatShowcaseCard({
   userName = 'नागरिक',
   villageName = 'मुख्य ग्राम',
   isHindi = true,
+  canManagePhotos = true,
 }: PanchayatShowcaseCardProps) {
-  const [villagePhoto, setVillagePhoto] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>(DEFAULT_VILLAGE_IMAGES);
+  const [activeIdx, setActiveIdx] = useState<number>(0);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [managerVisible, setManagerVisible] = useState(false);
 
   useEffect(() => {
-    loadVillagePhoto();
-    // Fast periodic check so changes from other devices/roles update automatically
-    const interval = setInterval(loadVillagePhoto, 3000);
-
-    const handlePhotoChanged = (e: any) => {
-      if (e?.detail) {
-        setVillagePhoto(e.detail);
-      } else if (e?.detail === null) {
-        setVillagePhoto(null);
-      } else {
-        loadVillagePhoto();
-      }
-    };
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.addEventListener('village_photo_changed', handlePhotoChanged);
-    }
-
-    return () => {
-      clearInterval(interval);
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.removeEventListener('village_photo_changed', handlePhotoChanged);
-      }
-    };
+    loadVillagePhotos();
+    const interval = setInterval(loadVillagePhotos, 4000);
+    return () => clearInterval(interval);
   }, [villageName]);
 
-  const loadVillagePhoto = async () => {
+  // Dynamic automatic slideshow cycling
+  useEffect(() => {
+    if (photos.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveIdx((prev) => (prev + 1) % photos.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [photos.length]);
+
+  const loadVillagePhotos = async () => {
     try {
-      // 1. Fast load from local storage
-      const genericSaved = await AsyncStorage.getItem('village_cover_photo');
-      if (genericSaved) {
-        setVillagePhoto(genericSaved);
-      } else if (villageName) {
-        const saved = await AsyncStorage.getItem(`village_photo_${villageName}`);
-        if (saved) {
-          setVillagePhoto(saved);
+      const storageKey = `village_photos_gallery_${villageName || 'default'}`;
+      const savedGallery = await AsyncStorage.getItem(storageKey);
+      if (savedGallery) {
+        const parsed = JSON.parse(savedGallery);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPhotos(parsed);
+          return;
         }
       }
 
-      // 2. Fetch latest photo from Backend Server
-      const res = await villageApi.getPhoto(villageName);
-      if (res?.photoUrl && res.photoUrl.trim()) {
-        setVillagePhoto(res.photoUrl);
-        await AsyncStorage.setItem('village_cover_photo', res.photoUrl);
-        if (villageName) {
-          await AsyncStorage.setItem(`village_photo_${villageName}`, res.photoUrl);
-        }
-      } else if (res && res.photoUrl === '') {
-        // If explicitly emptied on server, clear local
-        setVillagePhoto(null);
+      // Single photo fallback check
+      const single = await AsyncStorage.getItem(`village_photo_${villageName}`) || await AsyncStorage.getItem('village_cover_photo');
+      if (single) {
+        setPhotos([single, ...DEFAULT_VILLAGE_IMAGES.slice(1)]);
       }
     } catch (e) {
-      console.log('Error loading village photo:', e);
+      console.log('Error loading village gallery photos:', e);
     }
   };
 
-  const currentImageUri = villagePhoto || DEFAULT_VILLAGE_IMAGE;
+  const currentPhoto = photos[activeIdx] || photos[0] || DEFAULT_VILLAGE_IMAGES[0];
 
   return (
     <View style={styles.card}>
@@ -119,26 +107,60 @@ export function PanchayatShowcaseCard({
         </View>
       </View>
 
-      {/* 2. VILLAGE / PANCHAYAT BHAVAN SHOWCASE PHOTO (100% CLEAN - NO TEXT OVERLAY) */}
+      {/* 2. DYNAMIC ROTATING PANCHAYAT PHOTO BANNER */}
       <TouchableOpacity
         activeOpacity={0.92}
         onPress={() => setPreviewVisible(true)}
         style={styles.photoContainer}
       >
         <Image
-          source={{ uri: currentImageUri }}
+          source={{ uri: currentPhoto }}
           style={styles.showcaseImage}
           resizeMode="cover"
         />
+
+        {/* CLEAN PHOTO DISPLAY - NO TEXT OVERLAYS */}
+
+        {/* BOTTOM DOTS PAGINATION */}
+        {photos.length > 1 && (
+          <View style={styles.dotsContainer}>
+            {photos.map((_, idx) => (
+              <TouchableOpacity
+                key={`dot-${idx}`}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setActiveIdx(idx);
+                }}
+                style={[
+                  styles.dot,
+                  activeIdx === idx && styles.dotActive,
+                ]}
+              />
+            ))}
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* FULL SCREEN PHOTO PREVIEW MODAL */}
       <PhotoPreviewModal
         visible={previewVisible}
-        imageUri={currentImageUri}
+        imageUri={currentPhoto}
         userName={isHindi ? `ग्राम पंचायत: ${villageName}` : `Gram Panchayat: ${villageName}`}
-        userRole={isHindi ? 'ग्राम पंचायत भवन' : 'Gram Panchayat Bhavan'}
+        userRole={isHindi ? `फोटो ${activeIdx + 1} / ${photos.length}` : `Photo ${activeIdx + 1} of ${photos.length}`}
         onClose={() => setPreviewVisible(false)}
+        isHindi={isHindi}
+      />
+
+      {/* PHOTO MANAGER & CROP/ROTATE MODAL */}
+      <PanchayatPhotoManagerModal
+        visible={managerVisible}
+        onClose={() => setManagerVisible(false)}
+        villageName={villageName}
+        photos={photos}
+        onPhotosUpdated={(updated) => {
+          setPhotos(updated);
+          setActiveIdx(0);
+        }}
         isHindi={isHindi}
       />
     </View>
@@ -275,5 +297,52 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: '#64748B',
     fontWeight: '600',
+  },
+  imageTopOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  editBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  editBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dotsContainer: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  dotActive: {
+    width: 18,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: COLORS.saffron,
   },
 });

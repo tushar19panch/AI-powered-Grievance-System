@@ -33,7 +33,7 @@ export function ComplaintOverviewSection({
   isHindi = false,
 }: ComplaintOverviewSectionProps) {
   // =====================================================
-  // GENUINE DYNAMIC PRIORITY COUNTS CALCULATION
+  // DYNAMIC PRIORITY COUNTS CALCULATION (GENUINE QUEUES)
   // =====================================================
   const countVeryHigh = complaints.filter(isVeryHighPriority).length;
   const countHigh = complaints.filter(isHighPriority).length;
@@ -41,7 +41,7 @@ export function ComplaintOverviewSection({
   const countLow = complaints.filter(isLowPriority).length;
 
   // =====================================================
-  // GENUINE DYNAMIC AI CLASSIFICATION COUNTS CALCULATION
+  // DYNAMIC CLASSIFICATION COUNTS CALCULATION
   // =====================================================
   const countGenuine = complaints.filter(isGenuineClassification).length;
   const countDuplicate = complaints.filter(isDuplicateClassification).length;
@@ -98,7 +98,7 @@ export function ComplaintOverviewSection({
             iconColor={COLORS.error}
             iconBg={COLORS.errorLight}
             count={countVeryHigh}
-            label={isHindi ? 'अति गंभीर (Critical)' : 'Critical'}
+            label={isHindi ? 'अति गंभीर' : 'Critical'}
             filterKey="priority-very-high"
           />
 

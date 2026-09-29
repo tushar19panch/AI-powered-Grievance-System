@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +13,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-
 import { useLanguage } from '../i18n/LanguageContext';
 import { complaintApi, villageApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
@@ -52,7 +52,9 @@ export default function CitizenDashboard() {
   const [resolvedComplaints, setResolvedComplaints] = useState(0);
   const [recentComplaints, setRecentComplaints] = useState<any[]>([]);
   const [sarpanchName, setSarpanchName] = useState<string>('');
+  const [sarpanchMobile, setSarpanchMobile] = useState<string>('9876543211');
   const [secretaryName, setSecretaryName] = useState<string>('');
+  const [secretaryMobile, setSecretaryMobile] = useState<string>('9876543210');
   const [previewVisible, setPreviewVisible] = useState(false);
   const [villageInfoVisible, setVillageInfoVisible] = useState(false);
 
@@ -87,13 +89,47 @@ export default function CitizenDashboard() {
 
       // Fetch village officials for this village
       try {
-        const officials = await villageApi.getOfficials(mergedCitizen.village);
-        if (officials?.sarpanch?.name) {
-          setSarpanchName(officials.sarpanch.name);
+        let syncedSarpanch: any = null;
+        let syncedSecretary: any = null;
+
+        if (mergedCitizen.village) {
+          try {
+            const officials = await authApi.getVillageOfficials(mergedCitizen.village);
+            if (officials?.sarpanch?.name) syncedSarpanch = officials.sarpanch;
+            if (officials?.secretary?.name) syncedSecretary = officials.secretary;
+          } catch (e) {
+            console.log('authApi.getVillageOfficials error:', e);
+          }
         }
-        if (officials?.secretary?.name) {
-          setSecretaryName(officials.secretary.name);
+
+        if (!syncedSarpanch && mergedCitizen.village) {
+          const cached = await AsyncStorage.getItem(`sarpanch_sync_${mergedCitizen.village}`);
+          if (cached) syncedSarpanch = JSON.parse(cached);
         }
+        if (!syncedSecretary && mergedCitizen.village) {
+          const cached = await AsyncStorage.getItem(`secretary_sync_${mergedCitizen.village}`);
+          if (cached) syncedSecretary = JSON.parse(cached);
+        }
+
+        if (!syncedSarpanch) {
+          const adminRaw = await AsyncStorage.getItem('admin');
+          if (adminRaw) {
+            const a = JSON.parse(adminRaw);
+            if (a.name) syncedSarpanch = a;
+          }
+        }
+        if (!syncedSecretary) {
+          const secRaw = await AsyncStorage.getItem('secretary');
+          if (secRaw) {
+            const s = JSON.parse(secRaw);
+            if (s.name) syncedSecretary = s;
+          }
+        }
+
+        if (syncedSarpanch?.name) setSarpanchName(syncedSarpanch.name);
+        if (syncedSarpanch?.mobile) setSarpanchMobile(syncedSarpanch.mobile);
+        if (syncedSecretary?.name) setSecretaryName(syncedSecretary.name);
+        if (syncedSecretary?.mobile) setSecretaryMobile(syncedSecretary.mobile);
       } catch (offErr) {
         console.log('Error fetching village officials for citizen dashboard:', offErr);
       }
@@ -509,6 +545,91 @@ export default function CitizenDashboard() {
                 {isHindi ? 'ग्राम परिचय' : 'Village Info'}
               </Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* =================================================
+            🏛️ VILLAGE LEADERSHIP CONTACTS (SARPANCH & SECRETARY)
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {isHindi ? 'ग्राम पंचायत पदाधिकारी संपर्क' : 'Panchayat Leadership Contacts'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.leadershipRow}>
+          {/* SARPANCH CARD */}
+          <View style={[styles.leaderCard, { borderColor: '#FDE68A' }]}>
+            <View style={styles.leaderHeader}>
+              <View style={[styles.leaderIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="ribbon" size={20} color={COLORS.saffron} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.leaderName} numberOfLines={1}>
+                  {sarpanchName || (isHindi ? 'श्री रमेश पटेल' : 'Shri Ramesh Patel')}
+                </Text>
+                <Text style={[styles.leaderRole, { color: COLORS.saffron }]} numberOfLines={1}>
+                  {isHindi ? 'ग्राम सरपंच' : 'Sarpanch'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.leaderBtnRow}>
+              <TouchableOpacity
+                style={styles.leaderCallBtn}
+                onPress={() => Linking.openURL(`tel:${sarpanchMobile || '9876543211'}`)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call" size={13} color="#FFFFFF" />
+                <Text style={styles.leaderCallText}>{isHindi ? 'कॉल' : 'Call'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.leaderWaBtn}
+                onPress={() => Linking.openURL(`https://wa.me/91${sarpanchMobile || '9876543211'}`)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="logo-whatsapp" size={13} color="#15803D" />
+                <Text style={styles.leaderWaText}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* SECRETARY CARD */}
+          <View style={[styles.leaderCard, { borderColor: '#BFDBFE' }]}>
+            <View style={styles.leaderHeader}>
+              <View style={[styles.leaderIconCircle, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="person" size={20} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.leaderName} numberOfLines={1}>
+                  {secretaryName || (isHindi ? 'श्री विजय शर्मा' : 'Shri Vijay Sharma')}
+                </Text>
+                <Text style={[styles.leaderRole, { color: COLORS.primary }]} numberOfLines={1}>
+                  {isHindi ? 'ग्राम सचिव' : 'Secretary'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.leaderBtnRow}>
+              <TouchableOpacity
+                style={styles.leaderCallBtn}
+                onPress={() => Linking.openURL(`tel:${secretaryMobile || '9876543210'}`)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call" size={13} color="#FFFFFF" />
+                <Text style={styles.leaderCallText}>{isHindi ? 'कॉल' : 'Call'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.leaderWaBtn}
+                onPress={() => Linking.openURL(`https://wa.me/91${secretaryMobile || '9876543210'}`)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="logo-whatsapp" size={13} color="#15803D" />
+                <Text style={styles.leaderWaText}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -998,5 +1119,77 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     fontWeight: '600',
+  },
+  leadershipRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  leaderCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    ...SHADOWS.small,
+  },
+  leaderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  leaderIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  leaderName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.navy,
+  },
+  leaderRole: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  leaderBtnRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  leaderCallBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  leaderCallText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  leaderWaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  leaderWaText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
   },
 });

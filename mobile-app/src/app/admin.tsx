@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Linking,
   Platform,
   RefreshControl,
   ScrollView,
@@ -18,6 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../i18n/LanguageContext';
 
+import { isVeryHighPriority } from '../services/complaintClassification';
+
 import {
   COLORS,
   TYPOGRAPHY,
@@ -26,7 +29,8 @@ import {
   SHADOWS,
 } from '../theme';
 
-import { complaintApi } from '../services/api';
+import { complaintApi, authApi } from '../services/api';
+import { playEmergencyAlertSound } from '../services/audioAlertService';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
@@ -67,6 +71,7 @@ export default function AdminScreen() {
 
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const [secretaryDetails, setSecretaryDetails] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [villageInfoVisible, setVillageInfoVisible] = useState(false);
@@ -108,6 +113,60 @@ export default function AdminScreen() {
           : null;
         parsedAdmin = { ...parsedAdmin, profileImage: photo || null };
         setAdmin(parsedAdmin);
+      }
+
+      // Load counterpart Secretary details for this Gram Panchayat
+      try {
+        let syncedSecretary: any = null;
+        if (parsedAdmin?.village) {
+          try {
+            const officialsRes = await authApi.getVillageOfficials(parsedAdmin.village);
+            if (officialsRes?.secretary?.name) {
+              syncedSecretary = {
+                name: officialsRes.secretary.name,
+                role: 'ग्राम सचिव (Panchayat Secretary)',
+                mobile: officialsRes.secretary.mobile || '9876543210',
+                officialId: officialsRes.secretary.officialId,
+                village: officialsRes.villageName || parsedAdmin.village,
+              };
+              await AsyncStorage.setItem(`secretary_sync_${parsedAdmin.village}`, JSON.stringify(syncedSecretary));
+            }
+          } catch (apiErr) {
+            console.log('API village officials fetch error in admin:', apiErr);
+          }
+        }
+
+        if (!syncedSecretary && parsedAdmin?.village) {
+          const cachedSync = await AsyncStorage.getItem(`secretary_sync_${parsedAdmin.village}`);
+          if (cachedSync) syncedSecretary = JSON.parse(cachedSync);
+        }
+
+        if (!syncedSecretary) {
+          const secretaryRaw = await AsyncStorage.getItem('secretary');
+          if (secretaryRaw) {
+            const parsed = JSON.parse(secretaryRaw);
+            syncedSecretary = {
+              name: parsed.name,
+              role: 'ग्राम सचिव (Panchayat Secretary)',
+              mobile: parsed.mobile || '9876543210',
+              officialId: parsed.secretaryId || parsed.officialId,
+              village: parsed.village || parsedAdmin?.village || 'Gram Panchayat',
+            };
+          }
+        }
+
+        if (syncedSecretary) {
+          setSecretaryDetails(syncedSecretary);
+        } else {
+          setSecretaryDetails({
+            name: 'श्री विजय शर्मा',
+            role: 'ग्राम सचिव (Panchayat Secretary)',
+            mobile: '9876543210',
+            village: parsedAdmin?.village || 'मुख्य ग्राम पंचायत',
+          });
+        }
+      } catch (sErr) {
+        console.log('Error loading secretary details:', sErr);
       }
 
       // Load live complaints directly from Backend Database API
@@ -382,7 +441,60 @@ export default function AdminScreen() {
         </Animated.View>
 
         {/* =================================================
-            COMPLAINT OVERVIEW / STATS (3 STAT CARDS)
+            🚨 CRITICAL EMERGENCY SIREN ALERT BANNER
+        ================================================= */}
+        {complaints.filter(isVeryHighPriority).length > 0 && (
+          <View style={styles.emergencyAlertBanner}>
+            <View style={styles.emergencyTopRow}>
+              <View style={styles.emergencyIconPulse}>
+                <Ionicons name="warning" size={22} color="#FFFFFF" />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emergencyTitle}>
+                  {isHindi ? '🚨 अति गंभीर आपातकालीन अलर्ट!' : '🚨 Critical Emergency Alert!'}
+                </Text>
+                <Text style={styles.emergencySub}>
+                  {complaints.filter(isVeryHighPriority).length}{' '}
+                  {isHindi
+                    ? 'अति गंभीर समस्याएं तुरंत मुआयने की प्रतीक्षा में हैं'
+                    : 'critical grievances require immediate field attention'}
+                </Text>
+              </View>
+
+              {/* Siren Audio Bell Button */}
+              <TouchableOpacity
+                style={styles.emergencySirenBtn}
+                onPress={async () => {
+                  await playEmergencyAlertSound();
+                  Alert.alert(
+                    isHindi ? '🔔 आपातकालीन अलर्ट सायरन' : '🔔 Emergency Alert Siren',
+                    isHindi
+                      ? 'अति गंभीर शिकायतों पर सरपंच और सचिव का त्वरित ध्यान अनिवार्य है।'
+                      : 'Urgent attention required for critical village grievances.'
+                  );
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="notifications" size={18} color="#DC2626" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.emergencyActionBtn}
+              onPress={() => openComplaints('priority-very-high')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.emergencyActionBtnText}>
+                {isHindi ? 'गंभीर शिकायतें तुरंत देखें (Take Action)' : 'Review Critical Complaints Now'}
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* =================================================
+            COMPLAINT OVERVIEW / STATS (4 STAT CARDS)
         ================================================= */}
         <View style={styles.sectionHeader}>
           <View style={{ flex: 1 }}>
@@ -517,6 +629,59 @@ export default function AdminScreen() {
               backgroundColor="#F3E8FF"
               iconColor="#9333EA"
             />
+          </View>
+        </View>
+
+        {/* =================================================
+            🏛️ GRAM PANCHAYAT SECRETARY LEADERSHIP CARD
+        ================================================= */}
+        <View style={styles.sectionHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle} numberOfLines={1}>
+              {isHindi ? 'ग्राम पंचायत सचिव संपर्क' : 'Panchayat Secretary Contact'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.leadershipCard}>
+          <View style={styles.leadershipTopRow}>
+            <View style={styles.leadershipAvatarBadge}>
+              <Ionicons name="person" size={24} color={COLORS.primary} />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={styles.leadershipName}>
+                {secretaryDetails?.name || (isHindi ? 'श्री विजय शर्मा' : 'Shri Vijay Sharma')}
+              </Text>
+              <Text style={styles.leadershipRole}>
+                {isHindi ? 'ग्राम पंचायत सचिव (Panchayat Secretary)' : 'Panchayat Secretary'}
+              </Text>
+              <Text style={styles.leadershipVillage}>
+                📍 {secretaryDetails?.village || admin?.village || (isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.leadershipBtnRow}>
+            <TouchableOpacity
+              style={styles.leadCallBtn}
+              onPress={() => Linking.openURL(`tel:${secretaryDetails?.mobile || '9876543210'}`)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="call" size={16} color="#FFFFFF" />
+              <Text style={styles.leadCallBtnText}>
+                {isHindi ? 'सचिव को कॉल करें' : 'Call Secretary'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.leadWhatsappBtn}
+              onPress={() => Linking.openURL(`https://wa.me/91${secretaryDetails?.mobile || '9876543210'}`)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="logo-whatsapp" size={16} color="#15803D" />
+              <Text style={styles.leadWhatsappBtnText}>WhatsApp</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -1150,5 +1315,145 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     fontWeight: '600',
+  },
+
+  /* ================= EMERGENCY SIREN ALERT STYLES ================= */
+  emergencyAlertBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    ...SHADOWS.small,
+  },
+  emergencyTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  emergencyIconPulse: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  emergencySub: {
+    fontSize: 12,
+    color: '#B91C1C',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  emergencySirenBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  emergencyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  emergencyActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  /* ================= LEADERSHIP DIRECTORY STYLES ================= */
+  leadershipCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+    ...SHADOWS.small,
+  },
+  leadershipTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  leadershipAvatarBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  leadershipName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  leadershipRole: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginTop: 1,
+  },
+  leadershipVillage: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  leadershipBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  leadCallBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#16A34A',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  leadCallBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  leadWhatsappBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  leadWhatsappBtnText: {
+    color: '#15803D',
+    fontSize: 12.5,
+    fontWeight: '800',
   },
 });

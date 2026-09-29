@@ -45,6 +45,9 @@ export default function ComplaintDetailsScreen() {
   const [imageError, setImageError] = useState<boolean>(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [citizenRating, setCitizenRating] = useState<number>(0);
+  const [citizenReview, setCitizenReview] = useState<string>('');
+  const [savedRatingData, setSavedRatingData] = useState<{ rating: number; review?: string; submittedAt?: string } | null>(null);
 
   const webAudioRef = useRef<any>(null);
   const nativePlayerRef = useRef<any>(null);
@@ -222,6 +225,16 @@ export default function ComplaintDetailsScreen() {
             dateTime: foundComplaint.createdAt || new Date().toISOString(),
             statusTimeline: [],
           });
+
+          // Check if citizen already rated this complaint
+          try {
+            const rawRating = await AsyncStorage.getItem(`rating_complaint_${foundComplaint.id || foundComplaint.complaintNumber || complaintId}`);
+            if (rawRating) {
+              setSavedRatingData(JSON.parse(rawRating));
+            }
+          } catch (rErr) {
+            console.log('Error reading saved rating:', rErr);
+          }
         }
       } catch (error) {
         console.log('Unable to load complaint from database:', error);
@@ -546,8 +559,8 @@ export default function ComplaintDetailsScreen() {
           ? 'पुष्टि सफल • समाधान पूर्ण'
           : 'Confirmed Successfully',
         language === 'hi'
-          ? 'आपकी पुष्टि के अनुसार शिकायत को सफलतापूर्वक बंद (Closed) कर दिया गया है। सहयोग के लिए धन्यवाद!'
-          : 'Thank you for confirming. The complaint has been successfully marked as Closed.'
+          ? 'शिकायत बंद हो गई है। कृपया नीचे दिए गए 5-स्टार रेटिंग कार्ड पर अपनी प्रतिक्रिया और अनुभव अवश्य साझा करें!'
+          : 'Complaint marked Closed. Please rate the redressal quality below to help improve village governance!'
       );
     } catch (error) {
       console.log('Unable to resolve complaint in backend:', error);
@@ -1630,6 +1643,162 @@ export default function ComplaintDetailsScreen() {
                   : 'Status is marked as Resolved. Once the citizen verifies satisfaction, this complaint will be marked as Closed.'}
               </Text>
             </View>
+          </View>
+        )}
+
+        {/* CITIZEN RATING & FEEDBACK CARD (FOR RESOLVED & CLOSED COMPLAINTS) */}
+        {(normalizedStatus === 'RESOLVED' || normalizedStatus === 'CLOSED') && (
+          <View style={styles.ratingSectionCard}>
+            <View style={styles.cardHeadingRow}>
+              <View style={[styles.cardHeadingBadge, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="star" size={18} color="#D97706" />
+              </View>
+              <Text style={styles.cardTitle}>
+                {language === 'hi' ? 'नागरिक संतुष्टि रेटिंग व फीडबैक' : 'Citizen Rating & Feedback'}
+              </Text>
+            </View>
+
+            {savedRatingData ? (
+              /* ALREADY RATED BADGE */
+              <View style={styles.savedRatingBox}>
+                <View style={styles.savedStarRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Ionicons
+                      key={star}
+                      name={star <= savedRatingData.rating ? 'star' : 'star-outline'}
+                      size={24}
+                      color="#F59E0B"
+                    />
+                  ))}
+                  <Text style={styles.savedRatingScore}>{savedRatingData.rating}/5</Text>
+                </View>
+
+                <Text style={styles.savedRatingLabel}>
+                  {savedRatingData.rating === 5
+                    ? (language === 'hi' ? '🌟 उत्कृष्ट समाधान (Excellent)' : '🌟 Excellent')
+                    : savedRatingData.rating === 4
+                      ? (language === 'hi' ? '😊 बहुत अच्छा काम (Very Good)' : '😊 Very Good')
+                      : savedRatingData.rating === 3
+                        ? (language === 'hi' ? '🙂 अच्छा काम (Good)' : '🙂 Good')
+                        : (language === 'hi' ? '😐 साधारण (Fair)' : '😐 Fair')}
+                </Text>
+
+                {Boolean(savedRatingData.review) && (
+                  <View style={styles.savedReviewBox}>
+                    <Text style={styles.savedReviewText}>
+                      "{savedRatingData.review}"
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.ratingVerifiedPill}>
+                  <Ionicons name="shield-checkmark" size={13} color="#16A34A" />
+                  <Text style={styles.ratingVerifiedText}>
+                    {language === 'hi' ? 'नागरिक द्वारा सत्यापित प्रतिक्रिया' : 'Citizen Verified Review'}
+                  </Text>
+                </View>
+              </View>
+            ) : userRole === 'citizen' ? (
+              /* INTERACTIVE RATING INPUT FOR CITIZEN */
+              <View style={styles.ratingInputContainer}>
+                <Text style={styles.ratingPromptText}>
+                  {language === 'hi'
+                    ? 'ग्राम पंचायत (सरपंच/सचिव) द्वारा किए गए कार्य को रेट करें:'
+                    : 'Rate the quality of redressal done by Panchayat:'}
+                </Text>
+
+                {/* 5 Star Buttons */}
+                <View style={styles.interactiveStarRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setCitizenRating(star)}
+                      style={styles.starTouchBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={star <= citizenRating ? 'star' : 'star-outline'}
+                        size={32}
+                        color={star <= citizenRating ? '#F59E0B' : '#CBD5E1'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {citizenRating > 0 && (
+                  <Text style={styles.activeRatingLabel}>
+                    {citizenRating === 5
+                      ? (language === 'hi' ? '🌟 5/5 - उत्कृष्ट समाधान' : '🌟 5/5 - Excellent')
+                      : citizenRating === 4
+                        ? (language === 'hi' ? '😊 4/5 - बहुत अच्छा' : '😊 4/5 - Very Good')
+                        : citizenRating === 3
+                          ? (language === 'hi' ? '🙂 3/5 - अच्छा काम' : '🙂 3/5 - Good')
+                          : citizenRating === 2
+                            ? (language === 'hi' ? '😐 2/5 - संतोषजनक' : '😐 2/5 - Fair')
+                            : (language === 'hi' ? '😞 1/5 - असंतुष्ट' : '😞 1/5 - Dissatisfied')}
+                  </Text>
+                )}
+
+                {/* Review Text Input */}
+                <TextInput
+                  style={styles.reviewTextInput}
+                  placeholder={
+                    language === 'hi'
+                      ? 'अपनी टिप्पणी या सुझाव लिखें (उदा. समय पर ठीक हुआ)...'
+                      : 'Write your comments/feedback (optional)...'
+                  }
+                  placeholderTextColor="#94A3B8"
+                  value={citizenReview}
+                  onChangeText={setCitizenReview}
+                  multiline
+                  numberOfLines={2}
+                />
+
+                {/* Submit Rating Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.submitRatingBtn,
+                    citizenRating === 0 && { opacity: 0.5 },
+                  ]}
+                  disabled={citizenRating === 0}
+                  onPress={async () => {
+                    if (citizenRating === 0 || !complaint?.complaintId) return;
+                    const ratingObj = {
+                      rating: citizenRating,
+                      review: citizenReview.trim(),
+                      submittedAt: new Date().toISOString(),
+                    };
+                    await AsyncStorage.setItem(
+                      `rating_complaint_${complaint.complaintId}`,
+                      JSON.stringify(ratingObj)
+                    );
+                    setSavedRatingData(ratingObj);
+                    Alert.alert(
+                      language === 'hi' ? '⭐ रेटिंग दर्ज हुई' : '⭐ Rating Submitted',
+                      language === 'hi'
+                        ? `आपने इस कार्य को ${citizenRating} स्टार दिए हैं। आपकी प्रतिक्रिया के लिए धन्यवाद!`
+                        : `Thank you for rating this complaint with ${citizenRating} stars!`
+                    );
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="checkmark-circle" size={17} color="#FFFFFF" />
+                  <Text style={styles.submitRatingBtnText}>
+                    {language === 'hi' ? 'रेटिंग व फीडबैक सबमिट करें' : 'Submit Rating & Feedback'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* OFFICIAL VIEW IF CITIZEN HAS NOT RATED YET */
+              <View style={styles.awaitingRatingBox}>
+                <Ionicons name="time-outline" size={18} color="#94A3B8" />
+                <Text style={styles.awaitingRatingText}>
+                  {language === 'hi'
+                    ? 'नागरिक द्वारा संतुष्टि रेटिंग अभी लंबित है।'
+                    : 'Citizen rating is pending.'}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -2730,5 +2899,132 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 13,
     fontWeight: '700',
+  },
+
+  /* ================= CITIZEN RATING STYLES ================= */
+  ratingSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#FEF08A',
+    ...SHADOWS.small,
+  },
+  savedRatingBox: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  savedStarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  savedRatingScore: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#D97706',
+    marginLeft: 6,
+  },
+  savedRatingLabel: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 8,
+  },
+  savedReviewBox: {
+    backgroundColor: '#FFFBEB',
+    padding: 10,
+    borderRadius: 10,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginBottom: 8,
+  },
+  savedReviewText: {
+    fontSize: 12.5,
+    color: '#78350F',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  ratingVerifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 5,
+  },
+  ratingVerifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  ratingInputContainer: {
+    marginTop: 4,
+  },
+  ratingPromptText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 10,
+  },
+  interactiveStarRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  starTouchBtn: {
+    padding: 4,
+  },
+  activeRatingLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#D97706',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  reviewTextInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 13,
+    color: '#0F172A',
+    marginBottom: 12,
+    minHeight: 45,
+  },
+  submitRatingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D97706',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+    ...SHADOWS.small,
+  },
+  submitRatingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  awaitingRatingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  awaitingRatingText: {
+    fontSize: 12.5,
+    color: '#64748B',
+    fontWeight: '500',
   },
 });

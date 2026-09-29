@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { PanchayatPhotoManagerModal } from '../components/PanchayatPhotoManagerModal';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 import { villageApi } from '../services/api';
 
@@ -55,6 +56,8 @@ export default function AdminProfile() {
 
   const [editing, setEditing] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [photoManagerVisible, setPhotoManagerVisible] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
 
   useEffect(() => {
     loadAdmin();
@@ -377,29 +380,7 @@ export default function AdminProfile() {
   };
 
   const pickVillageCoverPhoto = () => {
-    Alert.alert(
-      isHindi ? 'ग्राम पंचायत भवन फोटो' : 'Gram Panchayat Bhavan Photo',
-      isHindi ? 'ग्राम पंचायत भवन की मुख्य फोटो बदलें' : 'Change Gram Panchayat Bhavan photo',
-      [
-        {
-          text: isHindi ? '📷 कैमरे से फोटो लें' : '📷 Take Photo',
-          onPress: pickVillagePhotoFromCamera,
-        },
-        {
-          text: isHindi ? '🖼️ गैलरी से चुनें' : '🖼️ Choose from Gallery',
-          onPress: pickVillagePhotoFromGallery,
-        },
-        {
-          text: isHindi ? '❌ डिफ़ॉल्ट फोटो लगाएं' : '❌ Reset to Default',
-          style: 'destructive' as const,
-          onPress: () => applyVillagePhoto(null),
-        },
-        {
-          text: isHindi ? 'रद्द करें' : 'Cancel',
-          style: 'cancel' as const,
-        },
-      ]
-    );
+    setPhotoManagerVisible(true);
   };
 
   const saveProfile = async () => {
@@ -1064,6 +1045,18 @@ export default function AdminProfile() {
         onChangePhoto={() => {
           setPreviewVisible(false);
           pickImage();
+        }}
+        isHindi={isHindi}
+      />
+
+      {/* PANCHAYAT MULTI-PHOTO GALLERY & CROP/ROTATE MANAGER MODAL */}
+      <PanchayatPhotoManagerModal
+        visible={photoManagerVisible}
+        onClose={() => setPhotoManagerVisible(false)}
+        villageName={admin.village || (isHindi ? 'मुख्य ग्राम पंचायत' : 'Gram Panchayat')}
+        photos={galleryPhotos}
+        onPhotosUpdated={(updated) => {
+          setGalleryPhotos(updated);
         }}
         isHindi={isHindi}
       />

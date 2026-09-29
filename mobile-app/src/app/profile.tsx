@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { PanchayatPhotoManagerModal } from '../components/PanchayatPhotoManagerModal';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 
 import {
@@ -51,6 +52,8 @@ export default function CitizenProfileScreen() {
 
   const [editing, setEditing] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [photoManagerVisible, setPhotoManagerVisible] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
 
   useEffect(() => {
     loadCitizen();
@@ -711,6 +714,38 @@ export default function CitizenProfileScreen() {
 
             <View style={styles.divider} />
 
+            {/* GRAM PANCHAYAT PHOTO GALLERY */}
+            <TouchableOpacity
+              style={styles.accountRow}
+              onPress={() => setPhotoManagerVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accountIconBox}>
+                <Ionicons
+                  name="business-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <View style={styles.accountTextWrapper}>
+                <Text style={styles.accountTitle}>
+                  {isHindi ? 'ग्राम पंचायत फोटो गैलरी व क्रॉप' : 'Panchayat Photo Gallery & Crop'}
+                </Text>
+                <Text style={styles.accountSubtitle}>
+                  {isHindi ? 'डैशबोर्ड पर घूमने वाली फोटो देखें / प्रबंधित करें' : 'View / Manage dynamic showcase photos'}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward-outline"
+                size={20}
+                color={COLORS.textMuted}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
             {/* SWITCH / ADD ACCOUNT */}
             <TouchableOpacity
               style={styles.accountRow}
@@ -842,6 +877,18 @@ export default function CitizenProfileScreen() {
         onChangePhoto={() => {
           setPreviewVisible(false);
           pickImage();
+        }}
+        isHindi={isHindi}
+      />
+
+      {/* PANCHAYAT MULTI-PHOTO GALLERY & CROP/ROTATE MANAGER MODAL */}
+      <PanchayatPhotoManagerModal
+        visible={photoManagerVisible}
+        onClose={() => setPhotoManagerVisible(false)}
+        villageName={citizen.village || (isHindi ? 'मुख्य ग्राम पंचायत' : 'Gram Panchayat')}
+        photos={galleryPhotos}
+        onPhotosUpdated={(updated) => {
+          setGalleryPhotos(updated);
         }}
         isHindi={isHindi}
       />

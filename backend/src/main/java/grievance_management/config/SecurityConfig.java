@@ -65,8 +65,8 @@ public class SecurityConfig {
                                 // Backend test
                                 "/api/test",
 
-                                // Registration
-                                "/api/users/register",
+                                // Registration & User APIs
+                                "/api/users/**",
 
                                 // Login & Auth
                                 "/api/auth/**",

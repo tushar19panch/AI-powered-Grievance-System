@@ -343,4 +343,66 @@ public class UserService {
                 wardNumber
         );
     }
-}
+
+    // =====================================================
+    // GET VILLAGE OFFICIALS (SARPANCH & SECRETARY SYNC)
+    // =====================================================
+
+    public grievance_management.user.dto.VillageOfficialsResponse getVillageOfficials(String villageName, Long villageId) {
+        Village village = null;
+
+        if (villageId != null) {
+            village = villageRepository.findById(villageId).orElse(null);
+        }
+
+        if (village == null && villageName != null && !villageName.isBlank()) {
+            village = villageRepository.findByNameIgnoreCase(villageName.trim()).orElse(null);
+        }
+
+        if (village == null) {
+            // Check if any village contains part of the name
+            if (villageName != null && !villageName.isBlank()) {
+                java.util.List<Village> all = villageRepository.findAll();
+                for (Village v : all) {
+                    if (v.getName() != null && v.getName().equalsIgnoreCase(villageName.trim())) {
+                        village = v;
+                        break;
+                    }
+                }
+            }
+        }
+
+        grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo sarpanchInfo = null;
+        grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo secretaryInfo = null;
+
+        if (village != null) {
+            java.util.List<User> users = userRepository.findByVillage(village);
+            for (User u : users) {
+                if (u.getRole() == Role.SARPANCH || u.getRole() == Role.SUPER_ADMIN) {
+                    sarpanchInfo = grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo.builder()
+                            .name(u.getName())
+                            .mobile(u.getMobileNumber())
+                            .officialId(u.getOfficialId())
+                            .role("SARPANCH")
+                            .village(village.getName())
+                            .build();
+                } else if (u.getRole() == Role.SECRETARY || u.getRole() == Role.DISTRICT_OFFICER) {
+                    secretaryInfo = grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo.builder()
+                            .name(u.getName())
+                            .mobile(u.getMobileNumber())
+                            .officialId(u.getOfficialId())
+                            .role("SECRETARY")
+                            .village(village.getName())
+                            .build();
+                }
+            }
+        }
+
+        return grievance_management.user.dto.VillageOfficialsResponse.builder()
+                .villageId(village != null ? village.getId() : villageId)
+                .villageName(village != null ? village.getName() : villageName)
+                .sarpanch(sarpanchInfo)
+                .secretary(secretaryInfo)
+                .build();
+    }
+}
