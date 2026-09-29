@@ -80,7 +80,11 @@ public class SecurityConfig {
                                 "/api/wards/**",
 
                                 // Uploaded files
-                                "/uploads/**"
+                                "/uploads/**",
+
+                                // General Complaints (for browser testing / public feed)
+                                "/api/complaints",
+                                "/api/complaints/**"
                         ).permitAll()
 
                         // Notifications for all authenticated users
@@ -99,9 +103,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/citizen/**")
                         .hasAnyRole("CITIZEN", "SARPANCH", "SECRETARY", "ADMIN", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
-                        // Sarpanch, Secretary & District Super Admins
+                        // Sarpanch, Secretary & District Super Admins / Admins
                         .requestMatchers("/api/sarpanch/**", "/api/secretary/**")
-                        .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER")
+                        .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER", "ADMIN")
 
                         // Everything else requires authentication
                         .anyRequest().authenticated()

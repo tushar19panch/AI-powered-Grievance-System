@@ -8,6 +8,13 @@ echo 1. Make sure your Android Phone is connected via USB.
 echo 2. Make sure USB Debugging is ON in Developer Options.
 echo.
 
+set ADB_EXE=C:\Users\pc\AppData\Local\Android\Sdk\platform-tools\adb.exe
+if not exist "%ADB_EXE%" set ADB_EXE=adb
+
+echo Enabling USB reverse port forwarding for Backend (8080) and Metro (8081)...
+"%ADB_EXE%" reverse tcp:8080 tcp:8080 >nul 2>&1
+"%ADB_EXE%" reverse tcp:8081 tcp:8081 >nul 2>&1
+
 set SCRCPY_DIR=%LOCALAPPDATA%\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.1
 
 if exist "%SCRCPY_DIR%\scrcpy.exe" (

@@ -174,7 +174,7 @@ public class ComplaintService {
                 .imageHash(imageHash)
                 .duplicateOfId(duplicateOfId)
                 .deadline(request.getDeadline())
-                .photo(photoData)
+                .photo(processPhotoUrl(null, photoData))
                 .audioUrl(
                         request.getAudioUrl() != null
                                 ? request.getAudioUrl().trim()
@@ -327,6 +327,19 @@ public class ComplaintService {
                     complaint.getWard().getWardNumber();
         }
 
+        // Optimize photo: if photo is a huge raw base64 string, write it to uploads/ and return clean URL
+        String photoUrl = complaint.getPhoto();
+        if (photoUrl != null && (photoUrl.startsWith("data:image/") || photoUrl.length() > 500)) {
+            String processed = processPhotoUrl(complaint.getId(), photoUrl);
+            if (!processed.equals(photoUrl)) {
+                photoUrl = processed;
+                try {
+                    complaint.setPhoto(photoUrl);
+                    complaintRepository.save(complaint);
+                } catch (Exception ignore) {}
+            }
+        }
+
         return ComplaintResponse.builder()
                 .id(complaint.getId())
                 .problemType(complaint.getProblemType())
@@ -335,7 +348,7 @@ public class ComplaintService {
                 .department(complaint.getDepartment())
                 .sentiment(complaint.getSentiment())
                 .deadline(complaint.getDeadline())
-                .photo(complaint.getPhoto())
+                .photo(photoUrl)
                 .imageHash(complaint.getImageHash())
                 .classification(complaint.getClassification())
                 .classificationReason(complaint.getClassificationReason())
@@ -351,5 +364,32 @@ public class ComplaintService {
                 .createdAt(complaint.getCreatedAt())
                 .updatedAt(complaint.getUpdatedAt())
                 .build();
+    }
+
+    public String processPhotoUrl(Long complaintId, String photoData) {
+        if (photoData == null || photoData.isBlank()) {
+            return null;
+        }
+        if (photoData.startsWith("data:image/") || photoData.length() > 500) {
+            try {
+                java.nio.file.Path uploadDir = java.nio.file.Paths.get("uploads");
+                java.nio.file.Files.createDirectories(uploadDir);
+                String fileName = "complaint_" + (complaintId != null ? complaintId : java.util.UUID.randomUUID()) + ".jpg";
+                java.nio.file.Path target = uploadDir.resolve(fileName);
+
+                String base64Content = photoData;
+                int commaIndex = photoData.indexOf(",");
+                if (commaIndex != -1) {
+                    base64Content = photoData.substring(commaIndex + 1);
+                }
+                byte[] decoded = java.util.Base64.getDecoder().decode(base64Content.trim());
+                java.nio.file.Files.write(target, decoded);
+                return "/uploads/" + fileName;
+            } catch (Exception e) {
+                log.warn("Could not save base64 photo to file: {}", e.getMessage());
+                return photoData;
+            }
+        }
+        return photoData;
     }
 }

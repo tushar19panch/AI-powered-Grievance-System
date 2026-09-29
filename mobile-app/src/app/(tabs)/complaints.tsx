@@ -137,7 +137,7 @@ export default function ComplaintsScreen() {
 
       let fetchedList: Complaint[] = [];
 
-      // 1. Try official endpoint if user is official or admin
+      // 1. Fetch complaints strictly based on user role
       if (isOfficial) {
         try {
           const apiData = await complaintApi.getSarpanchComplaints();
@@ -145,12 +145,9 @@ export default function ComplaintsScreen() {
             fetchedList = apiData.map(mapBackendComplaint);
           }
         } catch (apiErr) {
-          console.log('Sarpanch complaints fetch error, trying fallback:', apiErr);
+          console.log('Sarpanch complaints fetch error:', apiErr);
         }
-      }
-
-      // 2. If list still empty, try citizen endpoint
-      if (fetchedList.length === 0) {
+      } else {
         try {
           const apiData = await complaintApi.getCitizenComplaints();
           if (Array.isArray(apiData) && apiData.length > 0) {
@@ -158,18 +155,6 @@ export default function ComplaintsScreen() {
           }
         } catch (apiErr) {
           console.log('Citizen complaints fetch error:', apiErr);
-        }
-      }
-
-      // 3. If citizen and list still empty, try sarpanch endpoint as fallback for public complaints
-      if (fetchedList.length === 0 && !isOfficial) {
-        try {
-          const apiData = await complaintApi.getSarpanchComplaints();
-          if (Array.isArray(apiData) && apiData.length > 0) {
-            fetchedList = apiData.map(mapBackendComplaint);
-          }
-        } catch (apiErr) {
-          console.log('Sarpanch fallback complaints fetch error:', apiErr);
         }
       }
 

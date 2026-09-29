@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 function getDefaultApiUrl(): string {
-  if (process.env.EXPO_PUBLIC_API_URL) {
+  if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim().length > 0) {
     return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
   }
   if (Platform.OS === 'web') {
@@ -30,10 +30,8 @@ function getDefaultApiUrl(): string {
     }
   }
 
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8080';
-  }
-  return 'http://localhost:8080';
+  // Physical Android/iOS devices on local Wi-Fi LAN
+  return 'http://192.168.31.144:8080';
 }
 
 export const DEFAULT_API_URL = getDefaultApiUrl();
@@ -71,6 +69,14 @@ export async function getAuthToken(): Promise<string | null> {
 
     token = await AsyncStorage.getItem('token');
     if (isValidJwt(token)) return token!.trim();
+
+    const villageSession = await AsyncStorage.getItem('@village_user_session');
+    if (villageSession) {
+      const parsed = JSON.parse(villageSession);
+      if (isValidJwt(parsed?.token)) {
+        return parsed.token.trim();
+      }
+    }
 
     const userSession = await AsyncStorage.getItem('user_session');
     if (userSession) {
@@ -178,7 +184,7 @@ async function request<T>(
             'Request timed out. Please check if your backend server is running and reachable.'
           )
         ),
-      15000
+      30000
     )
   );
 
@@ -331,30 +337,22 @@ export const complaintApi = {
   },
 
   getSingleComplaint: async (id: number): Promise<ComplaintData> => {
+    let isOfficial = false;
     try {
       const sessionData = await AsyncStorage.getItem('@village_user_session');
       const fallbackSession = await AsyncStorage.getItem('user_session');
       const session = sessionData ? JSON.parse(sessionData) : (fallbackSession ? JSON.parse(fallbackSession) : null);
-      const isOfficial = session?.role && session.role !== 'CITIZEN';
-
-      if (isOfficial) {
-        return await request<ComplaintData>(`/api/sarpanch/complaints/${id}`, {
-          method: 'GET',
-        });
-      }
+      const role = String(session?.role || '').toUpperCase();
+      isOfficial = role === 'SARPANCH' || role === 'SECRETARY' || role === 'ADMIN' || role === 'SUPER_ADMIN';
     } catch {
-      // fallback to citizen endpoint
+      // default to citizen
     }
 
-    try {
-      return await request<ComplaintData>(`/api/citizen/complaints/${id}`, {
-        method: 'GET',
-      });
-    } catch {
-      return await request<ComplaintData>(`/api/sarpanch/complaints/${id}`, {
-        method: 'GET',
-      });
-    }
+    const endpoint = isOfficial
+      ? `/api/sarpanch/complaints/${id}`
+      : `/api/citizen/complaints/${id}`;
+
+    return await request<ComplaintData>(endpoint, { method: 'GET' });
   },
 
   getSarpanchComplaints: async (): Promise<ComplaintData[]> => {

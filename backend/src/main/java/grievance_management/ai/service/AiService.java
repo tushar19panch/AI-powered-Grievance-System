@@ -23,7 +23,11 @@ public class AiService {
     private final RestTemplate restTemplate;
 
     public AiService() {
-        this.restTemplate = new RestTemplate();
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);
+        factory.setReadTimeout(5000);
+        this.restTemplate = new RestTemplate(factory);
     }
 
     public AiAnalysisResult analyzeComplaint(String description) {
