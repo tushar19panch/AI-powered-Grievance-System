@@ -178,6 +178,10 @@ export default function AdminRegister() {
         console.log('Auto-login error:', loginErr);
       }
 
+      // Clear stale profile images
+      await AsyncStorage.removeItem('profile_image');
+      await AsyncStorage.removeItem(`profile_image_${cleanMobile}`);
+
       await AsyncStorage.setItem(
         'admin',
         JSON.stringify({

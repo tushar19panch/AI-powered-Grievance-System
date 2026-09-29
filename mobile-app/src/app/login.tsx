@@ -211,7 +211,7 @@ export default function LoginScreen() {
           ? (isHindi ? 'ग्राम प्रधान / सरपंच' : 'Sarpanch / Admin')
           : (isHindi ? 'ग्राम सचिव' : 'Secretary');
         showAlert(
-          isHindi ? 'भूमिका चयन त्रुटि (Role Mismatch)' : 'Incorrect Role Selected',
+          isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
           isHindi
             ? `यह खाता ${targetRole} का है। कृपया ऊपर '${targetRole}' टैब चुनकर लॉगिन करें।`
             : `This account is registered as ${targetRole}. Please tap the '${targetRole}' tab above to login.`
@@ -221,9 +221,9 @@ export default function LoginScreen() {
 
       if (isRequestedAdmin && !isActualAdmin) {
         showAlert(
-          isHindi ? 'भूमिका चयन त्रुटि (Role Mismatch)' : 'Incorrect Role Selected',
+          isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
           isHindi
-            ? `यह खाता नागरिक का है। कृपया ऊपर 'नागरिक (Citizen)' टैब चुनकर लॉगिन करें।`
+            ? `यह खाता नागरिक का है। कृपया ऊपर 'नागरिक' टैब चुनकर लॉगिन करें।`
             : `This account is a Citizen account. Please tap the 'Citizen' tab above to login.`
         );
         return;
@@ -231,7 +231,7 @@ export default function LoginScreen() {
 
       if (isRequestedSecretary && !isActualSecretary) {
         showAlert(
-          isHindi ? 'भूमिका चयन त्रुटि (Role Mismatch)' : 'Incorrect Role Selected',
+          isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
           isHindi
             ? `यह खाता ग्राम सचिव का नहीं है। कृपया सही टैब चुनकर लॉगिन करें।`
             : `This account does not have Secretary permissions. Please select the correct tab.`

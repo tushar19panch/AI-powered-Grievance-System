@@ -108,7 +108,7 @@ export default function HomeScreen() {
 
           <View style={styles.cardTextBox}>
             <Text style={styles.actionCardTitle}>
-              {isHindi ? 'खाता बनाएं (Create Account)' : 'Create Account'}
+              {isHindi ? 'खाता बनाएं' : 'Create Account'}
             </Text>
             <Text style={styles.actionCardDesc}>
               {isHindi ? 'शुरू करने के लिए अपनी भूमिका चुनें' : 'Choose your role to get started'}
@@ -191,7 +191,7 @@ export default function HomeScreen() {
               <View style={styles.modalRowLeft}>
                 <Ionicons name="language" size={20} color="#0B1B4F" />
                 <Text style={styles.modalRowLabel}>
-                  {isHindi ? 'भाषा (Language)' : 'Language'}
+                  {isHindi ? 'भाषा' : 'Language'}
                 </Text>
               </View>
               <View style={styles.modalPill}>
@@ -208,7 +208,7 @@ export default function HomeScreen() {
               <View style={styles.modalRowLeft}>
                 <Ionicons name={isDark ? 'sunny' : 'moon'} size={20} color="#EA580C" />
                 <Text style={styles.modalRowLabel}>
-                  {isHindi ? 'थीम (Theme)' : 'Dark Mode'}
+                  {isHindi ? 'थीम' : 'Dark Mode'}
                 </Text>
               </View>
               <View style={styles.modalPill}>
@@ -241,8 +241,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 16,
     paddingBottom: 28,
   },
 

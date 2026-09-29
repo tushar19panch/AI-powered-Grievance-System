@@ -86,7 +86,7 @@ export function ComplaintOverviewSection({
       <View style={styles.sectionHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle} numberOfLines={1}>
-            {isHindi ? 'शिकायत प्राथमिकता (Priority)' : 'Complaint Priority'}
+            {isHindi ? 'शिकायत प्राथमिकता' : 'Complaint Priority'}
           </Text>
         </View>
       </View>
@@ -137,7 +137,7 @@ export function ComplaintOverviewSection({
       <View style={[styles.sectionHeader, { marginTop: 14 }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle} numberOfLines={1}>
-            {isHindi ? 'वर्गीकरण (Classification)' : 'Classification'}
+            {isHindi ? 'शिकायत वर्गीकरण' : 'Classification'}
           </Text>
         </View>
       </View>

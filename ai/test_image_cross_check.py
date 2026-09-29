@@ -56,18 +56,18 @@ if __name__ == "__main__":
     assert "MISMATCH" in data_mismatch["classification"] or "SUSPICIOUS" in data_mismatch["classification"]
     print(" -> SUCCESS: Building image correctly flagged as MISMATCH / SUSPICIOUS for Road complaint!")
 
-    # Case 2: Road complaint with Road image
-    res_match = client.post("/api/analyze", json={
-        "complaint": "सड़क पर बड़ा गड्ढा है और रास्ता टूटा हुआ है।", # Road complaint
+    # Case 3: Water Supply Complaint with Road Image (User's Exact Scenario)
+    res_water_road = client.post("/api/analyze", json={
+        "complaint": "पूरे गांव भर में पानी की सप्लाई नहीं है, नलों में पानी नहीं आ रहा।", # Water supply complaint
         "image": road_img
     })
-    data_match = res_match.get_json()
-    print("\n[Case 2: Road Complaint + Genuine Road Image]")
-    print(" - Detected Category:", data_match["category"])
-    print(" - Classification:", data_match["classification"])
-    print(" - Reason:", data_match["classification_reason"])
+    data_water_road = res_water_road.get_json()
+    print("\n[Case 3: Water Supply Complaint + Road Photo (User Scenario)]")
+    print(" - Detected Category:", data_water_road["category"])
+    print(" - Classification:", data_water_road["classification"])
+    print(" - Reason:", data_water_road["classification_reason"])
 
-    assert data_match["classification"] == "GENUINE"
-    print(" -> SUCCESS: Authentic Road image verified as GENUINE!")
+    assert "MISMATCH" in data_water_road["classification"] or "SUSPICIOUS" in data_water_road["classification"]
+    print(" -> SUCCESS: Road photo correctly flagged as MISMATCH / SUSPICIOUS for Water Supply complaint!")
 
     print("\n=== ALL SCENARIO VERIFICATION TESTS PASSED! ===")

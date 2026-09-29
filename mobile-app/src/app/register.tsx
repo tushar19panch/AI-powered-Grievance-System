@@ -266,7 +266,12 @@ export default function RegisterScreen() {
         token: validToken,
         role: 'citizen',
         isLoggedIn: true,
+        profileImage: null,
       };
+
+      // Clear any previous cached avatar so new user starts completely fresh
+      await AsyncStorage.removeItem('profile_image');
+      await AsyncStorage.removeItem(`profile_image_${cleanMobile}`);
 
       await AsyncStorage.setItem('citizen', JSON.stringify(citizenData));
       await AsyncStorage.setItem('user_session', JSON.stringify(citizenData));

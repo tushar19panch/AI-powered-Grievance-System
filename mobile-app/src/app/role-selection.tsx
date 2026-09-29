@@ -154,11 +154,11 @@ export default function RoleSelectionScreen() {
           </TouchableOpacity>
 
           <View style={[styles.brandBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.brandIconBox}>
-              <Ionicons name="shield-checkmark" size={15} color="#FFFFFF" />
+            <View style={[styles.brandIconBox, { backgroundColor: '#000080' }]}>
+              <Ionicons name="home" size={15} color="#FFFFFF" />
             </View>
             <Text style={[styles.brandText, { color: colors.textPrimary }]}>
-              Village<Text style={{ color: '#0B1B4F', fontWeight: '900' }}>App</Text>
+              Village<Text style={{ color: '#000080', fontWeight: '900' }}>App</Text>
             </Text>
           </View>
 
@@ -202,15 +202,6 @@ export default function RoleSelectionScreen() {
             },
           ]}
         >
-          <View style={styles.heroBadgeRow}>
-            <View style={styles.heroPill}>
-              <Ionicons name="sparkles" size={13} color="#F59E0B" />
-              <Text style={styles.heroPillText}>
-                {isHindi ? 'ई-ग्राम स्वराज • डिजिटल पोर्टल' : 'E-Gram Swaraj • Digital Portal'}
-              </Text>
-            </View>
-          </View>
-
           <Text style={styles.heroTitle}>
             {isHindi ? 'अपनी भूमिका चुनें' : 'Choose Your Role'}
           </Text>
@@ -225,7 +216,7 @@ export default function RoleSelectionScreen() {
         {/* SECTION HEADING */}
         <Animated.View style={[styles.sectionHeadingBox, { opacity: fadeHeader }]}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-            {isHindi ? 'उपलब्ध भूमिकाएं (Roles)' : 'Available Roles'}
+            {isHindi ? 'उपलब्ध भूमिकाएं' : 'Available Roles'}
           </Text>
           <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
             {isHindi ? 'शुरू करने के लिए कार्ड पर टैप करें' : 'Tap a card to proceed'}
@@ -278,35 +269,13 @@ export default function RoleSelectionScreen() {
                   </Text>
                   <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
                     {isHindi
-                      ? 'गाँव की समस्याओं की रिपोर्ट करें, आवाज़ (Voice) या फोटो से शिकायत दर्ज करें।'
-                      : 'Report problems by voice or photo and track resolution live.'}
+                      ? 'ग्राम पंचायत नागरिक सेवा पोर्टल'
+                      : 'Citizen access for village services and grievances'}
                   </Text>
                 </View>
 
                 <View style={[styles.actionCircle, { backgroundColor: '#0B1B4F' }]}>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                </View>
-              </View>
-
-              {/* Feature Chips */}
-              <View style={styles.chipsRow}>
-                <View style={styles.featureChip}>
-                  <Ionicons name="mic-outline" size={12} color="#0B1B4F" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'बोलकर शिकायत' : 'Voice AI'}
-                  </Text>
-                </View>
-                <View style={styles.featureChip}>
-                  <Ionicons name="camera-outline" size={12} color="#0B1B4F" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'फोटो अपलोड' : 'Photo Proof'}
-                  </Text>
-                </View>
-                <View style={styles.featureChip}>
-                  <Ionicons name="time-outline" size={12} color="#0B1B4F" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'लाइव ट्रैकिंग' : 'Live Status'}
-                  </Text>
                 </View>
               </View>
             </View>
@@ -354,35 +323,13 @@ export default function RoleSelectionScreen() {
                   </Text>
                   <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
                     {isHindi
-                      ? 'वार्ड-वार निगरानी, AI डुप्लिकेट व फर्जी फोटो की जांच और त्वरित अनुमोदन।'
-                      : 'Ward oversight, duplicate detection & resolution approval.'}
+                      ? 'ग्राम पंचायत प्रशासन एवं निगरानी'
+                      : 'Village leadership and complaint management'}
                   </Text>
                 </View>
 
                 <View style={[styles.actionCircle, { backgroundColor: '#EA580C' }]}>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                </View>
-              </View>
-
-              {/* Feature Chips */}
-              <View style={styles.chipsRow}>
-                <View style={styles.featureChip}>
-                  <Ionicons name="analytics-outline" size={12} color="#EA580C" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'वार्ड विश्लेषण' : 'Ward Analytics'}
-                  </Text>
-                </View>
-                <View style={styles.featureChip}>
-                  <Ionicons name="checkmark-done-circle-outline" size={12} color="#EA580C" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'AI सत्यापन' : 'AI Verification'}
-                  </Text>
-                </View>
-                <View style={styles.featureChip}>
-                  <Ionicons name="flash-outline" size={12} color="#EA580C" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'त्वरित कार्रवाई' : 'Quick Actions'}
-                  </Text>
                 </View>
               </View>
             </View>
@@ -430,35 +377,13 @@ export default function RoleSelectionScreen() {
                   </Text>
                   <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
                     {isHindi
-                      ? 'विभागीय आवंटन (PHED/Electricity), एक्शन रिपोर्ट व फील्ड समाधान।'
-                      : 'Department assignment, action proofs and field inspection.'}
+                      ? 'सरकारी प्रशासनिक निगरानी एवं विभागीय समन्वय'
+                      : 'Administrative supervision and department coordination'}
                   </Text>
                 </View>
 
                 <View style={[styles.actionCircle, { backgroundColor: '#15803D' }]}>
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                </View>
-              </View>
-
-              {/* Feature Chips */}
-              <View style={styles.chipsRow}>
-                <View style={styles.featureChip}>
-                  <Ionicons name="git-network-outline" size={12} color="#15803D" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'विभाग आवंटन' : '16 Departments'}
-                  </Text>
-                </View>
-                <View style={styles.featureChip}>
-                  <Ionicons name="images-outline" size={12} color="#15803D" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'समाधान प्रमाण' : 'Proof Upload'}
-                  </Text>
-                </View>
-                <View style={styles.featureChip}>
-                  <Ionicons name="shield-outline" size={12} color="#15803D" />
-                  <Text style={styles.featureChipText}>
-                    {isHindi ? 'फील्ड सत्यापन' : 'Verification'}
-                  </Text>
                 </View>
               </View>
             </View>

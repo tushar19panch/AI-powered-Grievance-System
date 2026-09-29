@@ -182,12 +182,12 @@ export function LocationHierarchyPicker({
     <View style={styles.container}>
       {/* 1. STATE (READ-ONLY WITH CHECKMARK) */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'राज्य / State' : 'State'}</Text>
+        <Text style={styles.label}>{isHindi ? 'राज्य' : 'State'}</Text>
         <View style={[styles.inputBox, styles.disabledBox]}>
           <View style={styles.inputIconBox}>
             <Ionicons name="map-outline" size={20} color={COLORS.navy} />
           </View>
-          <Text style={styles.fixedValueText}>{selectedState}</Text>
+          <Text style={styles.fixedValueText}>{isHindi && (selectedState === 'Madhya Pradesh' || selectedState.toLowerCase().includes('madhya pradesh')) ? 'मध्य प्रदेश' : selectedState}</Text>
           <View style={styles.fixedCheckmark}>
             <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
           </View>
@@ -196,7 +196,7 @@ export function LocationHierarchyPicker({
 
       {/* 2. DISTRICT */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'जिला / District' : 'District'}</Text>
+        <Text style={styles.label}>{isHindi ? 'जिला' : 'District'}</Text>
         <TouchableOpacity
           style={styles.inputBox}
           onPress={() => openPicker('district')}
@@ -220,7 +220,7 @@ export function LocationHierarchyPicker({
 
       {/* 3. BLOCK */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'विकासखंड / Block' : 'Block'}</Text>
+        <Text style={styles.label}>{isHindi ? 'विकासखंड' : 'Block'}</Text>
         <TouchableOpacity
           style={[styles.inputBox, !selectedDistrict && styles.disabledBox]}
           onPress={() => openPicker('block')}
@@ -260,7 +260,7 @@ export function LocationHierarchyPicker({
 
       {/* 4. VILLAGE */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'गाँव / Village' : 'Village'}</Text>
+        <Text style={styles.label}>{isHindi ? 'गाँव' : 'Village'}</Text>
         <TouchableOpacity
           style={[styles.inputBox, !selectedBlock && styles.disabledBox]}
           onPress={() => openPicker('village')}
@@ -300,7 +300,7 @@ export function LocationHierarchyPicker({
 
       {/* 5. WARD */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'वार्ड / Ward' : 'Ward'}</Text>
+        <Text style={styles.label}>{isHindi ? 'वार्ड' : 'Ward'}</Text>
         <TouchableOpacity
           style={[styles.inputBox, !selectedVillage && styles.disabledBox]}
           onPress={() => openPicker('ward')}

@@ -550,6 +550,29 @@ export default function SecretaryRegister() {
             </View>
           </View>
 
+          {/* INFO */}
+          <View style={styles.infoBox}>
+            <View style={styles.infoIcon}>
+              <Ionicons
+                name="information-circle-outline"
+                size={22}
+                color={COLORS.navy}
+              />
+            </View>
+
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>
+                {isHindi ? 'आपकी भूमिका' : 'Your Role'}
+              </Text>
+
+              <Text style={styles.infoText}>
+                {isHindi
+                  ? 'सचिव / सुपरवाइजर शिकायतों और सरपंच की कार्रवाई की निगरानी करेगा।'
+                  : 'Secretary / Supervisor monitors complaints and Sarpanch actions.'}
+              </Text>
+            </View>
+          </View>
+
           {/* REGISTER BUTTON */}
           <TouchableOpacity
             style={[

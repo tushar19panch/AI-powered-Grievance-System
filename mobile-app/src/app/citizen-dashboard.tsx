@@ -94,13 +94,21 @@ export default function CitizenDashboard() {
         let syncedSarpanch: any = null;
         let syncedSecretary: any = null;
 
-        if (mergedCitizen.village) {
+        try {
+          const officials = await authApi.getVillageOfficials(mergedCitizen.village);
+          if (officials?.sarpanch?.name) syncedSarpanch = officials.sarpanch;
+          if (officials?.secretary?.name) syncedSecretary = officials.secretary;
+        } catch (e) {
+          console.log('authApi.getVillageOfficials error:', e);
+        }
+
+        if (!syncedSarpanch || !syncedSecretary) {
           try {
-            const officials = await authApi.getVillageOfficials(mergedCitizen.village);
-            if (officials?.sarpanch?.name) syncedSarpanch = officials.sarpanch;
-            if (officials?.secretary?.name) syncedSecretary = officials.secretary;
+            const vOfficials = await villageApi.getOfficials(mergedCitizen.village);
+            if (!syncedSarpanch && vOfficials?.sarpanch?.name) syncedSarpanch = vOfficials.sarpanch;
+            if (!syncedSecretary && vOfficials?.secretary?.name) syncedSecretary = vOfficials.secretary;
           } catch (e) {
-            console.log('authApi.getVillageOfficials error:', e);
+            console.log('villageApi.getOfficials error:', e);
           }
         }
 
@@ -128,9 +136,20 @@ export default function CitizenDashboard() {
           }
         }
 
-        if (syncedSarpanch?.name) setSarpanchName(syncedSarpanch.name);
+        if (syncedSarpanch?.name) {
+          setSarpanchName(syncedSarpanch.name);
+          if (mergedCitizen.village) {
+            await AsyncStorage.setItem(`sarpanch_sync_${mergedCitizen.village}`, JSON.stringify(syncedSarpanch));
+          }
+        }
         if (syncedSarpanch?.mobile) setSarpanchMobile(syncedSarpanch.mobile);
-        if (syncedSecretary?.name) setSecretaryName(syncedSecretary.name);
+
+        if (syncedSecretary?.name) {
+          setSecretaryName(syncedSecretary.name);
+          if (mergedCitizen.village) {
+            await AsyncStorage.setItem(`secretary_sync_${mergedCitizen.village}`, JSON.stringify(syncedSecretary));
+          }
+        }
         if (syncedSecretary?.mobile) setSecretaryMobile(syncedSecretary.mobile);
       } catch (offErr) {
         console.log('Error fetching village officials for citizen dashboard:', offErr);
@@ -376,10 +395,6 @@ export default function CitizenDashboard() {
             <Text style={styles.sectionTitle}>
               {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
             </Text>
-          </View>
-
-          <View style={styles.sectionIcon}>
-            <Ionicons name="stats-chart-outline" size={20} color={COLORS.primary} />
           </View>
         </View>
 

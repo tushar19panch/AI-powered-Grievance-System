@@ -21,6 +21,7 @@ import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatPhotoManagerModal } from '../components/PanchayatPhotoManagerModal';
 import { DashboardBottomBar } from '../components/DashboardBottomBar';
 import { villageApi } from '../services/api';
+import { localizeName, localizeVillageName } from '../utils/hindiTransliteration';
 
 import {
   COLORS,
@@ -591,10 +592,11 @@ export default function AdminProfile() {
             </TouchableOpacity>
 
             <Text style={styles.profileName}>
-              {admin.name ||
-                (isHindi
-                  ? (admin.role === 'secretary' ? 'ग्राम पंचायत सचिव' : 'सरपंच / एडमिन')
-                  : (admin.role === 'secretary' ? 'Panchayat Secretary' : 'Sarpanch / Admin'))}
+              {admin.name
+                ? localizeName(admin.name, isHindi)
+                : (isHindi
+                    ? (admin.role === 'secretary' ? 'ग्राम पंचायत सचिव' : 'सरपंच / एडमिन')
+                    : (admin.role === 'secretary' ? 'Panchayat Secretary' : 'Sarpanch / Admin'))}
             </Text>
 
             <View
@@ -896,10 +898,10 @@ export default function AdminProfile() {
 
               <View style={styles.accountTextWrapper}>
                 <Text style={styles.accountTitle}>
-                  {isHindi ? 'ग्राम पंचायत फोटो बदलें' : 'Update Panchayat Photo'}
+                  {isHindi ? 'ग्राम पंचायत फोटो गैलरी व प्रबंधन' : 'Panchayat Photo Gallery & Management'}
                 </Text>
                 <Text style={styles.accountSubtitle}>
-                  {isHindi ? 'डैशबोर्ड पर दिखने वाली पंचायत भवन फोटो अपडेट करें' : 'Change Panchayat Bhavan cover photo on dashboard'}
+                  {isHindi ? 'पंचायत फोटो बदलें, जोड़ें, क्रॉप करें या हटाएं' : 'Add, edit, crop, rotate or delete showcase photos'}
                 </Text>
               </View>
 

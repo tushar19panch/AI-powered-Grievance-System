@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
+import { localizeName, localizeVillageName } from '../utils/hindiTransliteration';
 
 interface VillageInfoModalProps {
   visible: boolean;
@@ -35,7 +36,12 @@ export function VillageInfoModal({
   secretaryName,
   isHindi = true,
 }: VillageInfoModalProps) {
-  const displayVillage = villageName && villageName !== 'मुख्य ग्राम' ? villageName : (isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat');
+  const displayVillage = localizeVillageName(villageName, isHindi);
+  const displayDistrict = district ? localizeVillageName(district, isHindi) : '';
+  const displayBlock = block ? localizeVillageName(block, isHindi) : '';
+  const displayState = isHindi && (state === 'Madhya Pradesh' || state.toLowerCase().includes('madhya pradesh')) ? 'मध्य प्रदेश' : state;
+  const displaySarpanch = sarpanchName ? localizeName(sarpanchName, isHindi) : (isHindi ? 'सरपंच कार्यालय' : 'Sarpanch Office');
+  const displaySecretary = secretaryName ? localizeName(secretaryName, isHindi) : (isHindi ? 'ग्राम विकास अधिकारी' : 'Secretary Office');
 
   return (
     <Modal
@@ -93,8 +99,8 @@ export function VillageInfoModal({
                   <Ionicons name="map-outline" size={18} color="#2563EB" />
                 </View>
                 <View style={styles.infoTextBox}>
-                  <Text style={styles.infoLabel}>{isHindi ? 'राज्य / State' : 'State'}</Text>
-                  <Text style={styles.infoVal}>{state}</Text>
+                  <Text style={styles.infoLabel}>{isHindi ? 'राज्य' : 'State'}</Text>
+                  <Text style={styles.infoVal}>{displayState}</Text>
                 </View>
               </View>
 
@@ -105,8 +111,8 @@ export function VillageInfoModal({
                     <Ionicons name="trail-sign-outline" size={18} color="#16A34A" />
                   </View>
                   <View style={styles.infoTextBox}>
-                    <Text style={styles.infoLabel}>{isHindi ? 'जिला / District' : 'District'}</Text>
-                    <Text style={styles.infoVal}>{district}</Text>
+                    <Text style={styles.infoLabel}>{isHindi ? 'जिला' : 'District'}</Text>
+                    <Text style={styles.infoVal}>{displayDistrict}</Text>
                   </View>
                 </View>
               ) : null}
@@ -118,8 +124,8 @@ export function VillageInfoModal({
                     <Ionicons name="git-network-outline" size={18} color="#9333EA" />
                   </View>
                   <View style={styles.infoTextBox}>
-                    <Text style={styles.infoLabel}>{isHindi ? 'विकासखंड / Block' : 'Block'}</Text>
-                    <Text style={styles.infoVal}>{block}</Text>
+                    <Text style={styles.infoLabel}>{isHindi ? 'विकासखंड' : 'Block'}</Text>
+                    <Text style={styles.infoVal}>{displayBlock}</Text>
                   </View>
                 </View>
               ) : null}
@@ -131,7 +137,7 @@ export function VillageInfoModal({
                     <Ionicons name="home-outline" size={18} color="#EA580C" />
                   </View>
                   <View style={styles.infoTextBox}>
-                    <Text style={styles.infoLabel}>{isHindi ? 'वार्ड संख्या / Ward' : 'Ward'}</Text>
+                    <Text style={styles.infoLabel}>{isHindi ? 'वार्ड संख्या' : 'Ward'}</Text>
                     <Text style={styles.infoVal}>{isHindi ? `वार्ड नं. ${wardNumber}` : `Ward No. ${wardNumber}`}</Text>
                   </View>
                 </View>
@@ -154,7 +160,7 @@ export function VillageInfoModal({
                     {isHindi ? 'ग्राम प्रधान / सरपंच' : 'Village Head / Sarpanch'}
                   </Text>
                   <Text style={styles.infoVal}>
-                    {sarpanchName || (isHindi ? 'सरपंच कार्यालय (ग्राम पंचायत)' : 'Sarpanch Office')}
+                    {displaySarpanch}
                   </Text>
                 </View>
               </View>
@@ -166,10 +172,10 @@ export function VillageInfoModal({
                 </View>
                 <View style={styles.infoTextBox}>
                   <Text style={styles.infoLabel}>
-                    {isHindi ? 'ग्राम पंचायत सचिव (VDO)' : 'Gram Panchayat Secretary'}
+                    {isHindi ? 'ग्राम पंचायत सचिव' : 'Gram Panchayat Secretary'}
                   </Text>
                   <Text style={styles.infoVal}>
-                    {secretaryName || (isHindi ? 'ग्राम विकास अधिकारी कार्यालय' : 'VDO / Secretary Office')}
+                    {displaySecretary}
                   </Text>
                 </View>
               </View>

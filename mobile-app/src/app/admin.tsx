@@ -343,15 +343,6 @@ export default function AdminScreen() {
         }
       >
         {/* =================================================
-            TRICOLOR TOP BAR
-        ================================================= */}
-        <View style={styles.tricolorBar}>
-          <View style={styles.saffronStripe} />
-          <View style={styles.whiteStripe} />
-          <View style={styles.greenStripe} />
-        </View>
-
-        {/* =================================================
             HEADER
         ================================================= */}
         <Animated.View

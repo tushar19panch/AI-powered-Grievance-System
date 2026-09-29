@@ -378,7 +378,7 @@ public class UserService {
         if (village != null) {
             java.util.List<User> users = userRepository.findByVillage(village);
             for (User u : users) {
-                if (u.getRole() == Role.SARPANCH || u.getRole() == Role.SUPER_ADMIN) {
+                if ((u.getRole() == Role.SARPANCH || u.getRole() == Role.SUPER_ADMIN) && sarpanchInfo == null) {
                     sarpanchInfo = grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo.builder()
                             .name(u.getName())
                             .mobile(u.getMobileNumber())
@@ -386,7 +386,7 @@ public class UserService {
                             .role("SARPANCH")
                             .village(village.getName())
                             .build();
-                } else if (u.getRole() == Role.SECRETARY || u.getRole() == Role.DISTRICT_OFFICER) {
+                } else if ((u.getRole() == Role.SECRETARY || u.getRole() == Role.DISTRICT_OFFICER) && secretaryInfo == null) {
                     secretaryInfo = grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo.builder()
                             .name(u.getName())
                             .mobile(u.getMobileNumber())
@@ -398,9 +398,33 @@ public class UserService {
             }
         }
 
+        // Universal Fallback: If no exact village official was found, search all registered users
+        if (sarpanchInfo == null || secretaryInfo == null) {
+            java.util.List<User> allUsers = userRepository.findAll();
+            for (User u : allUsers) {
+                if ((u.getRole() == Role.SARPANCH || u.getRole() == Role.SUPER_ADMIN) && sarpanchInfo == null) {
+                    sarpanchInfo = grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo.builder()
+                            .name(u.getName())
+                            .mobile(u.getMobileNumber())
+                            .officialId(u.getOfficialId())
+                            .role("SARPANCH")
+                            .village(u.getVillage() != null ? u.getVillage().getName() : (villageName != null ? villageName : "Gram Panchayat"))
+                            .build();
+                } else if ((u.getRole() == Role.SECRETARY || u.getRole() == Role.DISTRICT_OFFICER) && secretaryInfo == null) {
+                    secretaryInfo = grievance_management.user.dto.VillageOfficialsResponse.OfficialInfo.builder()
+                            .name(u.getName())
+                            .mobile(u.getMobileNumber())
+                            .officialId(u.getOfficialId())
+                            .role("SECRETARY")
+                            .village(u.getVillage() != null ? u.getVillage().getName() : (villageName != null ? villageName : "Gram Panchayat"))
+                            .build();
+                }
+            }
+        }
+
         return grievance_management.user.dto.VillageOfficialsResponse.builder()
                 .villageId(village != null ? village.getId() : villageId)
-                .villageName(village != null ? village.getName() : villageName)
+                .villageName(village != null ? village.getName() : (villageName != null ? villageName : "Gram Panchayat"))
                 .sarpanch(sarpanchInfo)
                 .secretary(secretaryInfo)
                 .build();

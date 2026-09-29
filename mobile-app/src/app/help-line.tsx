@@ -5,7 +5,7 @@ import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View, P
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../i18n/LanguageContext';
-import { villageApi } from '../services/api';
+import { villageApi, authApi } from '../services/api';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS, SHADOWS } from '../theme';
 
 type OfficialContact = {
@@ -85,26 +85,68 @@ export default function HelpLine() {
         } catch {}
       }
 
+      if (userVillage) {
+        const cachedSarpanch = await AsyncStorage.getItem(`sarpanch_sync_${userVillage}`);
+        if (cachedSarpanch) {
+          try {
+            const parsedS = JSON.parse(cachedSarpanch);
+            if (parsedS?.name) setSarpanch(parsedS);
+          } catch {}
+        }
+        const cachedSecretary = await AsyncStorage.getItem(`secretary_sync_${userVillage}`);
+        if (cachedSecretary) {
+          try {
+            const parsedSec = JSON.parse(cachedSecretary);
+            if (parsedSec?.name) setSecretary(parsedSec);
+          } catch {}
+        }
+      }
+
       setUserRole(currentRole);
 
       // Fetch official contacts from Backend for this village
       try {
-        const officials = await villageApi.getOfficials(userVillage);
-        if (officials?.sarpanch && officials.sarpanch.mobile) {
-          setSarpanch((prev) => ({
-            ...prev,
-            name: officials.sarpanch?.name || prev?.name,
-            mobile: officials.sarpanch?.mobile || prev?.mobile,
-            village: officials.sarpanch?.village || prev?.village,
-          }));
+        let fetchedSarpanch: any = null;
+        let fetchedSecretary: any = null;
+
+        try {
+          const officials = await authApi.getVillageOfficials(userVillage);
+          if (officials?.sarpanch?.name) fetchedSarpanch = officials.sarpanch;
+          if (officials?.secretary?.name) fetchedSecretary = officials.secretary;
+        } catch (e) {
+          console.log('authApi error in helpline:', e);
         }
-        if (officials?.secretary && officials.secretary.mobile) {
-          setSecretary((prev) => ({
-            ...prev,
-            name: officials.secretary?.name || prev?.name,
-            mobile: officials.secretary?.mobile || prev?.mobile,
-            village: officials.secretary?.village || prev?.village,
-          }));
+
+        if (!fetchedSarpanch || !fetchedSecretary) {
+          try {
+            const vOfficials = await villageApi.getOfficials(userVillage);
+            if (!fetchedSarpanch && vOfficials?.sarpanch?.name) fetchedSarpanch = vOfficials.sarpanch;
+            if (!fetchedSecretary && vOfficials?.secretary?.name) fetchedSecretary = vOfficials.secretary;
+          } catch (e) {
+            console.log('villageApi error in helpline:', e);
+          }
+        }
+
+        if (fetchedSarpanch?.name) {
+          setSarpanch({
+            name: fetchedSarpanch.name,
+            mobile: fetchedSarpanch.mobile || '',
+            village: fetchedSarpanch.village || userVillage,
+          });
+          if (userVillage) {
+            await AsyncStorage.setItem(`sarpanch_sync_${userVillage}`, JSON.stringify(fetchedSarpanch));
+          }
+        }
+
+        if (fetchedSecretary?.name) {
+          setSecretary({
+            name: fetchedSecretary.name,
+            mobile: fetchedSecretary.mobile || '',
+            village: fetchedSecretary.village || userVillage,
+          });
+          if (userVillage) {
+            await AsyncStorage.setItem(`secretary_sync_${userVillage}`, JSON.stringify(fetchedSecretary));
+          }
         }
       } catch (backendErr) {
         console.log('Error fetching backend village officials in helpline:', backendErr);

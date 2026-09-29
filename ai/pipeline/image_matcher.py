@@ -573,55 +573,147 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
         if ("health" in norm_cat or "hospital" in norm_cat or "medical" in norm_cat) and scene.get("is_road_surface") and not scene.get("is_building_or_indoor"):
             return {
                 "classification": "MISMATCH_SUSPICIOUS",
-                "reason": "Image shows outdoor highway/road pavement instead of healthcare dispensary or medical facilities.",
-                "confidence": 0.88,
+                "reason": "फोटो और शिकायत में असंगति: शिकायत स्वास्थ्य/अस्पताल की है, लेकिन फोटो सड़क/गड्ढे (Road Surface) की है। (Image of road does not match Healthcare grievance)",
+                "confidence": 0.92,
                 "duplicate_of_id": None,
                 "similarity_score": 0.0,
                 "is_valid": False,
                 "detected_scene": dominant_scene
             }
 
-        # Rule 6: Drainage / Sewer with pure Overhead Sky / Roof
-        if ("drain" in norm_cat or "sewage" in norm_cat or "gutter" in norm_cat) and (scene.get("is_electrical_pole_sky") or scene.get("is_road_surface")) and not scene.get("is_water_or_drain"):
-            return {
-                "classification": "MISMATCH_SUSPICIOUS",
-                "reason": "Image displays overhead power lines or dry road surface instead of drainage channel or sewage trench.",
-                "confidence": 0.87,
-                "duplicate_of_id": None,
-                "similarity_score": 0.0,
-                "is_valid": False,
-                "detected_scene": dominant_scene
-            }
+        # Rule 6: Water Supply with Dry Road / Pothole / Electrical / Solid Waste (CRITICAL CROSS-CHECK)
+        if ("water" in norm_cat or "pani" in norm_cat or "jal" in norm_cat or "nal" in norm_cat or "supply" in norm_cat) and not ("drain" in norm_cat or "road" in norm_cat):
+            # A. Dry Road / Pothole surface with no water puddle/leakage
+            if scene.get("is_road_surface") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.12:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति पाई गई: शिकायत पेयजल/पानी सप्लाई (Water Supply) की है, लेकिन फोटो में सूखी सड़क/गड्ढा (Road Surface) दिखाई दे रहा है जिसमें पानी का कोई स्रोत या लीकेज नहीं है। (Image of dry road does not match Water Supply grievance)",
+                    "confidence": 0.95,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            # B. Overhead Electrical Wires / Sky with no water source
+            if scene.get("is_electrical_pole_sky") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.10:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत पानी सप्लाई की है, लेकिन फोटो बिजली के खंभे/तार (Overhead Electricity) की है। (Image of power lines does not match Water Supply grievance)",
+                    "confidence": 0.94,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            # C. Scattered Solid Waste with no water accumulation
+            if scene.get("is_waste_or_garbage") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.10:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत पानी सप्लाई की है, लेकिन फोटो कचरे/कूड़े के ढेर (Waste) की है। (Image of waste does not match Water Supply grievance)",
+                    "confidence": 0.93,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
 
-        # Rule 7: Electricity & Lighting with standing water / deep mud only
-        if ("electric" in norm_cat or "light" in norm_cat or "pole" in norm_cat) and scene.get("water_ratio", 0) > 0.35 and not scene.get("is_electrical_pole_sky"):
-            return {
-                "classification": "MISMATCH_SUSPICIOUS",
-                "reason": "Image shows standing water / drainage puddle with no electrical infrastructure detected.",
-                "confidence": 0.84,
-                "duplicate_of_id": None,
-                "similarity_score": 0.0,
-                "is_valid": False,
-                "detected_scene": dominant_scene
-            }
+        # Rule 7: Roads & Transportation with pure Overhead Sky/Power Lines or Deep Water Pond
+        if ("road" in norm_cat or "transport" in norm_cat or "pothole" in norm_cat or "street" in norm_cat or "sadak" in norm_cat):
+            if scene.get("is_electrical_pole_sky") and not scene.get("is_road_surface") and scene.get("asphalt_ratio", 0) < 0.15:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत सड़क की है, लेकिन फोटो में केवल ऊपर के बिजली के तार/आसमान दिख रहे हैं। (Image of overhead wires does not match Road grievance)",
+                    "confidence": 0.90,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            if scene.get("is_building_or_indoor") and not scene.get("is_road_surface") and scene.get("asphalt_ratio", 0) < 0.15:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत सड़क/मार्ग की है, लेकिन फोटो भवन/कमरे (Building/Indoor) की है। (Image of indoor/building does not match Road grievance)",
+                    "confidence": 0.91,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
 
-        # Rule 8: Waste Management with clean indoor room
-        if ("waste" in norm_cat or "garbage" in norm_cat or "sanitation" in norm_cat) and scene.get("is_clean_indoor"):
-            return {
-                "classification": "MISMATCH_SUSPICIOUS",
-                "reason": "Image shows a clean indoor room instead of garbage or sanitation waste.",
-                "confidence": 0.89,
-                "duplicate_of_id": None,
-                "similarity_score": 0.0,
-                "is_valid": False,
-                "detected_scene": dominant_scene
-            }
+        # Rule 8: Drainage / Sewer with pure Overhead Sky / Roof or Dry Road
+        if ("drain" in norm_cat or "sewage" in norm_cat or "gutter" in norm_cat):
+            if scene.get("is_electrical_pole_sky") and not scene.get("is_water_or_drain"):
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत नाली/सीवर की है, लेकिन फोटो बिजली के तारों/आसमान की है। (Image of power lines does not match Drainage grievance)",
+                    "confidence": 0.90,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            if scene.get("is_road_surface") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.08:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत नाली/जल निकासी की है, लेकिन फोटो सूखी सड़क की है जिसमें कोई जलभराव या नाली नहीं है। (Image of dry road does not match Drainage grievance)",
+                    "confidence": 0.88,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
 
-        # Rule 9: Drainage & Water Supply with clean indoor living room
+        # Rule 9: Electricity & Lighting with standing water / deep mud only or pure dry road
+        if ("electric" in norm_cat or "light" in norm_cat or "pole" in norm_cat or "wire" in norm_cat or "bijli" in norm_cat):
+            if scene.get("is_road_surface") and not scene.get("is_electrical_pole_sky") and scene.get("vertical_edge_ratio", 1.0) < 0.8:
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत बिजली/स्ट्रीट लाइट की है, लेकिन फोटो केवल सड़क/जमीन की है जिसमें कोई खंभा या तार नहीं दिख रहा। (Image of road does not match Electricity grievance)",
+                    "confidence": 0.89,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            if scene.get("water_ratio", 0) > 0.35 and not scene.get("is_electrical_pole_sky"):
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत बिजली की है, लेकिन फोटो में जलभराव/नाली दिखाई दे रही है। (Image of water does not match Electricity grievance)",
+                    "confidence": 0.85,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+
+        # Rule 10: Waste Management with clean indoor room or pure sky
+        if ("waste" in norm_cat or "garbage" in norm_cat or "sanitation" in norm_cat or "kachra" in norm_cat):
+            if scene.get("is_clean_indoor"):
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत कचरा/गंदगी की है, लेकिन फोटो साफ कमरे की है। (Image shows clean indoor room instead of waste)",
+                    "confidence": 0.90,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            if scene.get("is_electrical_pole_sky") and not scene.get("is_waste_or_garbage"):
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत कचरा प्रबंधन की है, लेकिन फोटो खुले आसमान/बिजली के तारों की है। (Image does not show waste)",
+                    "confidence": 0.88,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+
+        # Rule 11: Drainage & Water Supply with clean indoor living room
         if ("drain" in norm_cat or "sewer" in norm_cat or "water" in norm_cat) and scene.get("is_clean_indoor"):
             return {
                 "classification": "MISMATCH_SUSPICIOUS",
-                "reason": f"Image shows a clean indoor residential room instead of village drainage/water infrastructure for '{expected_category}'.",
+                "reason": f"फोटो और शिकायत में असंगति: शिकायत '{expected_category}' की है, लेकिन फोटो घर के अंदर के कमरे की है। (Image shows clean indoor room instead of {expected_category})",
                 "confidence": 0.90,
                 "duplicate_of_id": None,
                 "similarity_score": 0.0,
@@ -632,7 +724,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
     # 5. GENUINE: Authentic, verified image matching village domain
     return {
         "classification": "GENUINE",
-        "reason": f"Authentic, unique village grievance image verified (Scene: {dominant_scene}).",
+        "reason": f"सत्यापित प्रामाणिक फोटो (Verified authentic image for {dominant_scene}).",
         "confidence": 0.95,
         "duplicate_of_id": None,
         "similarity_score": round(highest_sim, 2),

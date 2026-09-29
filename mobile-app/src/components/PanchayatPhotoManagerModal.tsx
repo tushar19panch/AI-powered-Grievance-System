@@ -57,7 +57,7 @@ export function PanchayatPhotoManagerModal({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
-        selectionLimit: 5,
+        selectionLimit: 12,
         quality: 0.7,
         base64: true,
       });
@@ -76,7 +76,7 @@ export function PanchayatPhotoManagerModal({
           }
         }
 
-        const merged = [...photos, ...newUris].slice(0, 8);
+        const merged = [...photos, ...newUris].slice(0, 12);
         await savePhotos(merged);
         setSelectedIdx(merged.length - 1);
         setRotation(0);
@@ -111,7 +111,7 @@ export function PanchayatPhotoManagerModal({
           ? (asset.base64.startsWith('data:') ? asset.base64 : `data:image/jpeg;base64,${asset.base64}`)
           : asset.uri;
 
-        const merged = [uri, ...photos].slice(0, 8);
+        const merged = [uri, ...photos].slice(0, 12);
         await savePhotos(merged);
         setSelectedIdx(0);
         setRotation(0);
@@ -238,10 +238,12 @@ export function PanchayatPhotoManagerModal({
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>
-                {isHindi ? '📷 ग्राम पंचायत फोटो प्रबंधक' : '📷 Panchayat Photo Manager'}
+                {isHindi ? '📷 ग्राम पंचायत फोटो गैलरी' : '📷 Panchayat Photo Gallery'}
               </Text>
               <Text style={styles.subTitle}>
-                {isHindi ? `ग्राम: ${villageName} (गतिशील गैलरी)` : `Village: ${villageName} (Dynamic Slideshow)`}
+                {isHindi
+                  ? `${photos.length} फोटो जोड़ी गईं • कम से कम 4 फोटो जोड़ सकते हैं`
+                  : `${photos.length} photos added • Recommended at least 4 photos`}
               </Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
@@ -267,7 +269,7 @@ export function PanchayatPhotoManagerModal({
                 <View style={[styles.placeholderBox, getAspectRatioStyle()]}>
                   <Ionicons name="images-outline" size={48} color={COLORS.textMuted} />
                   <Text style={styles.placeholderText}>
-                    {isHindi ? 'कोई फोटो अपलोड नहीं है' : 'No photos uploaded'}
+                    {isHindi ? 'कोई फोटो अपलोड नहीं है (कम से कम 4 जोड़ें)' : 'No photos uploaded (Add at least 4)'}
                   </Text>
                 </View>
               )}
@@ -312,7 +314,7 @@ export function PanchayatPhotoManagerModal({
 
             {/* THUMBNAIL STRIP */}
             <Text style={styles.sectionLabel}>
-              {isHindi ? 'सभी अपलोड की गई फोटो (क्रम बदलें या चुनें):' : 'All Uploaded Photos (Select to edit):'}
+              {isHindi ? `अपलोड की गई फोटो (${photos.length} फोटो):` : `Uploaded Photos (${photos.length} photos):`}
             </Text>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbStrip}>
@@ -329,6 +331,9 @@ export function PanchayatPhotoManagerModal({
                   }}
                 >
                   <Image source={{ uri }} style={styles.thumbImg} />
+                  <View style={styles.indexBadge}>
+                    <Text style={styles.indexBadgeText}>#{idx + 1}</Text>
+                  </View>
                   {idx === 0 && (
                     <View style={styles.coverPill}>
                       <Text style={styles.coverPillText}>Cover</Text>
@@ -340,7 +345,7 @@ export function PanchayatPhotoManagerModal({
               {/* ADD MORE BUTTON */}
               <TouchableOpacity style={styles.addThumbBtn} onPress={handlePickPhotos}>
                 <Ionicons name="add" size={24} color={COLORS.primary} />
-                <Text style={styles.addThumbText}>{isHindi ? 'जोड़ें' : 'Add'}</Text>
+                <Text style={styles.addThumbText}>{isHindi ? '+ फोटो' : '+ Photo'}</Text>
               </TouchableOpacity>
             </ScrollView>
 
@@ -513,6 +518,21 @@ const styles = StyleSheet.create({
   thumbImg: {
     width: '100%',
     height: '100%',
+    borderRadius: 8,
+  },
+  indexBadge: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  indexBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '800',
   },
   coverPill: {
     position: 'absolute',
