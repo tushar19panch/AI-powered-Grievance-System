@@ -33,17 +33,21 @@ HIGH_KEYWORDS = [
     "emergency", "urgent", "immediate action", "immediately", "serious danger",
     "dangerous", "hazard", "accident", "injured", "injury", "flooding", "severe flooding",
     "overflowing sewage", "sewage entering house", "contaminated drinking water", "no medicines",
-    "doctor unavailable", "water supply completely stopped", "days without water", "transformer burnt",
+    "doctor unavailable", "doctor not available", "medical service not provided", "medical service",
+    "hospital closed", "no treatment", "hospital emergency", "health center closed", "ambulance",
+    "patient emergency", "water supply completely stopped", "days without water", "transformer burnt",
     "blackout for days", "road washed away", "drain blocked overflow",
 
     # Hindi
     "आपातकालीन", "अत्यावश्यक", "तुरंत कार्रवाई", "तुरंत समाधान", "खतरा", "दुर्घटना",
     "गंदा पानी आ रहा है", "पीने का पानी दूषित", "५ दिन से पानी नहीं", "कई दिनों से पानी बंद",
-    "अस्पताल में डॉक्टर नहीं", "दवाई नहीं है", "नाली का पानी घरों में", "बाढ़",
+    "अस्पताल में डॉक्टर नहीं", "दवाई नहीं है", "इलाज नहीं मिल रहा", "अस्पताल बंद", "स्वास्थ्य केंद्र",
+    "चिकित्सा सुविधा नहीं", "मरीज की हालत गंभीर", "एम्बुलेंस नहीं", "नाली का पानी घरों में", "बाढ़",
     "सड़क धंस गई", "ट्रांसफार्मर फुंक गया", "गंभीर समस्या", "सड़न और बीमारी",
 
     # Hinglish
-    "urgent", "emergency", "paani bilkul nahi aa raha", "ganda paani", "doctor nahi hai",
+    "urgent", "emergency", "medical service not provided", "hospital me ilaj nahi", "doctor nahi hai",
+    "doctor nahi", "hospital band", "paani bilkul nahi aa raha", "ganda paani",
     "bimar", "bimaari", "naali ka paani ghar me", "transformer kharab", "heavy water logging"
 ]
 

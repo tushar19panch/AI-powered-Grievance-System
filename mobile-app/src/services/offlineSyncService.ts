@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { complaintApi, ComplaintPayload, ComplaintData } from './api';
+import { complaintApi, ComplaintPayload, ComplaintData, getAuthToken } from './api';
 
 export interface OfflineComplaint {
   id: string; // Temporary local ID, e.g. "OFFLINE_1727300000000"
@@ -96,6 +96,12 @@ export async function syncOfflineComplaints(): Promise<SyncResult> {
   const queue = await getOfflineQueue();
   if (queue.length === 0) {
     return { total: 0, synced: 0, failed: 0, syncedIds: [] };
+  }
+
+  // Only sync if citizen has an active auth token
+  const token = await getAuthToken();
+  if (!token) {
+    return { total: queue.length, synced: 0, failed: 0, syncedIds: [] };
   }
 
   let synced = 0;

@@ -26,6 +26,17 @@ import {
   TYPOGRAPHY,
 } from '../../theme';
 
+import {
+  isVeryHighPriority,
+  isHighPriority,
+  isMediumPriority,
+  isLowPriority,
+  isDuplicateClassification,
+  isFakeClassification,
+  isNeedsVerificationClassification,
+  isGenuineClassification,
+} from '../../services/complaintClassification';
+
 type Complaint = {
   complaintId?: string;
   citizenName?: string;
@@ -34,6 +45,9 @@ type Complaint = {
   category?: string;
   priority?: string;
   department?: string;
+  classification?: string;
+  classificationReason?: string;
+  duplicateOfId?: string;
   deadline?: string | null;
   description?: string;
   photo?: string | null;
@@ -67,49 +81,108 @@ export default function ComplaintsScreen() {
   // =====================================================
   // MAP BACKEND DATA TO LOCAL COMPLAINT FORMAT
   // =====================================================
-  const mapBackendComplaint = (item: ComplaintData): Complaint => ({
-    complaintId: String(item.id),
+  const mapBackendComplaint = (item: any): Complaint => ({
+    complaintId: String(item.id || item.complaintNumber || item.complaintId),
     category: item.category || item.problemType || 'Village Issue',
-    ward: item.wardNumber ? `Ward ${item.wardNumber}` : item.location || '',
+    ward: item.wardNumber ? `Ward ${item.wardNumber}` : item.location || item.ward || '',
     priority: item.priority || 'MEDIUM',
     department: item.department || '',
+    classification: item.classification || item.imageClassification || item.aiClassification || '',
+    classificationReason: item.classificationReason || '',
+    duplicateOfId: item.duplicateOfId ? String(item.duplicateOfId) : '',
     deadline: item.deadline || null,
     description: item.description || '',
     photo: item.photo || null,
     audioUrl: item.audioUrl || null,
     location: item.location || (item.villageName ? item.villageName : ''),
     status: item.status || 'SUBMITTED',
-    dateTime: item.createdAt || new Date().toISOString(),
+    dateTime: item.createdAt || item.dateTime || new Date().toISOString(),
   });
 
   // =====================================================
-  // LOAD COMPLAINTS
+  // LOAD COMPLAINTS (MULTI-ROLE ROBUST FALLBACK)
   // =====================================================
   const loadComplaints = async () => {
     try {
       setLoading(true);
 
       const sessionData = await AsyncStorage.getItem('user_session');
-      const session = sessionData ? JSON.parse(sessionData) : null;
-      const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
+      const fallbackData = await AsyncStorage.getItem('@village_user_session');
+      const adminData = await AsyncStorage.getItem('admin');
+      const secretaryData = await AsyncStorage.getItem('secretary');
+
+      const session = sessionData ? JSON.parse(sessionData) : (fallbackData ? JSON.parse(fallbackData) : null);
+      const rawRole = String(session?.role || (adminData ? 'sarpanch' : secretaryData ? 'secretary' : 'citizen')).toLowerCase();
+      const isOfficial = rawRole === 'sarpanch' || rawRole === 'secretary' || rawRole === 'admin' || Boolean(adminData) || Boolean(secretaryData);
+      const role = isOfficial ? (rawRole === 'secretary' ? 'secretary' : 'sarpanch') : 'citizen';
       setUserRole(role);
 
       let fetchedList: Complaint[] = [];
 
-      try {
-        if (role === 'sarpanch' || role === 'secretary') {
+      // 1. Try official endpoint if user is official or admin
+      if (isOfficial) {
+        try {
           const apiData = await complaintApi.getSarpanchComplaints();
-          if (Array.isArray(apiData)) {
+          if (Array.isArray(apiData) && apiData.length > 0) {
             fetchedList = apiData.map(mapBackendComplaint);
           }
-        } else {
-          const apiData = await complaintApi.getCitizenComplaints();
-          if (Array.isArray(apiData)) {
-            fetchedList = apiData.map(mapBackendComplaint);
-          }
+        } catch (apiErr) {
+          console.log('Sarpanch complaints fetch error, trying fallback:', apiErr);
         }
-      } catch (apiErr) {
-        console.log('Backend complaint fetch error:', apiErr);
+      }
+
+      // 2. If list still empty, try citizen endpoint
+      if (fetchedList.length === 0) {
+        try {
+          const apiData = await complaintApi.getCitizenComplaints();
+          if (Array.isArray(apiData) && apiData.length > 0) {
+            fetchedList = apiData.map(mapBackendComplaint);
+          }
+        } catch (apiErr) {
+          console.log('Citizen complaints fetch error:', apiErr);
+        }
+      }
+
+      // 3. If citizen and list still empty, try sarpanch endpoint as fallback for public complaints
+      if (fetchedList.length === 0 && !isOfficial) {
+        try {
+          const apiData = await complaintApi.getSarpanchComplaints();
+          if (Array.isArray(apiData) && apiData.length > 0) {
+            fetchedList = apiData.map(mapBackendComplaint);
+          }
+        } catch (apiErr) {
+          console.log('Sarpanch fallback complaints fetch error:', apiErr);
+        }
+      }
+
+      // 4. Include Offline Queue if Backend returned empty
+      if (fetchedList.length === 0) {
+        try {
+          const offlineRaw = await AsyncStorage.getItem('@village_offline_complaints_queue');
+          const offlineArr = offlineRaw ? JSON.parse(offlineRaw) : [];
+          if (Array.isArray(offlineArr) && offlineArr.length > 0) {
+            const mappedOffline = offlineArr.map((item: any) => ({
+              complaintId: String(item.id),
+              category: item.payload?.category || item.payload?.problemType || 'Village Issue',
+              ward: item.ward || item.payload?.location || 'Ward 1',
+              priority: item.payload?.priority || 'MEDIUM',
+              classification: item.payload?.classification || 'GENUINE',
+              classificationReason: item.payload?.classificationReason || '',
+              duplicateOfId: item.payload?.duplicateOfId ? String(item.payload?.duplicateOfId) : '',
+              department: item.payload?.department || '',
+              deadline: item.payload?.deadline || null,
+              description: item.payload?.description || '',
+              photo: item.payload?.photo || null,
+              audioUrl: item.payload?.audioUrl || null,
+              location: item.payload?.location || '',
+              status: 'SUBMITTED',
+              dateTime: item.createdAt || new Date().toISOString(),
+            }));
+            fetchedList = [...mappedOffline, ...fetchedList];
+          }
+        } catch (offErr) {
+          console.log('Error reading offline complaints for list:', offErr);
+        }
       }
 
       fetchedList.sort(
@@ -175,113 +248,21 @@ export default function ComplaintsScreen() {
       const s = String(c.status || '').toUpperCase();
       if (s !== 'REOPENED') return false;
     } else if (selectedFilter === 'priority-very-high') {
-      const p = String(c.priority || '').toUpperCase();
-      const desc = String(c.description || '').toLowerCase();
-      const isVeryHigh =
-        p === 'VERY_HIGH' ||
-        p === 'VERY HIGH' ||
-        p === 'CRITICAL' ||
-        p === 'URGENT' ||
-        desc.includes('आपातकालीन') ||
-        desc.includes('खतरा') ||
-        desc.includes('urgent') ||
-        desc.includes('critical');
-      if (!isVeryHigh) return false;
+      if (!isVeryHighPriority(c)) return false;
     } else if (selectedFilter === 'priority-high') {
-      const p = String(c.priority || '').toUpperCase();
-      const desc = String(c.description || '').toLowerCase();
-      const isVeryHigh =
-        p === 'VERY_HIGH' ||
-        p === 'VERY HIGH' ||
-        p === 'CRITICAL' ||
-        p === 'URGENT' ||
-        desc.includes('आपातकालीन') ||
-        desc.includes('खतरा') ||
-        desc.includes('urgent') ||
-        desc.includes('critical');
-      const isHigh =
-        !isVeryHigh &&
-        (p === 'HIGH' ||
-          desc.includes('गंभीर') ||
-          desc.includes('भारी') ||
-          desc.includes('severe'));
-      if (!isHigh) return false;
+      if (!isHighPriority(c)) return false;
     } else if (selectedFilter === 'priority-medium') {
-      const p = String(c.priority || '').toUpperCase();
-      const desc = String(c.description || '').toLowerCase();
-      const isVeryHigh =
-        p === 'VERY_HIGH' ||
-        p === 'VERY HIGH' ||
-        p === 'CRITICAL' ||
-        p === 'URGENT' ||
-        desc.includes('आपातकालीन') ||
-        desc.includes('खतरा') ||
-        desc.includes('urgent') ||
-        desc.includes('critical');
-      const isHigh =
-        p === 'HIGH' ||
-        desc.includes('गंभीर') ||
-        desc.includes('भारी') ||
-        desc.includes('severe');
-      const isLow = p === 'LOW';
-      if (isVeryHigh || isHigh || isLow) return false;
+      if (!isMediumPriority(c)) return false;
     } else if (selectedFilter === 'priority-low') {
-      const p = String(c.priority || '').toUpperCase();
-      if (p !== 'LOW') return false;
+      if (!isLowPriority(c)) return false;
     } else if (selectedFilter === 'class-duplicate') {
-      const cl = String((c as any).classification || '').toUpperCase();
-      if (cl !== 'DUPLICATE' && cl !== 'COPIED') return false;
+      if (!isDuplicateClassification(c)) return false;
     } else if (selectedFilter === 'class-fake') {
-      const cl = String((c as any).classification || '').toUpperCase();
-      const desc = String(c.description || '').toLowerCase();
-      const isFake =
-        cl === 'FAKE' ||
-        cl === 'INVALID' ||
-        cl === 'SPAM' ||
-        desc.includes('test complaint') ||
-        desc.includes('fake') ||
-        desc.includes('spam');
-      if (!isFake) return false;
+      if (!isFakeClassification(c)) return false;
     } else if (selectedFilter === 'class-verification') {
-      const cl = String((c as any).classification || '').toUpperCase();
-      const st = String(c.status || '').toUpperCase();
-      const desc = String(c.description || '').toLowerCase();
-      const isFake =
-        cl === 'FAKE' ||
-        cl === 'INVALID' ||
-        cl === 'SPAM' ||
-        desc.includes('test complaint') ||
-        desc.includes('fake') ||
-        desc.includes('spam');
-      const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
-      const isVerify =
-        !isFake &&
-        !isDup &&
-        (cl === 'NEEDS_VERIFICATION' ||
-          cl === 'VERIFICATION' ||
-          st === 'VERIFICATION' ||
-          st === 'UNDER_REVIEW' ||
-          st === 'UNDER REVIEW');
-      if (!isVerify) return false;
+      if (!isNeedsVerificationClassification(c)) return false;
     } else if (selectedFilter === 'class-genuine') {
-      const cl = String((c as any).classification || '').toUpperCase();
-      const st = String(c.status || '').toUpperCase();
-      const desc = String(c.description || '').toLowerCase();
-      const isFake =
-        cl === 'FAKE' ||
-        cl === 'INVALID' ||
-        cl === 'SPAM' ||
-        desc.includes('test complaint') ||
-        desc.includes('fake') ||
-        desc.includes('spam');
-      const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
-      const isVerify =
-        cl === 'NEEDS_VERIFICATION' ||
-        cl === 'VERIFICATION' ||
-        st === 'VERIFICATION' ||
-        st === 'UNDER_REVIEW' ||
-        st === 'UNDER REVIEW';
-      if (isFake || isDup || isVerify) return false;
+      if (!isGenuineClassification(c)) return false;
     }
 
     if (selectedWard) {
@@ -587,6 +568,39 @@ export default function ComplaintsScreen() {
     }
   };
 
+  const getPriorityBadgeInfo = (priority?: string, description?: string) => {
+    const item = { priority, description };
+    if (isVeryHighPriority(item)) {
+      return { label: isHindi ? 'अति गंभीर' : 'Critical', color: COLORS.error, bg: '#FEE2E2', icon: 'alert-circle' as const };
+    }
+    if (isHighPriority(item)) {
+      return { label: isHindi ? 'उच्च प्राथमिकता' : 'High Priority', color: COLORS.saffron, bg: '#FFEDD5', icon: 'flame' as const };
+    }
+    if (isLowPriority(item)) {
+      return { label: isHindi ? 'सामान्य' : 'Low Priority', color: COLORS.success, bg: '#DCFCE7', icon: 'checkmark-circle' as const };
+    }
+    return { label: isHindi ? 'मध्यम' : 'Medium Priority', color: COLORS.warning, bg: '#FEF3C7', icon: 'time' as const };
+  };
+
+  const getClassificationBadgeInfo = (
+    classification?: string,
+    status?: string,
+    description?: string,
+    duplicateOfId?: string | number
+  ) => {
+    const item = { classification, status, description, duplicateOfId };
+    if (isDuplicateClassification(item)) {
+      return { label: isHindi ? 'AI: डुप्लीकेट' : 'AI: Duplicate', color: COLORS.info, bg: '#E0F2FE', icon: 'copy-outline' as const };
+    }
+    if (isFakeClassification(item)) {
+      return { label: isHindi ? 'AI: अमान्य/फर्जी' : 'AI: Fake/Invalid', color: '#DC2626', bg: '#FEE2E2', icon: 'close-circle-outline' as const };
+    }
+    if (isNeedsVerificationClassification(item)) {
+      return { label: isHindi ? 'AI: सत्यापन योग्य' : 'AI: Needs Verify', color: '#9333EA', bg: '#F3E8FF', icon: 'help-circle-outline' as const };
+    }
+    return { label: isHindi ? 'AI: वास्तविक' : 'AI: Genuine', color: '#16A34A', bg: '#DCFCE7', icon: 'shield-checkmark-outline' as const };
+  };
+
   const formatWardLabel = (ward?: string, location?: string | null) => {
     const raw = (ward || location || '').trim();
     if (!raw) return isHindi ? 'वार्ड: मुख्य क्षेत्र' : 'Ward: Main Area';
@@ -746,6 +760,13 @@ export default function ComplaintsScreen() {
           filteredComplaints.map((complaint, index) => {
             const statusInfo = getStatusInfo(complaint.status);
             const categoryInfo = getCategoryDetails(complaint.category, complaint.description);
+            const priorityInfo = getPriorityBadgeInfo(complaint.priority, complaint.description);
+            const classInfo = getClassificationBadgeInfo(
+              complaint.classification,
+              complaint.status,
+              complaint.description,
+              complaint.duplicateOfId
+            );
             const formattedId = formatComplaintId(complaint.complaintId);
             const hasPhoto = Boolean(
               complaint.photo &&
@@ -779,6 +800,26 @@ export default function ComplaintsScreen() {
                       {statusInfo.label}
                     </Text>
                   </View>
+                </View>
+
+                {/* 1B. AI & PRIORITY BADGES ROW */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: priorityInfo.bg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                    <Ionicons name={priorityInfo.icon} size={12} color={priorityInfo.color} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: priorityInfo.color }}>{priorityInfo.label}</Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: classInfo.bg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                    <Ionicons name={classInfo.icon} size={12} color={classInfo.color} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: classInfo.color }}>{classInfo.label}</Text>
+                  </View>
+
+                  {Boolean(complaint.duplicateOfId) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="link-outline" size={12} color={COLORS.primary} />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.primary }}>#{complaint.duplicateOfId}</Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* 2. CATEGORY & LOCATION ROW */}

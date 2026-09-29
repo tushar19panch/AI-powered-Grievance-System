@@ -103,10 +103,15 @@ export default function CitizenDashboard() {
         let apiData = await complaintApi.getCitizenComplaints();
         if (!Array.isArray(apiData) || apiData.length === 0) {
           try {
-            const offline = await AsyncStorage.getItem('offline_complaints');
-            const offlineArr = offline ? JSON.parse(offline) : [];
+            const offline = await AsyncStorage.getItem('@village_offline_complaints_queue');
+            const fallbackOffline = await AsyncStorage.getItem('offline_complaints');
+            const offlineArr = offline ? JSON.parse(offline) : (fallbackOffline ? JSON.parse(fallbackOffline) : []);
             if (Array.isArray(offlineArr) && offlineArr.length > 0) {
-              apiData = offlineArr;
+              apiData = offlineArr.map((o: any) => ({
+                id: o.id,
+                status: 'SUBMITTED',
+                ...o.payload,
+              }));
             }
           } catch (offErr) {}
         }
@@ -492,8 +497,8 @@ export default function CitizenDashboard() {
           <View style={styles.recentReportsList}>
             {recentComplaints.map((c, idx) => {
               const st = String(c.status || 'SUBMITTED').toUpperCase();
-              let badgeColor = COLORS.primary;
-              let badgeBg = COLORS.primaryLight;
+              let badgeColor: string = COLORS.primary;
+              let badgeBg: string = COLORS.primaryLight;
               let badgeLabel = isHindi ? 'लंबित' : 'Pending';
 
               if (st === 'RESOLVED' || st === 'CLOSED') {

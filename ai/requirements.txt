@@ -2,3 +2,8 @@ pandas
 scikit-learn
 joblib
 flask
+pillow
+imagehash
+numpy
+scipy
+openai-whisper

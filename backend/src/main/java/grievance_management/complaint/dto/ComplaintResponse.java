@@ -33,6 +33,14 @@ public class ComplaintResponse {
 
     private String photo;
 
+    private String imageHash;
+
+    private String classification;
+
+    private String classificationReason;
+
+    private String duplicateOfId;
+
     private String audioUrl;
 
     private Double latitude;

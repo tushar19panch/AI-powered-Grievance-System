@@ -25,6 +25,11 @@ import {
 } from '../theme';
 
 import { complaintApi } from '../services/api';
+import {
+  isNeedsVerificationClassification,
+  isDuplicateClassification,
+  isFakeClassification,
+} from '../services/complaintClassification';
 
 export default function ComplaintDetailsScreen() {
   const router = useRouter();
@@ -194,6 +199,8 @@ export default function ComplaintDetailsScreen() {
             location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
             status: foundComplaint.status || 'SUBMITTED',
             classification: foundComplaint.classification || null,
+            classificationReason: foundComplaint.classificationReason || foundComplaint.reason || null,
+            duplicateOfId: foundComplaint.duplicateOfId || foundComplaint.duplicate_of_id || null,
             dateTime: foundComplaint.createdAt || new Date().toISOString(),
             statusTimeline: [],
           });
@@ -1052,6 +1059,170 @@ export default function ComplaintDetailsScreen() {
           )}
         </View>
 
+        {/* ========================================================= */}
+        {/* AI CLASSIFICATION & CITIZEN ACTION BANNER                 */}
+        {/* ========================================================= */}
+        {Boolean(
+          isNeedsVerificationClassification(complaint) ||
+          isDuplicateClassification(complaint) ||
+          isFakeClassification(complaint)
+        ) && (
+          <View
+            style={[
+              styles.aiBannerCard,
+              isNeedsVerificationClassification(complaint)
+                ? styles.aiBannerNeedsVerify
+                : isDuplicateClassification(complaint)
+                  ? styles.aiBannerDuplicate
+                  : styles.aiBannerFake,
+            ]}
+          >
+            {/* Header / Badge */}
+            <View style={styles.aiBannerHeaderRow}>
+              <View
+                style={[
+                  styles.aiBannerIconCircle,
+                  isNeedsVerificationClassification(complaint)
+                    ? { backgroundColor: '#FEF3C7' }
+                    : isDuplicateClassification(complaint)
+                      ? { backgroundColor: '#DBEAFE' }
+                      : { backgroundColor: '#FEE2E2' },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    isNeedsVerificationClassification(complaint)
+                      ? 'warning'
+                      : isDuplicateClassification(complaint)
+                        ? 'copy'
+                        : 'shield-outline'
+                  }
+                  size={20}
+                  color={
+                    isNeedsVerificationClassification(complaint)
+                      ? '#D97706'
+                      : isDuplicateClassification(complaint)
+                        ? '#2563EB'
+                        : '#DC2626'
+                  }
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <View style={styles.aiBadgeInline}>
+                  <Text
+                    style={[
+                      styles.aiBadgeInlineText,
+                      {
+                        color: isNeedsVerificationClassification(complaint)
+                          ? '#92400E'
+                          : isDuplicateClassification(complaint)
+                            ? '#1E40AF'
+                            : '#991B1B',
+                      },
+                    ]}
+                  >
+                    {isNeedsVerificationClassification(complaint)
+                      ? (language === 'hi' ? 'सत्यापन आवश्यक' : 'Verification Needed')
+                      : isDuplicateClassification(complaint)
+                        ? (language === 'hi' ? 'संभावित डुप्लिकेट' : 'Potential Duplicate')
+                        : (language === 'hi' ? 'अमान्य / मिसमैच फोटो' : 'Flagged Mismatch')}
+                  </Text>
+                </View>
+                <Text style={styles.aiBannerTitle}>
+                  {isNeedsVerificationClassification(complaint)
+                    ? (language === 'hi' ? 'स्पष्ट फोटो / मुआयना अपेक्षित' : 'Clear Photo / Inspection Needed')
+                    : isDuplicateClassification(complaint)
+                      ? (language === 'hi' ? 'पूर्व में दर्ज शिकायत से मिलान' : 'Matching Previous Complaint')
+                      : (language === 'hi' ? 'असंगत या अमान्य विवरण' : 'Irrelevant Image Attachment')}
+                </Text>
+              </View>
+            </View>
+
+            {/* AI Explanation Text */}
+            <View style={styles.aiReasonBox}>
+              <Text style={styles.aiReasonText}>
+                {complaint.classificationReason || (
+                  isNeedsVerificationClassification(complaint)
+                    ? (language === 'hi'
+                        ? 'अपलोड की गई फोटो में अत्यधिक धुंधलापन, अंधेरा या लेंस ढका होना पाया गया है। सटीक समाधान हेतु स्पष्ट फोटो की आवश्यकता है।'
+                        : 'Uploaded photo is blurry, dark, or lens is obstructed. Clear on-site photo recommended.')
+                    : isDuplicateClassification(complaint)
+                      ? (language === 'hi'
+                          ? `समान वार्ड/लोकेशन में पूर्व शिकायत ${complaint.duplicateOfId ? '#' + complaint.duplicateOfId : ''} पहले से सक्रिय है।`
+                          : `A matching complaint ${complaint.duplicateOfId ? '#' + complaint.duplicateOfId : ''} already exists for this issue.`)
+                      : (language === 'hi'
+                          ? 'अपलोड की गई फोटो शिकायत की श्रेणी से मेल नहीं खाती (उदा. सड़क/पानी की जगह सेल्फी या स्क्रीनशॉट)। कृपया वास्तविक समस्या की फोटो लगाएं।'
+                          : 'Attached photo does not correlate with the civic category. Please attach an authentic on-site photograph.')
+                )}
+              </Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.aiActionBtnRow}>
+              {/* If Duplicate, provide direct button to view original ticket */}
+              {isDuplicateClassification(complaint) && Boolean(complaint.duplicateOfId) && (
+                <TouchableOpacity
+                  style={styles.aiActionPrimaryBtn}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/complaint-details' as any,
+                      params: { id: String(complaint.duplicateOfId) },
+                    });
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="eye-outline" size={17} color="#FFFFFF" />
+                  <Text style={styles.aiActionPrimaryBtnText}>
+                    {language === 'hi'
+                      ? `मूल शिकायत #${complaint.duplicateOfId} देखें`
+                      : `View Original #${complaint.duplicateOfId}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Re-submit / Re-report CTA for Citizen */}
+              {userRole === 'citizen' && (
+                <TouchableOpacity
+                  style={[
+                    styles.aiActionSecondaryBtn,
+                    !isDuplicateClassification(complaint) && styles.aiActionPrimaryBtn,
+                  ]}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/report' as any,
+                      params: {
+                        prefillCategory: complaint.category,
+                        prefillWard: complaint.ward,
+                        prefillDesc: complaint.description,
+                      },
+                    });
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name={isNeedsVerificationClassification(complaint) ? 'camera-outline' : 'refresh-outline'}
+                    size={17}
+                    color={!isDuplicateClassification(complaint) ? '#FFFFFF' : COLORS.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.aiActionSecondaryBtnText,
+                      !isDuplicateClassification(complaint) && styles.aiActionPrimaryBtnText,
+                    ]}
+                  >
+                    {isNeedsVerificationClassification(complaint)
+                      ? (language === 'hi' ? '📷 स्पष्ट फोटो के साथ पुनः दर्ज करें' : '📷 Re-submit Clear Photo')
+                      : isDuplicateClassification(complaint)
+                        ? (language === 'hi' ? '✍️ यदि यह अलग समस्या है तो पुनः दर्ज करें' : '✍️ Report as Distinct Issue')
+                        : (language === 'hi' ? '✍️ सही फोटो के साथ पुनः दर्ज करें' : '✍️ Re-report with Valid Photo')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* COMPLAINT INFORMATION */}
         <View style={styles.card}>
           <View style={styles.cardHeadingRow}>
@@ -1152,7 +1323,7 @@ export default function ComplaintDetailsScreen() {
               <View
                 style={[
                   styles.priorityPill,
-                  complaint.priority === 'VERY_HIGH'
+                  (complaint.priority === 'CRITICAL' || complaint.priority === 'VERY_HIGH' || complaint.priority === 'VERY HIGH')
                     ? styles.priorityVeryHigh
                     : complaint.priority === 'HIGH'
                       ? styles.priorityHigh
@@ -1164,7 +1335,7 @@ export default function ComplaintDetailsScreen() {
                 <Text
                   style={[
                     styles.priorityPillText,
-                    complaint.priority === 'VERY_HIGH'
+                    (complaint.priority === 'CRITICAL' || complaint.priority === 'VERY_HIGH' || complaint.priority === 'VERY HIGH')
                       ? styles.priorityVeryHighText
                       : complaint.priority === 'HIGH'
                         ? styles.priorityHighText
@@ -1173,7 +1344,13 @@ export default function ComplaintDetailsScreen() {
                           : styles.priorityMediumText,
                   ]}
                 >
-                  {complaint.priority}
+                  {complaint.priority === 'CRITICAL' || complaint.priority === 'VERY_HIGH'
+                    ? (language === 'hi' ? 'अति गंभीर (CRITICAL)' : 'CRITICAL')
+                    : complaint.priority === 'HIGH'
+                      ? (language === 'hi' ? 'उच्च (HIGH)' : 'HIGH')
+                      : complaint.priority === 'LOW'
+                        ? (language === 'hi' ? 'सामान्य (LOW)' : 'LOW')
+                        : (language === 'hi' ? 'मध्यम (MEDIUM)' : 'MEDIUM')}
                 </Text>
               </View>
             </View>
@@ -2416,5 +2593,124 @@ const styles = StyleSheet.create({
 
   priorityLowText: {
     color: '#16A34A',
+  },
+
+  /* ================= AI CLASSIFICATION BANNER STYLES ================= */
+  aiBannerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    ...SHADOWS.small,
+  },
+
+  aiBannerNeedsVerify: {
+    backgroundColor: '#FFFDF5',
+    borderColor: '#FDE68A',
+  },
+
+  aiBannerDuplicate: {
+    backgroundColor: '#F8FAFF',
+    borderColor: '#BFDBFE',
+  },
+
+  aiBannerFake: {
+    backgroundColor: '#FFF8F8',
+    borderColor: '#FECACA',
+  },
+
+  aiBannerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+
+  aiBannerIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  aiBadgeInline: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginBottom: 3,
+  },
+
+  aiBadgeInlineText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  aiBannerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+
+  aiReasonBox: {
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    marginBottom: 14,
+  },
+
+  aiReasonText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#334155',
+    fontWeight: '500',
+  },
+
+  aiActionBtnRow: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+
+  aiActionPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+    ...SHADOWS.small,
+  },
+
+  aiActionPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  aiActionSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+
+  aiActionSecondaryBtnText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

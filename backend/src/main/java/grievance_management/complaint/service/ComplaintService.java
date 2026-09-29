@@ -14,12 +14,18 @@ import grievance_management.village.entity.Ward;
 import grievance_management.village.repository.VillageRepository;
 import grievance_management.village.repository.WardRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ComplaintService {
+
+    private static final Logger log = LoggerFactory.getLogger(ComplaintService.class);
 
     private final ComplaintRepository complaintRepository;
     private final StatusHistoryRepository statusHistoryRepository;
@@ -83,10 +89,31 @@ public class ComplaintService {
         }
 
         // ---------------------------------------------------------
-        // AI Analysis Pipeline (Category, Dept, Priority, Sentiment)
+        // AI Multimodal Analysis (Text + Image Duplicate/Fake Check)
         // ---------------------------------------------------------
         String descriptionText = request.getDescription() != null ? request.getDescription().trim() : "";
-        grievance_management.ai.dto.AiAnalysisResult aiResult = aiService.analyzeComplaint(descriptionText);
+        String photoData = request.getPhoto() != null ? request.getPhoto().trim() : null;
+
+        // Fetch existing complaint image hashes for this village to check for duplicates
+        List<Map<String, Object>> existingVillageImages = new java.util.ArrayList<>();
+        if (village != null && village.getId() != null) {
+            try {
+                List<Complaint> villageComplaints = complaintRepository.findByVillageId(village.getId());
+                for (Complaint c : villageComplaints) {
+                    if (c.getImageHash() != null && !c.getImageHash().isBlank()) {
+                        Map<String, Object> imgRecord = new HashMap<>();
+                        imgRecord.put("complaint_id", String.valueOf(c.getId()));
+                        imgRecord.put("image_hash", c.getImageHash());
+                        imgRecord.put("category", c.getCategory());
+                        existingVillageImages.add(imgRecord);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not retrieve existing village images for duplicate check: {}", e.getMessage());
+            }
+        }
+
+        grievance_management.ai.dto.AiAnalysisResult aiResult = aiService.analyzeComplaint(descriptionText, photoData, existingVillageImages);
 
         // AI Predictions take priority for automated categorization and routing
         String category = aiResult.getCategory();
@@ -118,6 +145,10 @@ public class ComplaintService {
         }
 
         String sentiment = aiResult.getSentiment() != null && !aiResult.getSentiment().isBlank() ? aiResult.getSentiment() : "NEUTRAL";
+        String classification = aiResult.getClassification() != null && !aiResult.getClassification().isBlank() ? aiResult.getClassification() : "GENUINE";
+        String classificationReason = aiResult.getClassification_reason();
+        String imageHash = aiResult.getImage_hash();
+        String duplicateOfId = aiResult.getDuplicate_of_id();
 
         // ---------------------------------------------------------
         // Create complaint
@@ -129,12 +160,12 @@ public class ComplaintService {
                 .priority(priority != null ? priority.trim() : "MEDIUM")
                 .department(department != null ? department.trim() : null)
                 .sentiment(sentiment.trim())
+                .classification(classification)
+                .classificationReason(classificationReason)
+                .imageHash(imageHash)
+                .duplicateOfId(duplicateOfId)
                 .deadline(request.getDeadline())
-                .photo(
-                        request.getPhoto() != null
-                                ? request.getPhoto().trim()
-                                : null
-                )
+                .photo(photoData)
                 .audioUrl(
                         request.getAudioUrl() != null
                                 ? request.getAudioUrl().trim()
@@ -296,6 +327,10 @@ public class ComplaintService {
                 .sentiment(complaint.getSentiment())
                 .deadline(complaint.getDeadline())
                 .photo(complaint.getPhoto())
+                .imageHash(complaint.getImageHash())
+                .classification(complaint.getClassification())
+                .classificationReason(complaint.getClassificationReason())
+                .duplicateOfId(complaint.getDuplicateOfId())
                 .audioUrl(complaint.getAudioUrl())
                 .latitude(complaint.getLatitude())
                 .longitude(complaint.getLongitude())
