@@ -616,29 +616,6 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* SECURITY INFO */}
-            <View style={styles.infoBox}>
-              <View style={styles.infoIcon}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={20}
-                  color={COLORS.success}
-                />
-              </View>
-
-              <View style={styles.infoContent}>
-                <Text style={styles.infoTitle}>
-                  {isHindi ? 'सुरक्षित Login' : 'Secure Login'}
-                </Text>
-
-                <Text style={styles.infoText}>
-                  {isHindi
-                    ? 'आपकी Login जानकारी सुरक्षित रखी जाती है।'
-                    : 'Your login session is securely authenticated.'}
-                </Text>
-              </View>
-            </View>
-
             {/* LOGIN BUTTON */}
             <TouchableOpacity
               style={[

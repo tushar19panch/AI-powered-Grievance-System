@@ -2,6 +2,9 @@
 
 CATEGORY_TO_DEPARTMENT = {
 
+    "Fire & Emergency Services":
+        "Fire & Disaster Management Department",
+
     "Water Supply":
         "Water Supply Department",
 

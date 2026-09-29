@@ -217,10 +217,19 @@ export default function ComplaintDetailsScreen() {
             (await AsyncStorage.getItem(`complaint_photo_${cleanId}`)) ||
             null;
 
+          const rawCitizen = await AsyncStorage.getItem('citizen');
+          const parsedCitizen = rawCitizen ? JSON.parse(rawCitizen) : null;
+          const resolvedCitizenName =
+            (foundComplaint.citizenName && foundComplaint.citizenName !== 'Citizen' && foundComplaint.citizenName.trim() !== '')
+              ? foundComplaint.citizenName
+              : (session?.name && session.name !== 'Citizen' ? session.name : (parsedCitizen?.name || (language === 'hi' ? 'नागरिक' : 'Citizen')));
+          const resolvedCitizenMobile =
+            foundComplaint.citizenMobile || session?.mobile || parsedCitizen?.mobile || '';
+
           setComplaint({
             complaintId: String(complaintKey),
-            citizenName: foundComplaint.citizenName || 'Citizen',
-            citizenMobile: foundComplaint.citizenMobile || '',
+            citizenName: resolvedCitizenName,
+            citizenMobile: resolvedCitizenMobile,
             category: foundComplaint.category || foundComplaint.problemType || 'Village Issue',
             ward: foundComplaint.wardNumber ? `Ward ${foundComplaint.wardNumber}` : foundComplaint.location || '',
             priority: foundComplaint.priority || 'MEDIUM',
@@ -1813,6 +1822,35 @@ export default function ComplaintDetailsScreen() {
                       JSON.stringify(ratingObj)
                     );
                     setSavedRatingData(ratingObj);
+
+                    // Create official notification for Sarpanch & Secretary
+                    try {
+                      const notifItem = {
+                        id: `N_CLOSED_${complaint.complaintId}_${Date.now()}`,
+                        title: language === 'hi'
+                          ? `शिकायत #${complaint.complaintId} बंद की गई • ${citizenRating}⭐`
+                          : `Complaint #${complaint.complaintId} Closed by Citizen • ${citizenRating}⭐`,
+                        message: language === 'hi'
+                          ? `नागरिक ${complaint.citizenName || ''} द्वारा शिकायत #${complaint.complaintId} (${complaint.category}) का समाधान स्वीकार कर लिया गया है। फीडबैक: "${citizenReview.trim() || 'संतोषजनक समाधान'}" (रेटिंग: ${citizenRating}/5 ⭐)`
+                          : `Citizen ${complaint.citizenName || ''} has verified resolution and closed complaint #${complaint.complaintId} (${complaint.category}). Feedback: "${citizenReview.trim() || 'Satisfactory resolution'}" (Rating: ${citizenRating}/5 ⭐)`,
+                        time: language === 'hi' ? 'अभी' : 'Just now',
+                        type: 'RESOLVED',
+                        statusBadge: 'CLOSED',
+                        complaintId: String(complaint.complaintId),
+                        read: false,
+                        createdAt: new Date().toISOString(),
+                      };
+
+                      const existingRaw = await AsyncStorage.getItem('@village_official_notifications');
+                      const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+                      await AsyncStorage.setItem(
+                        '@village_official_notifications',
+                        JSON.stringify([notifItem, ...existingList])
+                      );
+                    } catch (nErr) {
+                      console.log('Error saving official notification:', nErr);
+                    }
+
                     Alert.alert(
                       language === 'hi' ? '⭐ रेटिंग दर्ज हुई' : '⭐ Rating Submitted',
                       language === 'hi'

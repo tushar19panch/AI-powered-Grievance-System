@@ -194,21 +194,6 @@ export default function HelpLine() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* INFO CARD */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoIcon}>
-            <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
-          </View>
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>{isHindi ? '24x7 जनसेवा व सहायता' : '24x7 Public Assistance'}</Text>
-            <Text style={styles.infoText}>
-              {isHindi
-                ? 'किसी भी समस्या, शिकायत या आपात स्थिति में सीधे संपर्क करें।'
-                : 'Directly connect with local officials or emergency authorities.'}
-            </Text>
-          </View>
-        </View>
-
         {/* SECTION 1: PANCHAYAT OFFICIALS (FILTERED PER USER ROLE) */}
         {(showSarpanch || showSecretary) && (
           <>

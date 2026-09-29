@@ -43,10 +43,27 @@ export const isFakeClassification = (item: ComplaintFilterItem): boolean => {
 };
 
 /**
- * Items that are Fake, Invalid, or Duplicate should not pollute active priority queues.
+ * Checks if a complaint is already RESOLVED, CLOSED, or REJECTED.
+ */
+export const isResolvedOrClosed = (item: ComplaintFilterItem): boolean => {
+  const st = String(item.status || '').toUpperCase().trim();
+  return st === 'RESOLVED' || st === 'CLOSED' || st === 'REJECTED';
+};
+
+/**
+ * Items that are Fake, Invalid, or Duplicate should not pollute genuine queues.
  */
 export const isExcludedFromPriority = (item: ComplaintFilterItem): boolean => {
   return isFakeClassification(item) || isDuplicateClassification(item);
+};
+
+/**
+ * Active critical emergencies that are pending field action and need siren / alert banner.
+ * Excludes already resolved, closed, or rejected issues.
+ */
+export const isEmergencyAlertActive = (item: ComplaintFilterItem): boolean => {
+  if (isExcludedFromPriority(item) || isResolvedOrClosed(item)) return false;
+  return isVeryHighPriority(item);
 };
 
 /**

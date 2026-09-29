@@ -11,16 +11,10 @@ AI_DIR = os.path.dirname(
 sys.path.append(AI_DIR)
 
 
-# Category
-from models.category_model import predict_category
-
-# Department
-from routing.department_mapping import get_department
-
-# Priority
+import importlib
+import models.category_model as cat_model
+import routing.department_mapping as dept_mapping
 from priority.urgency_rules import calculate_urgency
-
-# Sentiment
 from sentiment.sentiment_rules import calculate_sentiment
 
 
@@ -50,16 +44,16 @@ def analyze_complaint(complaint_text):
     complaint_text = complaint_text.strip()
 
     # -----------------------------------------
-    # 1. Category Classification
+    # 1. Dynamic Category Classification & Routing
     # -----------------------------------------
+    try:
+        importlib.reload(cat_model)
+        importlib.reload(dept_mapping)
+    except Exception:
+        pass
 
-    category = predict_category(complaint_text)
-
-    # -----------------------------------------
-    # 2. Department Routing
-    # -----------------------------------------
-
-    department = get_department(category)
+    category = cat_model.predict_category(complaint_text)
+    department = dept_mapping.get_department(category)
 
     # -----------------------------------------
     # 3. Priority / Urgency

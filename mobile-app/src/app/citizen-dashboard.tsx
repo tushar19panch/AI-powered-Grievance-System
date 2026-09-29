@@ -364,6 +364,7 @@ export default function CitizenDashboard() {
             userName={user?.name || (isHindi ? 'नागरिक' : 'Citizen')}
             villageName={user?.village || (isHindi ? 'मुख्य ग्राम' : 'Main Village')}
             isHindi={isHindi}
+            canManagePhotos={false}
           />
         </Animated.View>
 
@@ -453,13 +454,6 @@ export default function CitizenDashboard() {
           <View>
             <Text style={styles.sectionTitle}>
               {isHindi ? 'समस्या रिपोर्ट करें' : 'Report Grievance'}
-            </Text>
-          </View>
-
-          <View style={styles.aiBadge}>
-            <Ionicons name="sparkles" size={13} color={COLORS.primary} />
-            <Text style={styles.aiText}>
-              {isHindi ? 'AI सक्षम' : 'AI Powered'}
             </Text>
           </View>
         </View>
@@ -558,185 +552,6 @@ export default function CitizenDashboard() {
           </View>
         </View>
 
-        {/* =================================================
-            🏛️ VILLAGE LEADERSHIP CONTACTS (SARPANCH & SECRETARY)
-        ================================================= */}
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
-              {isHindi ? 'ग्राम पंचायत पदाधिकारी संपर्क' : 'Panchayat Leadership Contacts'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.leadershipRow}>
-          {/* SARPANCH CARD */}
-          <View style={[styles.leaderCard, { borderColor: '#FDE68A' }]}>
-            <View style={styles.leaderHeader}>
-              <View style={[styles.leaderIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="ribbon" size={20} color={COLORS.saffron} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.leaderName} numberOfLines={1}>
-                  {sarpanchName || (isHindi ? 'श्री रमेश पटेल' : 'Shri Ramesh Patel')}
-                </Text>
-                <Text style={[styles.leaderRole, { color: COLORS.saffron }]} numberOfLines={1}>
-                  {isHindi ? 'ग्राम सरपंच' : 'Sarpanch'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.leaderBtnRow}>
-              <TouchableOpacity
-                style={styles.leaderCallBtn}
-                onPress={() => Linking.openURL(`tel:${sarpanchMobile || '9876543211'}`)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="call" size={13} color="#FFFFFF" />
-                <Text style={styles.leaderCallText}>{isHindi ? 'कॉल' : 'Call'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.leaderWaBtn}
-                onPress={() => Linking.openURL(`https://wa.me/91${sarpanchMobile || '9876543211'}`)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="logo-whatsapp" size={13} color="#15803D" />
-                <Text style={styles.leaderWaText}>WhatsApp</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* SECRETARY CARD */}
-          <View style={[styles.leaderCard, { borderColor: '#BFDBFE' }]}>
-            <View style={styles.leaderHeader}>
-              <View style={[styles.leaderIconCircle, { backgroundColor: '#DBEAFE' }]}>
-                <Ionicons name="person" size={20} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.leaderName} numberOfLines={1}>
-                  {secretaryName || (isHindi ? 'श्री विजय शर्मा' : 'Shri Vijay Sharma')}
-                </Text>
-                <Text style={[styles.leaderRole, { color: COLORS.primary }]} numberOfLines={1}>
-                  {isHindi ? 'ग्राम सचिव' : 'Secretary'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.leaderBtnRow}>
-              <TouchableOpacity
-                style={styles.leaderCallBtn}
-                onPress={() => Linking.openURL(`tel:${secretaryMobile || '9876543210'}`)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="call" size={13} color="#FFFFFF" />
-                <Text style={styles.leaderCallText}>{isHindi ? 'कॉल' : 'Call'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.leaderWaBtn}
-                onPress={() => Linking.openURL(`https://wa.me/91${secretaryMobile || '9876543210'}`)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="logo-whatsapp" size={13} color="#15803D" />
-                <Text style={styles.leaderWaText}>WhatsApp</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* =================================================
-            3. RECENT REPORTS / RECENT COMPLAINTS LIST
-        ================================================= */}
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>
-              {isHindi ? 'हालिया शिकायतें' : 'Recent Grievances'}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => openComplaints('all')} activeOpacity={0.7}>
-            <Text style={styles.viewAllLink}>{isHindi ? 'सभी देखें →' : 'View All →'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {recentComplaints.length === 0 ? (
-          <View style={styles.emptyReportsCard}>
-            <Ionicons name="document-text-outline" size={32} color={COLORS.textMuted} />
-            <Text style={styles.emptyReportsTitle}>
-              {isHindi ? 'अभी कोई शिकायत दर्ज नहीं है' : 'No reports submitted yet'}
-            </Text>
-            <Text style={styles.emptyReportsSub}>
-              {isHindi
-                ? 'समस्या होने पर ऊपर दिए गए "नई शिकायत दर्ज करें" पर टैप करें।'
-                : 'Tap "Report a Problem" above to register a complaint.'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.recentReportsList}>
-            {recentComplaints.map((c, idx) => {
-              const st = String(c.status || 'SUBMITTED').toUpperCase();
-              let badgeColor: string = COLORS.primary;
-              let badgeBg: string = COLORS.primaryLight;
-              let badgeLabel = isHindi ? 'लंबित' : 'Pending';
-
-              if (st === 'RESOLVED' || st === 'CLOSED') {
-                badgeColor = COLORS.success;
-                badgeBg = COLORS.successLight;
-                badgeLabel = isHindi ? 'समाधान' : 'Resolved';
-              } else if (
-                st === 'IN PROGRESS' ||
-                st === 'IN_PROGRESS' ||
-                st === 'ACTION TAKEN' ||
-                st === 'ACTION_TAKEN'
-              ) {
-                badgeColor = COLORS.warning;
-                badgeBg = COLORS.warningLight;
-                badgeLabel = isHindi ? 'प्रगति में' : 'In Progress';
-              }
-
-              return (
-                <TouchableOpacity
-                  key={String(c.id || idx)}
-                  style={styles.recentReportItem}
-                  onPress={() => {
-                    if (c.id) {
-                      router.push({
-                        pathname: '/complaint-details',
-                        params: { id: c.id },
-                      } as any);
-                    } else {
-                      openComplaints('all');
-                    }
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.recentReportTop}>
-                    <View style={styles.recentReportCategoryRow}>
-                      <Ionicons name="folder-open" size={14} color={COLORS.primary} />
-                      <Text style={styles.recentReportCategory} numberOfLines={1}>
-                        {c.category || c.problemType || (isHindi ? 'ग्राम समस्या' : 'Village Issue')}
-                      </Text>
-                    </View>
-                    <View style={[styles.recentStatusBadge, { backgroundColor: badgeBg }]}>
-                      <Text style={[styles.recentStatusText, { color: badgeColor }]}>
-                        {badgeLabel}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.recentReportDesc} numberOfLines={2}>
-                    {c.description || (isHindi ? 'विवरण उपलब्ध नहीं' : 'No description provided')}
-                  </Text>
-
-                  <View style={styles.recentReportFooter}>
-                    <Text style={styles.recentReportId}>#{c.id || idx + 1}</Text>
-                    <Text style={styles.recentReportWard}>
-                      {c.wardNumber || c.ward || c.location || (isHindi ? 'वार्ड' : 'Ward')}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
       </ScrollView>
 
       {/* UNIVERSAL BOTTOM NAVIGATION BAR (HOME, NOTICES, PROFILE) */}

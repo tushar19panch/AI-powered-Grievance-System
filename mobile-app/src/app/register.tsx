@@ -592,31 +592,6 @@ export default function RegisterScreen() {
               onTogglePassword: () => setShowConfirmPassword(!showConfirmPassword),
             }
           )}
-
-          {/* SECURITY */}
-          <View style={styles.infoBox}>
-            <View style={styles.infoIcon}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={20}
-                color={COLORS.success}
-              />
-            </View>
-
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>
-                {isHindi
-                  ? 'आपकी जानकारी सुरक्षित है'
-                  : 'Your information is secure'}
-              </Text>
-
-              <Text style={styles.infoText}>
-                {isHindi
-                  ? 'आपकी व्यक्तिगत जानकारी सुरक्षित रखी जाएगी।'
-                  : 'Your personal information will be kept secure.'}
-              </Text>
-            </View>
-          </View>
         </Animated.View>
 
         {/* REGISTER BUTTON */}

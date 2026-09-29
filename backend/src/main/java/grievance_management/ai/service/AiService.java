@@ -83,7 +83,10 @@ public class AiService {
         String category = "Other";
         String department = "General Grievance / Administration";
 
-        if (containsAny(lower, "पानी", "जल", "नल", "हैंडपंप", "पाइप", "टंकी", "बोरवेल", "water", "tap", "pipeline", "leakage", "paani", "pani", "tanker")) {
+        if (containsAny(lower, "fire", "आग", "धुआं", "ब्लास्ट", "cylinder burst", "explosion", "blaze", "flames", "burning")) {
+            category = "Fire & Emergency Services";
+            department = "Fire & Disaster Management Department";
+        } else if (containsAny(lower, "पानी", "जल", "नल", "हैंडपंप", "पाइप", "टंकी", "बोरवेल", "water", "wateer", "watr", "watter", "suply", "supply", "tap", "pipeline", "leakage", "paani", "pani", "tanker")) {
             category = "Water Supply";
             department = "Water Supply Department";
         } else if (containsAny(lower, "बिजली", "करंट", "तार", "खंभा", "पोल", "ट्रांसफार्मर", "स्ट्रीट लाइट", "बल्ब", "अंधेरा", "electricity", "power", "light", "wire", "voltage", "blackout", "bijli", "shock")) {

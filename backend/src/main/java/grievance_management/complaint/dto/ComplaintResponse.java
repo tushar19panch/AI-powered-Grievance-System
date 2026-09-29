@@ -57,6 +57,10 @@ public class ComplaintResponse {
 
     private ComplaintStatus status;
 
+    private String citizenName;
+
+    private String citizenMobile;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

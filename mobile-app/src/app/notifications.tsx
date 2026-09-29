@@ -107,6 +107,54 @@ export default function Notifications() {
     return null;
   };
 
+  const formatCleanNotificationMessage = (rawMsg: string, isHi: boolean, extractedId: string | null): string => {
+    if (!rawMsg) return '';
+    const msg = rawMsg.trim();
+    const idStr = extractedId ? `#${extractedId}` : '';
+
+    // 1. New Complaint format: "📢 New Complaint #20 (Water Supply) submitted by Ramesh in Ward 7."
+    const newCompMatch = msg.match(/New Complaint\s*#?(\d+)?\s*\(([^)]+)\)\s*submitted by\s+([^in]+)\s+in\s+([^.]+)/i);
+    if (newCompMatch) {
+      const [, cId, category, citizen, ward] = newCompMatch;
+      const cleanId = cId ? `#${cId}` : idStr;
+      if (isHi) {
+        return `नागरिक ${citizen.trim()} द्वारा ${ward.trim()} में समस्या ${cleanId} (${category.trim()}) दर्ज की गई है।`;
+      }
+      return `New grievance ${cleanId} (${category.trim()}) submitted by ${citizen.trim()} in ${ward.trim()}.`;
+    }
+
+    // 2. Status update format
+    if (msg.toLowerCase().includes('action_taken') || msg.toLowerCase().includes('action taken')) {
+      if (isHi) {
+        return `आपकी शिकायत ${idStr} पर संज्ञान लेकर समाधान की कार्रवाई शुरू कर दी गई है।`;
+      }
+      return `Action has been initiated on grievance ${idStr} (In Progress).`;
+    }
+
+    if (msg.toLowerCase().includes('resolved') || msg.toLowerCase().includes('समाधान')) {
+      if (isHi) {
+        return `आपकी शिकायत ${idStr} का समाधान कर दिया गया है। कृपया अपना फीडबैक व रेटिंग दें।`;
+      }
+      return `Grievance ${idStr} has been resolved. Please share your rating and feedback.`;
+    }
+
+    if (msg.toLowerCase().includes('closed') || msg.toLowerCase().includes('बंद')) {
+      if (isHi) {
+        return `शिकायत ${idStr} का निवारण पूर्ण कर सफलतापूर्वक बंद कर दिया गया है।`;
+      }
+      return `Grievance ${idStr} has been successfully closed.`;
+    }
+
+    if (msg.toLowerCase().includes('reopen') || msg.toLowerCase().includes('फिर से')) {
+      if (isHi) {
+        return `शिकायत ${idStr} को नागरिक के अनुरोध पर पुनः समीक्षा के लिए दोबारा खोला गया है।`;
+      }
+      return `Grievance ${idStr} has been reopened for follow-up review.`;
+    }
+
+    return msg;
+  };
+
   const loadLiveNotifications = async () => {
     try {
       let token = await getAuthToken();
@@ -218,10 +266,12 @@ export default function Notifications() {
             notificationTitle = isHindi ? 'नई शिकायत सूचना' : 'New Complaint Alert';
           }
 
+          const cleanFormattedMessage = formatCleanNotificationMessage(n.message, isHindi, extractedId);
+
           return {
             id: String(n.id),
             title: notificationTitle,
-            message: n.message,
+            message: cleanFormattedMessage,
             time: formattedTime,
             type,
             statusBadge,
@@ -231,6 +281,21 @@ export default function Notifications() {
         });
         setNotifications(mapped);
       }
+
+      // Merge local closed/rating notifications for Sarpanch & Secretary
+      try {
+        const localNotifsRaw = await AsyncStorage.getItem('@village_official_notifications');
+        if (localNotifsRaw) {
+          const localArr = JSON.parse(localNotifsRaw);
+          if (Array.isArray(localArr) && localArr.length > 0) {
+            setNotifications((prev) => {
+              const ids = new Set(prev.map((p) => p.id));
+              const uniqueLocal = localArr.filter((l: any) => !ids.has(l.id));
+              return [...uniqueLocal, ...prev];
+            });
+          }
+        }
+      } catch {}
     } catch (e) {
       console.log('Unable to load live notifications:', e);
     }
@@ -641,9 +706,11 @@ export default function Notifications() {
                     )}
                   </View>
 
-                  <Text style={styles.notificationMessage}>
-                    {item.message}
-                  </Text>
+                  <View style={styles.messageContainer}>
+                    <Text style={styles.notificationMessage}>
+                      {item.message}
+                    </Text>
+                  </View>
 
                   {/* STATUS BADGE & TIMING */}
                   <View style={styles.badgeRow}>
@@ -718,28 +785,6 @@ export default function Notifications() {
             </Text>
           </View>
         )}
-
-        {/* ESCALATION MONITORING CARD */}
-        <View style={styles.escalationCard}>
-          <View style={styles.escalationIcon}>
-            <Ionicons
-              name="shield-checkmark"
-              size={24}
-              color={COLORS.saffron}
-            />
-          </View>
-
-          <View style={styles.escalationContent}>
-            <Text style={styles.escalationTitle}>
-              {isHindi ? 'पारदर्शी निवारण प्रणाली' : 'Transparent Grievance Tracking'}
-            </Text>
-            <Text style={styles.escalationText}>
-              {isHindi
-                ? 'कार्रवाई (Action Taken) शुरू होते ही स्थिति प्रगति में (In Progress) प्रदर्शित होती है ताकि नागरिक व अधिकारी रियल-टाइम प्रगति जान सकें।'
-                : 'When official action is initiated, complaints are marked In Progress with real-time status updates and escalation monitoring.'}
-            </Text>
-          </View>
-        </View>
       </ScrollView>
 
       {/* BOTTOM NAVIGATION */}
@@ -1024,11 +1069,21 @@ const styles = StyleSheet.create({
     color: COLORS.error,
   },
 
+  messageContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+
   notificationMessage: {
-    fontSize: TYPOGRAPHY.small,
-    lineHeight: TYPOGRAPHY.lineMedium,
-    color: COLORS.textSecondary,
-    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#334155',
+    fontWeight: '500',
   },
 
   badgeRow: {

@@ -526,23 +526,6 @@ export default function AdminRegister() {
               onTogglePassword: () => setShowConfirmPassword(!showConfirmPassword),
             }
           )}
-
-          {/* INFO */}
-          <View style={styles.infoBox}>
-            <View style={styles.infoIcon}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={21}
-                color={COLORS.success}
-              />
-            </View>
-
-            <Text style={styles.infoText}>
-              {isHindi
-                ? 'सरपंच गांव की शिकायतों पर कार्रवाई और समस्या समाधान का नेतृत्व करेगा।'
-                : 'The Sarpanch will lead complaint resolution and village problem management.'}
-            </Text>
-          </View>
         </Animated.View>
 
         {/* REGISTER BUTTON */}

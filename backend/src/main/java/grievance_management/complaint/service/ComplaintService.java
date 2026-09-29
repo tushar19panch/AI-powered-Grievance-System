@@ -329,6 +329,13 @@ public class ComplaintService {
 
         String photoUrl = complaint.getPhoto();
 
+        String citizenName = null;
+        String citizenMobile = null;
+        if (complaint.getCitizen() != null) {
+            citizenName = complaint.getCitizen().getName();
+            citizenMobile = complaint.getCitizen().getMobileNumber();
+        }
+
         return ComplaintResponse.builder()
                 .id(complaint.getId())
                 .problemType(complaint.getProblemType())
@@ -350,6 +357,8 @@ public class ComplaintService {
                 .location(complaint.getLocation())
                 .description(complaint.getDescription())
                 .status(complaint.getStatus())
+                .citizenName(citizenName)
+                .citizenMobile(citizenMobile)
                 .createdAt(complaint.getCreatedAt())
                 .updatedAt(complaint.getUpdatedAt())
                 .build();

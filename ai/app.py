@@ -9,7 +9,7 @@ if BASE_DIR not in sys.path:
 
 import importlib
 import pipeline.image_matcher as img_matcher_module
-from pipeline.analyze_complaint import analyze_complaint
+import pipeline.analyze_complaint as analyzer_module
 from pipeline.whisper_transcriber import transcribe_audio_file
 
 app = Flask(__name__)
@@ -121,7 +121,13 @@ def analyze():
 
         # 2. Text ML Analysis
         if str(complaint_text).strip():
-            analysis_result = analyze_complaint(str(complaint_text))
+            for mod_name in list(sys.modules.keys()):
+                if 'category_model' in mod_name or 'department_mapping' in mod_name or 'analyze_complaint' in mod_name or 'urgency_rules' in mod_name:
+                    try:
+                        importlib.reload(sys.modules[mod_name])
+                    except Exception:
+                        pass
+            analysis_result = analyzer_module.analyze_complaint(str(complaint_text))
         else:
             analysis_result = {
                 "category": "Other",

@@ -18,8 +18,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../i18n/LanguageContext';
-
-import { isVeryHighPriority } from '../services/complaintClassification';
+import { isVeryHighPriority, isEmergencyAlertActive } from '../services/complaintClassification';
 
 import {
   COLORS,
@@ -445,7 +444,7 @@ export default function SecretaryScreen() {
         {/* =================================================
             🚨 CRITICAL EMERGENCY SIREN ALERT BANNER
         ================================================= */}
-        {complaints.filter(isVeryHighPriority).length > 0 && (
+        {complaints.filter(isEmergencyAlertActive).length > 0 && (
           <View style={styles.emergencyAlertBanner}>
             <View style={styles.emergencyTopRow}>
               <View style={styles.emergencyIconPulse}>
@@ -457,7 +456,7 @@ export default function SecretaryScreen() {
                   {isHindi ? '🚨 अति गंभीर आपातकालीन अलर्ट!' : '🚨 Critical Emergency Alert!'}
                 </Text>
                 <Text style={styles.emergencySub}>
-                  {complaints.filter(isVeryHighPriority).length}{' '}
+                  {complaints.filter(isEmergencyAlertActive).length}{' '}
                   {isHindi
                     ? 'अति गंभीर समस्याएं तुरंत मुआयने की प्रतीक्षा में हैं'
                     : 'critical grievances require immediate field attention'}

@@ -225,12 +225,12 @@ export default function CitizenProfileScreen() {
         },
         ...(citizen.profileImage
           ? [
-              {
-                text: isHindi ? '❌ फोटो हटाएं' : '❌ Remove Photo',
-                style: 'destructive' as const,
-                onPress: () => applyProfilePhoto(null),
-              },
-            ]
+            {
+              text: isHindi ? '❌ फोटो हटाएं' : '❌ Remove Photo',
+              style: 'destructive' as const,
+              onPress: () => applyProfilePhoto(null),
+            },
+          ]
           : []),
         {
           text: isHindi ? 'रद्द करें' : 'Cancel',
@@ -319,10 +319,10 @@ export default function CitizenProfileScreen() {
       const confirmLogout =
         typeof window !== 'undefined'
           ? window.confirm(
-              isHindi
-                ? 'क्या आप लॉग आउट करना चाहते हैं?'
-                : 'Are you sure you want to logout?'
-            )
+            isHindi
+              ? 'क्या आप लॉग आउट करना चाहते हैं?'
+              : 'Are you sure you want to logout?'
+          )
           : true;
       if (confirmLogout) {
         await doLogout();
@@ -463,8 +463,8 @@ export default function CitizenProfileScreen() {
                     ? 'फोटो बदलें'
                     : 'Change Photo'
                   : isHindi
-                  ? 'प्रोफाइल फोटो जोड़ें'
-                  : 'Add Profile Photo'}
+                    ? 'प्रोफाइल फोटो जोड़ें'
+                    : 'Add Profile Photo'}
               </Text>
             </TouchableOpacity>
           </View>

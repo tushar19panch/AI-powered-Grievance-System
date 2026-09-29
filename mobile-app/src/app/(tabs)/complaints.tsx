@@ -534,7 +534,15 @@ export default function ComplaintsScreen() {
     const cat = (category || '').toLowerCase();
     const desc = (description || '').toLowerCase();
 
-    if (cat.includes('water') || desc.includes('पानी') || desc.includes('नल') || desc.includes('जल') || desc.includes('पाइप')) {
+    if (cat.includes('fire') || cat.includes('emergency') || desc.includes('fire') || desc.includes('आग') || desc.includes('इमरजेंसी') || desc.includes('दुर्घटना') || desc.includes('धुआं')) {
+      return {
+        name: isHindi ? 'अग्नि व आपातकालीन सेवा' : 'Fire & Emergency',
+        icon: 'flame-outline' as const,
+        color: '#DC2626',
+        bg: '#FEE2E2',
+      };
+    }
+    if (cat.includes('water') || desc.includes('पानी') || desc.includes('नल') || desc.includes('जल') || desc.includes('पाइप') || desc.includes('wateer') || desc.includes('suply')) {
       return {
         name: isHindi ? 'पेयजल एवं नल समस्या' : 'Drinking Water Supply',
         icon: 'water-outline' as const,

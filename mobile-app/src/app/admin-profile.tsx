@@ -1007,28 +1007,6 @@ export default function AdminProfile() {
             </TouchableOpacity>
           </View>
 
-          {/* SECURITY INFO */}
-          <View style={styles.infoBox}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={22}
-              color={COLORS.success}
-            />
-
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>
-                {isHindi
-                  ? 'प्रोफाइल सुरक्षित है'
-                  : 'Profile Protected'}
-              </Text>
-
-              <Text style={styles.infoText}>
-                {isHindi
-                  ? 'आपकी प्रोफाइल जानकारी केवल प्रशासनिक उपयोग के लिए है।'
-                  : 'Your profile information is used for administrative purposes only.'}
-              </Text>
-            </View>
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
