@@ -45,6 +45,19 @@ public class Complaint {
     @Column(columnDefinition = "LONGTEXT")
     private String audioUrl;
 
+    // Perceptual image hash for duplicate/fake detection
+    private String imageHash;
+
+    // AI Classification (GENUINE, DUPLICATE, FAKE, MISMATCH_SUSPICIOUS, NEEDS_VERIFICATION)
+    private String classification;
+
+    // Reason for AI classification flag
+    @Column(length = 1000)
+    private String classificationReason;
+
+    // If duplicate, reference ID of original complaint
+    private String duplicateOfId;
+
     private Double latitude;
 
     private Double longitude;

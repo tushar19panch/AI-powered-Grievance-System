@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
 
 import { useLanguage } from '../i18n/LanguageContext';
+import { useTheme } from '../theme/ThemeContext';
 import {
   COLORS,
   TYPOGRAPHY,
@@ -31,6 +32,7 @@ type UserRole = 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
 export default function LoginScreen() {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
+  const { isDark, toggleTheme, colors } = useTheme();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('CITIZEN');
   const [mobile, setMobile] = useState('');
@@ -187,6 +189,54 @@ export default function LoginScreen() {
         if (!loginData) {
           throw new Error(apiErr?.message || 'Login failed. Invalid ID/Mobile number or password.');
         }
+      }
+
+      // -------------------------------------------------------------
+      // STRICT ROLE TAB VALIDATION
+      // -------------------------------------------------------------
+      const actualRole = String(loginData?.role || '').toUpperCase();
+      const requestedRole = selectedRole.toUpperCase();
+
+      const isActualAdmin = actualRole === 'SARPANCH' || actualRole === 'ADMIN';
+      const isRequestedAdmin = requestedRole === 'SARPANCH' || requestedRole === 'ADMIN';
+
+      const isActualSecretary = actualRole === 'SECRETARY';
+      const isRequestedSecretary = requestedRole === 'SECRETARY';
+
+      const isActualCitizen = actualRole === 'CITIZEN' || (!isActualAdmin && !isActualSecretary);
+      const isRequestedCitizen = requestedRole === 'CITIZEN';
+
+      if (isRequestedCitizen && !isActualCitizen) {
+        const targetRole = isActualAdmin
+          ? (isHindi ? 'ग्राम प्रधान / सरपंच' : 'Sarpanch / Admin')
+          : (isHindi ? 'ग्राम सचिव' : 'Secretary');
+        showAlert(
+          isHindi ? 'भूमिका चयन त्रुटि (Role Mismatch)' : 'Incorrect Role Selected',
+          isHindi
+            ? `यह खाता ${targetRole} का है। कृपया ऊपर '${targetRole}' टैब चुनकर लॉगिन करें।`
+            : `This account is registered as ${targetRole}. Please tap the '${targetRole}' tab above to login.`
+        );
+        return;
+      }
+
+      if (isRequestedAdmin && !isActualAdmin) {
+        showAlert(
+          isHindi ? 'भूमिका चयन त्रुटि (Role Mismatch)' : 'Incorrect Role Selected',
+          isHindi
+            ? `यह खाता नागरिक का है। कृपया ऊपर 'नागरिक (Citizen)' टैब चुनकर लॉगिन करें।`
+            : `This account is a Citizen account. Please tap the 'Citizen' tab above to login.`
+        );
+        return;
+      }
+
+      if (isRequestedSecretary && !isActualSecretary) {
+        showAlert(
+          isHindi ? 'भूमिका चयन त्रुटि (Role Mismatch)' : 'Incorrect Role Selected',
+          isHindi
+            ? `यह खाता ग्राम सचिव का नहीं है। कृपया सही टैब चुनकर लॉगिन करें।`
+            : `This account does not have Secretary permissions. Please select the correct tab.`
+        );
+        return;
       }
 
       // Determine role from backend response or current selection

@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
@@ -58,10 +58,13 @@ interface SubmittedComplaintInfo {
 
 export default function ReportScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { language, setLanguage } = useLanguage();
   const isHindi = language === 'hi';
 
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(
+    typeof params?.prefillDesc === 'string' ? params.prefillDesc : ''
+  );
   const [location, setLocation] = useState<string | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [image, setImage] = useState<string | null>(null);
@@ -114,7 +117,14 @@ export default function ReportScreen() {
 
         setUserName(name);
         setWard(userWard);
-        setProblemWard(userWard || 'Ward 1');
+        if (params?.prefillWard && typeof params.prefillWard === 'string') {
+          setProblemWard(params.prefillWard);
+          if (userWard && params.prefillWard !== userWard) {
+            setDifferentWard(true);
+          }
+        } else {
+          setProblemWard(userWard || 'Ward 1');
+        }
       } catch (error) {
         console.log('Unable to load user:', error);
       }
@@ -617,7 +627,7 @@ export default function ReportScreen() {
           if (apiRes.category) finalCategory = apiRes.category;
           if (apiRes.department) finalDepartment = apiRes.department;
           if (apiRes.priority) finalPriority = apiRes.priority;
-          if (apiRes.sentiment) finalSentiment = apiRes.sentiment;
+          if ((apiRes as any).sentiment) finalSentiment = (apiRes as any).sentiment;
         }
       } catch (apiErr) {
         console.log('Backend complaint submission notice, queuing offline:', apiErr);

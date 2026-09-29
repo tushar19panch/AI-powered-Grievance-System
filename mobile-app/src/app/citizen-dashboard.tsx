@@ -148,10 +148,15 @@ export default function CitizenDashboard() {
 
         if (!Array.isArray(apiData) || apiData.length === 0) {
           try {
-            const offline = await AsyncStorage.getItem('offline_complaints');
-            const offlineArr = offline ? JSON.parse(offline) : [];
+            const offline = await AsyncStorage.getItem('@village_offline_complaints_queue');
+            const fallbackOffline = await AsyncStorage.getItem('offline_complaints');
+            const offlineArr = offline ? JSON.parse(offline) : (fallbackOffline ? JSON.parse(fallbackOffline) : []);
             if (Array.isArray(offlineArr) && offlineArr.length > 0) {
-              apiData = offlineArr;
+              apiData = offlineArr.map((o: any) => ({
+                id: o.id,
+                status: 'SUBMITTED',
+                ...o.payload,
+              }));
             }
           } catch (offErr) {}
         }

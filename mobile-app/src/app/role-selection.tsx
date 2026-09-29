@@ -7,40 +7,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
-
-const THEME = {
-  saffron: '#FF9933',
-  saffronDark: '#E67E17',
-  saffronLight: '#FFF4E6',
-  saffronBorder: '#FED7AA',
-
-  navy: '#000080',
-  navyDark: '#00005C',
-  navyLight: '#EEF0FB',
-  navyBorder: '#C7D2FE',
-
-  green: '#138808',
-  greenDark: '#0D6805',
-  greenLight: '#EAF7EE',
-  greenBorder: '#BBF7D0',
-
-  dark: '#0F172A',
-  textDark: '#1E293B',
-  textMuted: '#64748B',
-  background: '#F8FAFC',
-  cardBg: '#FFFFFF',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-};
+import { useTheme } from '../theme/ThemeContext';
 
 export default function RoleSelectionScreen() {
   const router = useRouter();
   const { language, setLanguage } = useLanguage();
+  const { isDark, toggleTheme, colors } = useTheme();
   const isHindi = language === 'hi';
 
   // Animation values
@@ -75,7 +53,7 @@ export default function RoleSelectionScreen() {
           useNativeDriver: true,
         }),
       ]),
-      Animated.stagger(100, [
+      Animated.stagger(120, [
         Animated.parallel([
           Animated.timing(card1Anim, {
             toValue: 1,
@@ -147,17 +125,17 @@ export default function RoleSelectionScreen() {
     router.push('/login');
   };
 
-  const openHelp = () => {
-    router.push('/help-line');
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* TOP NAVIGATION BAR */}
+        {/* =========================================================================
+            1. TOP NAVIGATION BAR
+            ========================================================================= */}
         <Animated.View
           style={[
             styles.topNav,
@@ -168,70 +146,69 @@ export default function RoleSelectionScreen() {
           ]}
         >
           <TouchableOpacity
-            style={styles.backBtn}
+            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => router.back()}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={20} color={THEME.navy} />
+            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
 
-          <View style={styles.brandBadge}>
+          <View style={[styles.brandBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.brandIconBox}>
-              <Ionicons name="home" size={14} color={THEME.white} />
+              <Ionicons name="shield-checkmark" size={15} color="#FFFFFF" />
             </View>
-            <Text style={styles.brandText}>VillageApp</Text>
+            <Text style={[styles.brandText, { color: colors.textPrimary }]}>
+              Village<Text style={{ color: '#0B1B4F', fontWeight: '900' }}>App</Text>
+            </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.langBtn}
-            onPress={toggleLanguage}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="language-outline" size={16} color={THEME.navy} />
-            <Text style={styles.langBtnText}>{isHindi ? 'English' : 'हिंदी'}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {/* THEME TOGGLE */}
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={toggleTheme}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={isDark ? 'sunny' : 'moon'}
+                size={17}
+                color={isDark ? '#F59E0B' : '#0B1B4F'}
+              />
+            </TouchableOpacity>
+
+            {/* LANGUAGE TOGGLE */}
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={toggleLanguage}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="language-outline" size={16} color="#0B1B4F" />
+              <Text style={[styles.actionBtnText, { color: colors.textPrimary }]}>
+                {isHindi ? 'EN' : 'हि'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
-        {/* TRICOLOR STRIPE */}
+        {/* =========================================================================
+            2. HERO HEADER BANNER
+            ========================================================================= */}
         <Animated.View
           style={[
-            styles.tricolorBar,
-            { opacity: fadeHeader },
-          ]}
-        >
-          <View style={[styles.tricolorPart, { backgroundColor: THEME.saffron }]} />
-          <View
-            style={[
-              styles.tricolorPart,
-              {
-                backgroundColor: THEME.white,
-                borderTopWidth: 1,
-                borderBottomWidth: 1,
-                borderColor: '#E2E8F0',
-              },
-            ]}
-          />
-          <View style={[styles.tricolorPart, { backgroundColor: THEME.green }]} />
-        </Animated.View>
-
-        {/* HERO BANNER */}
-        <Animated.View
-          style={[
-            styles.heroCard,
+            styles.heroHeaderCard,
             {
               opacity: fadeHeader,
               transform: [{ translateY: slideHeader }],
             },
           ]}
         >
-          <View style={styles.heroDecoCircle1} />
-          <View style={styles.heroDecoCircle2} />
-
-          <View style={styles.heroPill}>
-            <Ionicons name="shield-checkmark" size={13} color={THEME.saffron} />
-            <Text style={styles.heroPillText}>
-              {isHindi ? 'ई-ग्राम स्वराज • डिजिटल पोर्टल' : 'E-Gram Swaraj • Digital Portal'}
-            </Text>
+          <View style={styles.heroBadgeRow}>
+            <View style={styles.heroPill}>
+              <Ionicons name="sparkles" size={13} color="#F59E0B" />
+              <Text style={styles.heroPillText}>
+                {isHindi ? 'ई-ग्राम स्वराज • डिजिटल पोर्टल' : 'E-Gram Swaraj • Digital Portal'}
+              </Text>
+            </View>
           </View>
 
           <Text style={styles.heroTitle}>
@@ -240,22 +217,24 @@ export default function RoleSelectionScreen() {
 
           <Text style={styles.heroSubtitle}>
             {isHindi
-              ? 'ग्राम पंचायत डिजिटल सेवा में आपका स्वागत है। अपनी भूमिका चुनकर शुरू करें।'
-              : 'Welcome to Gram Panchayat digital services. Select your role to get started.'}
+              ? 'ग्राम पंचायत डिजिटल सेवा में आपका स्वागत है। पोर्टल में आगे बढ़ने के लिए अपना सही पद/भूमिका चुनें।'
+              : 'Welcome to VillageApp. Select your official role to access your dedicated dashboard.'}
           </Text>
         </Animated.View>
 
-        {/* SECTION HEADER */}
-        <Animated.View style={[styles.sectionHeader, { opacity: fadeHeader }]}>
-          <Text style={styles.sectionHeading}>
-            {isHindi ? 'उपलब्ध भूमिकाएं' : 'Available Roles'}
+        {/* SECTION HEADING */}
+        <Animated.View style={[styles.sectionHeadingBox, { opacity: fadeHeader }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            {isHindi ? 'उपलब्ध भूमिकाएं (Roles)' : 'Available Roles'}
           </Text>
-          <Text style={styles.sectionSub}>
-            {isHindi ? 'जारी रखने के लिए अपनी भूमिका चुनें' : 'Select your role to continue'}
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+            {isHindi ? 'शुरू करने के लिए कार्ड पर टैप करें' : 'Tap a card to proceed'}
           </Text>
         </Animated.View>
 
-        {/* ================= 1. CITIZEN CARD ================= */}
+        {/* =========================================================================
+            3. ROLE CARD 1: CITIZEN (नागरिक)
+            ========================================================================= */}
         <Animated.View
           style={[
             styles.cardWrapper,
@@ -266,46 +245,77 @@ export default function RoleSelectionScreen() {
           ]}
         >
           <TouchableOpacity
-            style={[styles.roleCard, styles.citizenCardBorder]}
+            style={[styles.premiumRoleCard, styles.citizenBorder, { backgroundColor: colors.card }]}
             onPress={openCitizen}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             {/* Top Accent Strip */}
-            <View style={[styles.cardAccentBar, { backgroundColor: THEME.navy }]} />
+            <View style={[styles.roleTopBar, { backgroundColor: '#0B1B4F' }]} />
 
-            <View style={styles.cardMainRow}>
-              <View style={[styles.iconContainer, { backgroundColor: THEME.navyLight }]}>
-                <Ionicons name="person" size={28} color={THEME.navy} />
-              </View>
-
-              <View style={styles.cardInfoCol}>
-                <View style={styles.badgeRow}>
-                  <View style={[styles.roleBadge, { backgroundColor: THEME.navyLight }]}>
-                    <Ionicons name="people-outline" size={11} color={THEME.navy} />
-                    <Text style={[styles.roleBadgeText, { color: THEME.navy }]}>
-                      {isHindi ? 'ग्रामवासी' : 'Citizen'}
-                    </Text>
-                  </View>
-                  <View style={styles.popularBadge}>
-                    <Text style={styles.popularBadgeText}>
-                      {isHindi ? 'लोकप्रिय' : 'POPULAR'}
-                    </Text>
-                  </View>
+            <View style={styles.roleCardBody}>
+              <View style={styles.roleCardMain}>
+                <View style={[styles.roleIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                  <Ionicons name="person" size={28} color="#0B1B4F" />
                 </View>
 
-                <Text style={styles.cardTitle}>
-                  {isHindi ? 'नागरिक (Citizen)' : 'Citizen'}
-                </Text>
+                <View style={styles.roleInfo}>
+                  <View style={styles.roleBadgeRow}>
+                    <View style={[styles.roleTag, { backgroundColor: '#EEF2FF' }]}>
+                      <Ionicons name="people-outline" size={12} color="#0B1B4F" />
+                      <Text style={[styles.roleTagText, { color: '#0B1B4F' }]}>
+                        {isHindi ? 'ग्रामवासी' : 'Citizen'}
+                      </Text>
+                    </View>
+                    <View style={styles.popularTag}>
+                      <Text style={styles.popularTagText}>
+                        {isHindi ? 'पॉपुलर' : 'POPULAR'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.roleTitle, { color: colors.textPrimary }]}>
+                    {isHindi ? 'ग्रामीण नागरिक' : 'Village Citizen'}
+                  </Text>
+                  <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
+                    {isHindi
+                      ? 'गाँव की समस्याओं की रिपोर्ट करें, आवाज़ (Voice) या फोटो से शिकायत दर्ज करें।'
+                      : 'Report problems by voice or photo and track resolution live.'}
+                  </Text>
+                </View>
+
+                <View style={[styles.actionCircle, { backgroundColor: '#0B1B4F' }]}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
               </View>
 
-              <View style={[styles.arrowCircle, { backgroundColor: THEME.navy }]}>
-                <Ionicons name="arrow-forward" size={18} color={THEME.white} />
+              {/* Feature Chips */}
+              <View style={styles.chipsRow}>
+                <View style={styles.featureChip}>
+                  <Ionicons name="mic-outline" size={12} color="#0B1B4F" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'बोलकर शिकायत' : 'Voice AI'}
+                  </Text>
+                </View>
+                <View style={styles.featureChip}>
+                  <Ionicons name="camera-outline" size={12} color="#0B1B4F" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'फोटो अपलोड' : 'Photo Proof'}
+                  </Text>
+                </View>
+                <View style={styles.featureChip}>
+                  <Ionicons name="time-outline" size={12} color="#0B1B4F" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'लाइव ट्रैकिंग' : 'Live Status'}
+                  </Text>
+                </View>
               </View>
             </View>
           </TouchableOpacity>
         </Animated.View>
 
-        {/* ================= 2. SARPANCH / ADMIN CARD ================= */}
+        {/* =========================================================================
+            4. ROLE CARD 2: SARPANCH / ADMIN (ग्राम प्रधान)
+            ========================================================================= */}
         <Animated.View
           style={[
             styles.cardWrapper,
@@ -316,44 +326,72 @@ export default function RoleSelectionScreen() {
           ]}
         >
           <TouchableOpacity
-            style={[styles.roleCard, styles.adminCardBorder]}
+            style={[styles.premiumRoleCard, styles.sarpanchBorder, { backgroundColor: colors.card }]}
             onPress={openAdmin}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             {/* Top Accent Strip */}
-            <View style={[styles.cardAccentBar, { backgroundColor: THEME.saffron }]} />
+            <View style={[styles.roleTopBar, { backgroundColor: '#EA580C' }]} />
 
-            <View style={styles.cardMainRow}>
-              <View style={[styles.iconContainer, { backgroundColor: THEME.saffronLight }]}>
-                <Ionicons name="shield-checkmark" size={28} color={THEME.saffronDark} />
-              </View>
-
-              <View style={styles.cardInfoCol}>
-                <View style={styles.badgeRow}>
-                  <View style={[styles.roleBadge, { backgroundColor: THEME.saffronLight }]}>
-                    <Ionicons name="ribbon-outline" size={11} color={THEME.saffronDark} />
-                    <Text style={[styles.roleBadgeText, { color: THEME.saffronDark }]}>
-                      {isHindi ? 'ग्राम प्रधान' : 'Panchayat Head'}
-                    </Text>
-                  </View>
-                  <View style={[styles.headBadge, { backgroundColor: THEME.saffronLight }]}>
-                    <Text style={[styles.headBadgeText, { color: THEME.saffronDark }]}>HEAD</Text>
-                  </View>
+            <View style={styles.roleCardBody}>
+              <View style={styles.roleCardMain}>
+                <View style={[styles.roleIconCircle, { backgroundColor: '#FFF7ED' }]}>
+                  <Ionicons name="shield-checkmark" size={28} color="#EA580C" />
                 </View>
 
-                <Text style={styles.cardTitle}>
-                  {isHindi ? 'सरपंच / एडमिन' : 'Sarpanch / Admin'}
-                </Text>
+                <View style={styles.roleInfo}>
+                  <View style={styles.roleBadgeRow}>
+                    <View style={[styles.roleTag, { backgroundColor: '#FFF7ED' }]}>
+                      <Ionicons name="ribbon-outline" size={12} color="#EA580C" />
+                      <Text style={[styles.roleTagText, { color: '#EA580C' }]}>
+                        {isHindi ? 'प्रशासन' : 'Governance'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.roleTitle, { color: colors.textPrimary }]}>
+                    {isHindi ? 'ग्राम प्रधान / सरपंच' : 'Gram Sarpanch'}
+                  </Text>
+                  <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
+                    {isHindi
+                      ? 'वार्ड-वार निगरानी, AI डुप्लिकेट व फर्जी फोटो की जांच और त्वरित अनुमोदन।'
+                      : 'Ward oversight, duplicate detection & resolution approval.'}
+                  </Text>
+                </View>
+
+                <View style={[styles.actionCircle, { backgroundColor: '#EA580C' }]}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
               </View>
 
-              <View style={[styles.arrowCircle, { backgroundColor: THEME.saffron }]}>
-                <Ionicons name="arrow-forward" size={18} color={THEME.white} />
+              {/* Feature Chips */}
+              <View style={styles.chipsRow}>
+                <View style={styles.featureChip}>
+                  <Ionicons name="analytics-outline" size={12} color="#EA580C" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'वार्ड विश्लेषण' : 'Ward Analytics'}
+                  </Text>
+                </View>
+                <View style={styles.featureChip}>
+                  <Ionicons name="checkmark-done-circle-outline" size={12} color="#EA580C" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'AI सत्यापन' : 'AI Verification'}
+                  </Text>
+                </View>
+                <View style={styles.featureChip}>
+                  <Ionicons name="flash-outline" size={12} color="#EA580C" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'त्वरित कार्रवाई' : 'Quick Actions'}
+                  </Text>
+                </View>
               </View>
             </View>
           </TouchableOpacity>
         </Animated.View>
 
-        {/* ================= 3. SECRETARY CARD ================= */}
+        {/* =========================================================================
+            5. ROLE CARD 3: SECRETARY (ग्राम सचिव)
+            ========================================================================= */}
         <Animated.View
           style={[
             styles.cardWrapper,
@@ -364,538 +402,394 @@ export default function RoleSelectionScreen() {
           ]}
         >
           <TouchableOpacity
-            style={[styles.roleCard, styles.secretaryCardBorder]}
+            style={[styles.premiumRoleCard, styles.secretaryBorder, { backgroundColor: colors.card }]}
             onPress={openSecretary}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             {/* Top Accent Strip */}
-            <View style={[styles.cardAccentBar, { backgroundColor: THEME.green }]} />
+            <View style={[styles.roleTopBar, { backgroundColor: '#15803D' }]} />
 
-            <View style={styles.cardMainRow}>
-              <View style={[styles.iconContainer, { backgroundColor: THEME.greenLight }]}>
-                <Ionicons name="clipboard" size={28} color={THEME.green} />
-              </View>
-
-              <View style={styles.cardInfoCol}>
-                <View style={styles.badgeRow}>
-                  <View style={[styles.roleBadge, { backgroundColor: THEME.greenLight }]}>
-                    <Ionicons name="briefcase-outline" size={11} color={THEME.green} />
-                    <Text style={[styles.roleBadgeText, { color: THEME.green }]}>
-                      {isHindi ? 'प्रशासनिक अधिकारी' : 'Official'}
-                    </Text>
-                  </View>
+            <View style={styles.roleCardBody}>
+              <View style={styles.roleCardMain}>
+                <View style={[styles.roleIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="business" size={28} color="#15803D" />
                 </View>
 
-                <Text style={styles.cardTitle}>
-                  {isHindi ? 'सचिव / सुपरवाइजर' : 'Secretary / Supervisor'}
-                </Text>
+                <View style={styles.roleInfo}>
+                  <View style={styles.roleBadgeRow}>
+                    <View style={[styles.roleTag, { backgroundColor: '#DCFCE7' }]}>
+                      <Ionicons name="document-text-outline" size={12} color="#15803D" />
+                      <Text style={[styles.roleTagText, { color: '#15803D' }]}>
+                        {isHindi ? 'अधिकारी' : 'Official'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.roleTitle, { color: colors.textPrimary }]}>
+                    {isHindi ? 'ग्राम विकास अधिकारी / सचिव' : 'Gram Secretary'}
+                  </Text>
+                  <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
+                    {isHindi
+                      ? 'विभागीय आवंटन (PHED/Electricity), एक्शन रिपोर्ट व फील्ड समाधान।'
+                      : 'Department assignment, action proofs and field inspection.'}
+                  </Text>
+                </View>
+
+                <View style={[styles.actionCircle, { backgroundColor: '#15803D' }]}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
               </View>
 
-              <View style={[styles.arrowCircle, { backgroundColor: THEME.green }]}>
-                <Ionicons name="arrow-forward" size={18} color={THEME.white} />
+              {/* Feature Chips */}
+              <View style={styles.chipsRow}>
+                <View style={styles.featureChip}>
+                  <Ionicons name="git-network-outline" size={12} color="#15803D" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'विभाग आवंटन' : '16 Departments'}
+                  </Text>
+                </View>
+                <View style={styles.featureChip}>
+                  <Ionicons name="images-outline" size={12} color="#15803D" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'समाधान प्रमाण' : 'Proof Upload'}
+                  </Text>
+                </View>
+                <View style={styles.featureChip}>
+                  <Ionicons name="shield-outline" size={12} color="#15803D" />
+                  <Text style={styles.featureChipText}>
+                    {isHindi ? 'फील्ड सत्यापन' : 'Verification'}
+                  </Text>
+                </View>
               </View>
             </View>
           </TouchableOpacity>
         </Animated.View>
 
-        {/* ================= EXISTING ACCOUNT LOGIN CARD ================= */}
-        <Animated.View style={[styles.loginPromptWrapper, { opacity: bottomAnim }]}>
-          <TouchableOpacity
-            style={styles.loginPromptCard}
-            onPress={openLogin}
-            activeOpacity={0.85}
-          >
-            <View style={styles.loginPromptLeft}>
-              <View style={styles.loginPromptIcon}>
-                <Ionicons name="key-outline" size={22} color={THEME.saffronDark} />
-              </View>
-              <View style={styles.loginPromptTexts}>
-                <Text style={styles.loginPromptTitle}>
-                  {isHindi ? 'पहले से खाता है?' : 'Already have an account?'}
-                </Text>
-                <Text style={styles.loginPromptSub}>
-                  {isHindi ? 'मोबाइल नंबर व पासवर्ड से सीधे लॉगिन करें' : 'Login directly with mobile & password'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.loginPromptBtn}>
-              <Text style={styles.loginPromptBtnText}>
-                {isHindi ? 'लॉगिन' : 'Login'}
-              </Text>
-              <Ionicons name="arrow-forward" size={16} color={THEME.white} />
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* TRUST & HELPLINE FOOTER */}
-        <Animated.View style={[styles.footerContainer, { opacity: bottomAnim }]}>
-          <View style={styles.trustBadge}>
-            <Ionicons name="shield-checkmark" size={16} color={THEME.green} />
-            <Text style={styles.trustText}>
-              {isHindi
-                ? 'सुरक्षित एवं प्रमाणित • डिजिटल ग्राम सेवा'
-                : '100% Secure & Verified • Digital Village Initiative'}
+        {/* =========================================================================
+            6. ALREADY REGISTERED (LOGIN LINK)
+            ========================================================================= */}
+        <Animated.View style={[styles.loginSection, { opacity: bottomAnim }]}>
+          <View style={styles.loginDivider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>
+              {isHindi ? 'या सीधे प्रवेश करें' : 'or login directly'}
             </Text>
+            <View style={styles.dividerLine} />
           </View>
 
           <TouchableOpacity
-            style={styles.helpBtn}
-            onPress={openHelp}
-            activeOpacity={0.7}
+            style={[styles.loginBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={openLogin}
+            activeOpacity={0.82}
           >
-            <Ionicons name="call-outline" size={15} color={THEME.navy} />
-            <Text style={styles.helpBtnText}>
-              {isHindi ? 'ग्राम सहायता केंद्र (Helpline)' : 'Village Helpline Center'}
+            <View style={styles.loginBtnIcon}>
+              <Ionicons name="log-in-outline" size={20} color="#0B1B4F" />
+            </View>
+            <Text style={[styles.loginBtnText, { color: colors.textPrimary }]}>
+              {isHindi ? 'पहले से खाता है? लॉगिन करें' : 'Already registered? Login'}
             </Text>
+            <Ionicons name="arrow-forward" size={16} color="#0B1B4F" />
           </TouchableOpacity>
         </Animated.View>
 
-        <View style={styles.bottomSpace} />
+        <View style={{ height: 35 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+/* =========================================================================
+   STYLES - ENHANCED PREMIUM DESIGN
+   ========================================================================= */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.background,
+    backgroundColor: '#F8FAFC',
   },
-
   scrollContent: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
 
-  /* TOP NAVIGATION BAR */
+  /* TOP NAV */
   topNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-
   backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: THEME.white,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: THEME.border,
-    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: 'center',
   },
-
   brandBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: THEME.white,
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: THEME.border,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
   },
-
   brandIconBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    backgroundColor: THEME.navy,
-    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: '#EA580C',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-
   brandText: {
     fontSize: 14,
     fontWeight: '800',
-    color: THEME.navy,
-    letterSpacing: 0.3,
+    color: '#0F172A',
   },
-
-  langBtn: {
+  actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: THEME.white,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: THEME.border,
-    gap: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
   },
-
-  langBtnText: {
+  actionBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: THEME.navy,
   },
 
-  /* TRICOLOR BAR */
-  tricolorBar: {
-    height: 4,
-    width: '100%',
-    borderRadius: 4,
-    overflow: 'hidden',
-    flexDirection: 'column',
-    marginBottom: 16,
-  },
-
-  tricolorPart: {
-    flex: 1,
-  },
-
-  /* HERO BANNER */
-  heroCard: {
-    backgroundColor: THEME.navy,
+  /* HERO HEADER CARD */
+  heroHeaderCard: {
+    backgroundColor: '#0B1B4F',
     borderRadius: 24,
-    padding: 22,
-    marginBottom: 20,
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: THEME.navy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    padding: 20,
+    marginBottom: 18,
+    shadowColor: '#0B1B4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 4,
   },
-
-  heroDecoCircle1: {
-    position: 'absolute',
-    top: -30,
-    right: -30,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  heroBadgeRow: {
+    marginBottom: 10,
   },
-
-  heroDecoCircle2: {
-    position: 'absolute',
-    bottom: -40,
-    left: -20,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 153, 51, 0.12)',
-  },
-
   heroPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    alignSelf: 'flex-start',
   },
-
   heroPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: THEME.white,
-    letterSpacing: 0.2,
+    color: '#FED7AA',
   },
-
   heroTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    color: THEME.white,
+    color: '#FFFFFF',
     marginBottom: 6,
-    letterSpacing: 0.2,
+    letterSpacing: -0.3,
   },
-
   heroSubtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: 'rgba(255, 255, 255, 0.88)',
+    fontSize: 12.5,
+    color: '#C7D2FE',
+    lineHeight: 18,
+    fontWeight: '500',
   },
 
-  /* SECTION HEADER */
-  sectionHeader: {
-    marginBottom: 14,
+  /* SECTION HEADING */
+  sectionHeadingBox: {
+    marginBottom: 12,
   },
-
-  sectionHeading: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: THEME.dark,
-    letterSpacing: 0.1,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 2,
   },
-
-  sectionSub: {
+  sectionSubtitle: {
     fontSize: 12,
-    color: THEME.textMuted,
-    marginTop: 2,
+    fontWeight: '500',
   },
 
-  /* ROLE CARDS */
+  /* PREMIUM ROLE CARDS */
   cardWrapper: {
     marginBottom: 14,
   },
-
-  roleCard: {
-    backgroundColor: THEME.cardBg,
+  premiumRoleCard: {
     borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1.5,
-    borderColor: THEME.border,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
-    position: 'relative',
     overflow: 'hidden',
+    borderWidth: 1.2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-
-  citizenCardBorder: {
-    borderColor: THEME.navyBorder,
+  citizenBorder: {
+    borderColor: '#C7D2FE',
   },
-
-  adminCardBorder: {
-    borderColor: THEME.saffronBorder,
+  sarpanchBorder: {
+    borderColor: '#FED7AA',
   },
-
-  secretaryCardBorder: {
-    borderColor: THEME.greenBorder,
+  secretaryBorder: {
+    borderColor: '#BBF7D0',
   },
-
-  cardAccentBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 4,
+  roleTopBar: {
+    height: 4.5,
+    width: '100%',
   },
-
-  cardMainRow: {
+  roleCardBody: {
+    padding: 16,
+  },
+  roleCardMain: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
-
-  iconContainer: {
+  roleIconCircle: {
     width: 52,
     height: 52,
     borderRadius: 16,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
-  },
-
-  cardInfoCol: {
-    flex: 1,
     justifyContent: 'center',
   },
-
-  badgeRow: {
+  roleInfo: {
+    flex: 1,
+  },
+  roleBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 3,
   },
-
-  roleBadge: {
+  roleTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 7,
     gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
   },
-
-  roleBadgeText: {
+  roleTagText: {
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.2,
   },
-
-  popularBadge: {
-    backgroundColor: '#DC2626',
+  popularTag: {
+    backgroundColor: '#EF4444',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
-
-  popularBadgeText: {
-    color: THEME.white,
+  popularTagText: {
     fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-
-  headBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
+  roleTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 3,
   },
-
-  headBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+  roleDesc: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: '500',
   },
-
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: THEME.dark,
-    letterSpacing: 0.1,
-  },
-
-  arrowCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
+  actionCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    marginLeft: 8,
-    shadowColor: '#000',
+    justifyContent: 'center',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 3,
-  },
-
-  /* LOGIN PROMPT CARD */
-  loginPromptWrapper: {
-    marginTop: 6,
-    marginBottom: 16,
-  },
-
-  loginPromptCard: {
-    backgroundColor: THEME.white,
-    borderRadius: 18,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1.5,
-    borderColor: THEME.saffronBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
     elevation: 2,
   },
 
-  loginPromptLeft: {
+  /* CHIPS ROW */
+  chipsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
-  },
-
-  loginPromptIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: THEME.saffronLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-
-  loginPromptTexts: {
-    flex: 1,
-  },
-
-  loginPromptTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: THEME.dark,
-  },
-
-  loginPromptSub: {
-    fontSize: 10.5,
-    color: THEME.textMuted,
-    marginTop: 1,
-  },
-
-  loginPromptBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.saffronDark,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 4,
-    shadowColor: THEME.saffronDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-
-  loginPromptBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: THEME.white,
-  },
-
-  /* FOOTER */
-  footerContainer: {
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 2,
-  },
-
-  trustBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 6,
-    backgroundColor: THEME.greenLight,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: THEME.greenBorder,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-
-  trustText: {
+  featureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  featureChipText: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: THEME.greenDark,
+    color: '#475569',
   },
 
-  helpBtn: {
+  /* LOGIN SECTION */
+  loginSection: {
+    marginTop: 6,
+  },
+  loginDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: 4,
+    marginBottom: 12,
+    gap: 8,
   },
-
-  helpBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: THEME.navy,
-    textDecorationLine: 'underline',
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
   },
-
-  bottomSpace: {
-    height: 20,
+  dividerText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  loginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1.2,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  loginBtnIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

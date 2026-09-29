@@ -27,8 +27,12 @@ public class AiService {
     }
 
     public AiAnalysisResult analyzeComplaint(String description) {
-        if (description == null || description.trim().isEmpty()) {
-            return fallback("No description provided");
+        return analyzeComplaint(description, null, null);
+    }
+
+    public AiAnalysisResult analyzeComplaint(String description, String imageBase64, Object existingRecords) {
+        if ((description == null || description.trim().isEmpty()) && (imageBase64 == null || imageBase64.trim().isEmpty())) {
+            return fallback("No description or image provided");
         }
 
         try {
@@ -36,10 +40,18 @@ public class AiService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
-            Map<String, String> payload = new HashMap<>();
-            payload.put("complaint", description.trim());
+            Map<String, Object> payload = new HashMap<>();
+            if (description != null) {
+                payload.put("complaint", description.trim());
+            }
+            if (imageBase64 != null && !imageBase64.trim().isEmpty()) {
+                payload.put("image", imageBase64.trim());
+            }
+            if (existingRecords != null) {
+                payload.put("existing_images", existingRecords);
+            }
 
-            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(payload, headers);
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
 
             ResponseEntity<AiAnalysisResult> response = restTemplate.postForEntity(
                     aiServiceUrl,
@@ -49,8 +61,8 @@ public class AiService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 AiAnalysisResult result = response.getBody();
-                log.info("AI Analysis success: category={}, dept={}, priority={}, sentiment={}",
-                        result.getCategory(), result.getDepartment(), result.getPriority(), result.getSentiment());
+                log.info("AI Analysis success: category={}, dept={}, priority={}, classification={}",
+                        result.getCategory(), result.getDepartment(), result.getPriority(), result.getClassification());
                 return result;
             }
         } catch (Exception e) {
@@ -122,6 +134,7 @@ public class AiService {
                 .department(department)
                 .priority(priority)
                 .sentiment(sentiment)
+                .classification("GENUINE")
                 .build();
     }
 

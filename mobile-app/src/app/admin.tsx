@@ -111,31 +111,58 @@ export default function AdminScreen() {
       }
 
       // Load live complaints directly from Backend Database API
+      let loadedComplaints: Complaint[] = [];
       try {
         const apiComplaints = await complaintApi.getSarpanchComplaints();
-        if (Array.isArray(apiComplaints)) {
-          setComplaints(
-            apiComplaints.map((c: any) => ({
-              complaintId: String(c.id || c.complaintNumber),
-              id: c.id,
-              status: c.status,
-              priority: c.priority,
-              classification: c.classification,
-              category: c.category || c.problemType,
-              description: c.description,
-              location: c.location,
-              wardNumber: c.wardNumber,
-              ward: c.ward,
-              createdAt: c.createdAt,
-            }))
-          );
-          return;
+        if (Array.isArray(apiComplaints) && apiComplaints.length > 0) {
+          loadedComplaints = apiComplaints.map((c: any) => ({
+            complaintId: String(c.id || c.complaintNumber),
+            id: c.id,
+            status: c.status,
+            priority: c.priority,
+            classification: c.classification,
+            duplicateOfId: c.duplicateOfId ? String(c.duplicateOfId) : '',
+            classificationReason: c.classificationReason || '',
+            category: c.category || c.problemType,
+            description: c.description,
+            location: c.location,
+            wardNumber: c.wardNumber,
+            ward: c.ward,
+            createdAt: c.createdAt,
+          }));
         }
       } catch (apiErr) {
         console.log('Admin backend complaints fetch error:', apiErr);
       }
 
-      setComplaints([]);
+      // Include offline complaints if empty
+      if (loadedComplaints.length === 0) {
+        try {
+          const offlineRaw = await AsyncStorage.getItem('@village_offline_complaints_queue');
+          const offlineArr = offlineRaw ? JSON.parse(offlineRaw) : [];
+          if (Array.isArray(offlineArr) && offlineArr.length > 0) {
+            loadedComplaints = offlineArr.map((item: any) => ({
+              complaintId: String(item.id),
+              id: item.id,
+              status: 'SUBMITTED',
+              priority: item.payload?.priority || 'MEDIUM',
+              classification: item.payload?.classification || 'GENUINE',
+              duplicateOfId: item.payload?.duplicateOfId ? String(item.payload?.duplicateOfId) : '',
+              classificationReason: item.payload?.classificationReason || '',
+              category: item.payload?.category || item.payload?.problemType || 'Village Issue',
+              description: item.payload?.description || '',
+              location: item.payload?.location || '',
+              wardNumber: item.payload?.wardNumber || '',
+              ward: item.ward || 'Ward 1',
+              createdAt: item.createdAt || new Date().toISOString(),
+            }));
+          }
+        } catch (offErr) {
+          console.log('Error reading offline complaints for admin dashboard:', offErr);
+        }
+      }
+
+      setComplaints(loadedComplaints);
     } catch (err) {
       console.log('Unable to load dashboard data:', err);
     }
@@ -1012,7 +1039,6 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 3,
   },
-
 
 
   // FOOTER

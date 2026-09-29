@@ -3,14 +3,22 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
-interface ComplaintItem {
+import {
+  isVeryHighPriority,
+  isHighPriority,
+  isMediumPriority,
+  isLowPriority,
+  isDuplicateClassification,
+  isFakeClassification,
+  isNeedsVerificationClassification,
+  isGenuineClassification,
+  ComplaintFilterItem,
+} from '../services/complaintClassification';
+
+interface ComplaintItem extends ComplaintFilterItem {
   complaintId?: string | number;
   id?: string | number;
-  status?: string;
-  priority?: string;
-  classification?: string;
   category?: string;
-  description?: string;
 }
 
 interface ComplaintOverviewSectionProps {
@@ -27,131 +35,18 @@ export function ComplaintOverviewSection({
   // =====================================================
   // GENUINE DYNAMIC PRIORITY COUNTS CALCULATION
   // =====================================================
-  const countVeryHigh = complaints.filter((c) => {
-    const p = String(c.priority || '').toUpperCase();
-    const desc = String(c.description || '').toLowerCase();
-    return (
-      p === 'VERY_HIGH' ||
-      p === 'VERY HIGH' ||
-      p === 'CRITICAL' ||
-      p === 'URGENT' ||
-      desc.includes('आपातकालीन') ||
-      desc.includes('खतरा') ||
-      desc.includes('urgent') ||
-      desc.includes('critical')
-    );
-  }).length;
-
-  const countHigh = complaints.filter((c) => {
-    const p = String(c.priority || '').toUpperCase();
-    const desc = String(c.description || '').toLowerCase();
-    const isVeryHigh =
-      p === 'VERY_HIGH' ||
-      p === 'VERY HIGH' ||
-      p === 'CRITICAL' ||
-      p === 'URGENT' ||
-      desc.includes('आपातकालीन') ||
-      desc.includes('खतरा') ||
-      desc.includes('urgent') ||
-      desc.includes('critical');
-    if (isVeryHigh) return false;
-    return (
-      p === 'HIGH' ||
-      desc.includes('गंभीर') ||
-      desc.includes('भारी') ||
-      desc.includes('severe')
-    );
-  }).length;
-
-  const countLow = complaints.filter((c) => {
-    const p = String(c.priority || '').toUpperCase();
-    return p === 'LOW';
-  }).length;
-
-  const countMedium = complaints.filter((c) => {
-    const p = String(c.priority || '').toUpperCase();
-    const desc = String(c.description || '').toLowerCase();
-    const isVeryHigh =
-      p === 'VERY_HIGH' ||
-      p === 'VERY HIGH' ||
-      p === 'CRITICAL' ||
-      p === 'URGENT' ||
-      desc.includes('आपातकालीन') ||
-      desc.includes('खतरा') ||
-      desc.includes('urgent') ||
-      desc.includes('critical');
-    const isHigh =
-      p === 'HIGH' ||
-      desc.includes('गंभीर') ||
-      desc.includes('भारी') ||
-      desc.includes('severe');
-    const isLow = p === 'LOW';
-    return !isVeryHigh && !isHigh && !isLow;
-  }).length;
+  const countVeryHigh = complaints.filter(isVeryHighPriority).length;
+  const countHigh = complaints.filter(isHighPriority).length;
+  const countMedium = complaints.filter(isMediumPriority).length;
+  const countLow = complaints.filter(isLowPriority).length;
 
   // =====================================================
   // GENUINE DYNAMIC AI CLASSIFICATION COUNTS CALCULATION
   // =====================================================
-  const countDuplicate = complaints.filter((c) => {
-    const cl = String(c.classification || '').toUpperCase();
-    return cl === 'DUPLICATE' || cl === 'COPIED';
-  }).length;
-
-  const countFake = complaints.filter((c) => {
-    const cl = String(c.classification || '').toUpperCase();
-    const desc = String(c.description || '').toLowerCase();
-    return (
-      cl === 'FAKE' ||
-      cl === 'INVALID' ||
-      cl === 'SPAM' ||
-      desc.includes('test complaint') ||
-      desc.includes('fake') ||
-      desc.includes('spam')
-    );
-  }).length;
-
-  const countNeedsVerification = complaints.filter((c) => {
-    const cl = String(c.classification || '').toUpperCase();
-    const st = String(c.status || '').toUpperCase();
-    const desc = String(c.description || '').toLowerCase();
-    const isFake =
-      cl === 'FAKE' ||
-      cl === 'INVALID' ||
-      cl === 'SPAM' ||
-      desc.includes('test complaint') ||
-      desc.includes('fake') ||
-      desc.includes('spam');
-    const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
-    if (isFake || isDup) return false;
-    return (
-      cl === 'NEEDS_VERIFICATION' ||
-      cl === 'VERIFICATION' ||
-      st === 'VERIFICATION' ||
-      st === 'UNDER_REVIEW' ||
-      st === 'UNDER REVIEW'
-    );
-  }).length;
-
-  const countGenuine = complaints.filter((c) => {
-    const cl = String(c.classification || '').toUpperCase();
-    const st = String(c.status || '').toUpperCase();
-    const desc = String(c.description || '').toLowerCase();
-    const isFake =
-      cl === 'FAKE' ||
-      cl === 'INVALID' ||
-      cl === 'SPAM' ||
-      desc.includes('test complaint') ||
-      desc.includes('fake') ||
-      desc.includes('spam');
-    const isDup = cl === 'DUPLICATE' || cl === 'COPIED';
-    const isVerify =
-      cl === 'NEEDS_VERIFICATION' ||
-      cl === 'VERIFICATION' ||
-      st === 'VERIFICATION' ||
-      st === 'UNDER_REVIEW' ||
-      st === 'UNDER REVIEW';
-    return !isFake && !isDup && !isVerify;
-  }).length;
+  const countGenuine = complaints.filter(isGenuineClassification).length;
+  const countDuplicate = complaints.filter(isDuplicateClassification).length;
+  const countFake = complaints.filter(isFakeClassification).length;
+  const countNeedsVerification = complaints.filter(isNeedsVerificationClassification).length;
 
   const Tile = ({
     icon,
@@ -203,7 +98,7 @@ export function ComplaintOverviewSection({
             iconColor={COLORS.error}
             iconBg={COLORS.errorLight}
             count={countVeryHigh}
-            label={isHindi ? 'अति गंभीर' : 'Very High'}
+            label={isHindi ? 'अति गंभीर (Critical)' : 'Critical'}
             filterKey="priority-very-high"
           />
 
@@ -237,12 +132,12 @@ export function ComplaintOverviewSection({
       </View>
 
       {/* =================================================
-          2. AI CLASSIFICATION SECTION (2X2 GRID)
+          2. CLASSIFICATION SECTION (2X2 GRID)
       ================================================= */}
       <View style={[styles.sectionHeader, { marginTop: 14 }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle} numberOfLines={1}>
-            {isHindi ? 'AI वर्गीकरण (AI Classification)' : 'AI Classification'}
+            {isHindi ? 'वर्गीकरण (Classification)' : 'Classification'}
           </Text>
         </View>
       </View>

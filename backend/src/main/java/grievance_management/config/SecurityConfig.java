@@ -95,9 +95,9 @@ public class SecurityConfig {
                                 "/api/secretary/notifications/**"
                         ).authenticated()
 
-                        // Citizen APIs
+                        // Citizen APIs (Citizens, Sarpanch & Secretary can register/view complaints)
                         .requestMatchers("/api/citizen/**")
-                        .hasRole("CITIZEN")
+                        .hasAnyRole("CITIZEN", "SARPANCH", "SECRETARY", "ADMIN", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
                         // Sarpanch, Secretary & District Super Admins
                         .requestMatchers("/api/sarpanch/**", "/api/secretary/**")
