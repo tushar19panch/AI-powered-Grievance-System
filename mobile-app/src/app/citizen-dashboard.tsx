@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useLanguage } from '../i18n/LanguageContext';
 import { complaintApi, villageApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
+import { isDuplicateClassification, isFakeClassification } from '../services/complaintClassification';
 import { OfflineSyncBanner } from '../components/OfflineSyncBanner';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import { PanchayatShowcaseCard } from '../components/PanchayatShowcaseCard';
@@ -48,6 +49,7 @@ export default function CitizenDashboard() {
   const [user, setUser] = useState<Citizen | null>(null);
   const [totalComplaints, setTotalComplaints] = useState(0);
   const [pendingComplaints, setPendingComplaints] = useState(0);
+  const [rejectedComplaints, setRejectedComplaints] = useState(0);
   const [inProgressComplaints, setInProgressComplaints] = useState(0);
   const [resolvedComplaints, setResolvedComplaints] = useState(0);
   const [recentComplaints, setRecentComplaints] = useState<any[]>([]);
@@ -202,17 +204,24 @@ export default function CitizenDashboard() {
           let pending = 0;
           let inProg = 0;
           let res = 0;
+          let rej = 0;
 
           apiData.forEach((c: any) => {
             tot++;
             const s = String(c.status || '').toUpperCase();
-            if (s === 'RESOLVED' || s === 'CLOSED') {
+            const isRej = s === 'REJECTED' || s === 'REJECT' || isFakeClassification(c) || isDuplicateClassification(c);
+            
+            if (isRej) {
+              rej++;
+            } else if (s === 'RESOLVED' || s === 'CLOSED') {
               res++;
             } else if (
               s === 'IN PROGRESS' ||
               s === 'IN_PROGRESS' ||
               s === 'ACTION TAKEN' ||
-              s === 'ACTION_TAKEN'
+              s === 'ACTION_TAKEN' ||
+              s === 'UNDER REVIEW' ||
+              s === 'UNDER_REVIEW'
             ) {
               inProg++;
             } else {
@@ -222,6 +231,7 @@ export default function CitizenDashboard() {
 
           setTotalComplaints(tot);
           setPendingComplaints(pending);
+          setRejectedComplaints(rej);
           setInProgressComplaints(inProg);
           setResolvedComplaints(res);
           setRecentComplaints(apiData.slice(0, 5));
@@ -389,18 +399,18 @@ export default function CitizenDashboard() {
               </Text>
             </TouchableOpacity>
 
-            {/* PENDING */}
+            {/* REJECTED / INVALID */}
             <TouchableOpacity
               style={styles.serviceActionCard}
-              onPress={() => openComplaints('pending')}
+              onPress={() => openComplaints('rejected')}
               activeOpacity={0.82}
             >
               <View style={[styles.statIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+                <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
               </View>
-              <Text style={styles.statNumber}>{pendingComplaints}</Text>
+              <Text style={styles.statNumber}>{rejectedComplaints}</Text>
               <Text style={styles.statLabel} numberOfLines={1}>
-                {isHindi ? 'लंबित' : 'Pending'}
+                {isHindi ? 'अस्वीकृत' : 'Rejected'}
               </Text>
             </TouchableOpacity>
 

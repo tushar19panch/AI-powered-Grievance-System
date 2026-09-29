@@ -24,7 +24,8 @@ import {
   SHADOWS,
 } from '../theme';
 
-import { complaintApi, authApi, getAuthToken, setAuthToken, isValidJwt } from '../services/api';
+import { complaintApi, authApi, getAuthToken, setAuthToken, isValidJwt, resolvePhotoUrl } from '../services/api';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import {
   isNeedsVerificationClassification,
   isDuplicateClassification,
@@ -43,6 +44,8 @@ export default function ComplaintDetailsScreen() {
   const [remarks, setRemarks] = useState<string>('');
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
+  const [imageLoading, setImageLoading] = useState<boolean>(true);
+  const [photoPreviewVisible, setPhotoPreviewVisible] = useState<boolean>(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [citizenRating, setCitizenRating] = useState<number>(0);
@@ -201,12 +204,21 @@ export default function ComplaintDetailsScreen() {
         }
 
         if (foundComplaint) {
-          const soundUri = foundComplaint.audioUrl || (await AsyncStorage.getItem(`complaint_audio_${foundComplaint.id || foundComplaint.complaintNumber || complaintId}`)) || null;
+          const complaintKey = foundComplaint.id || foundComplaint.complaintNumber || complaintId;
+          const soundUri = foundComplaint.audioUrl || (await AsyncStorage.getItem(`complaint_audio_${complaintKey}`)) || null;
           if (soundUri) {
             setAudioUri(soundUri);
           }
+
+          const photoUri =
+            foundComplaint.photo ||
+            foundComplaint.payload?.photo ||
+            (await AsyncStorage.getItem(`complaint_photo_${complaintKey}`)) ||
+            (await AsyncStorage.getItem(`complaint_photo_${cleanId}`)) ||
+            null;
+
           setComplaint({
-            complaintId: String(foundComplaint.id || foundComplaint.complaintNumber || complaintId),
+            complaintId: String(complaintKey),
             citizenName: foundComplaint.citizenName || 'Citizen',
             citizenMobile: foundComplaint.citizenMobile || '',
             category: foundComplaint.category || foundComplaint.problemType || 'Village Issue',
@@ -215,7 +227,7 @@ export default function ComplaintDetailsScreen() {
             department: foundComplaint.department || '',
             deadline: foundComplaint.deadline || null,
             description: foundComplaint.description || '',
-            photo: foundComplaint.photo || null,
+            photo: photoUri,
             audioUrl: soundUri,
             location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
             status: foundComplaint.status || 'SUBMITTED',
@@ -1449,15 +1461,43 @@ export default function ComplaintDetailsScreen() {
               </Text>
             </View>
 
-            {!imageError ? (
-              <Image
-                source={{
-                  uri: String(complaint.photo).trim(),
-                }}
-                style={styles.photo}
-                resizeMode="cover"
-                onError={() => setImageError(true)}
-              />
+            {Boolean(!imageError && resolvePhotoUrl(complaint.photo)) ? (
+              <TouchableOpacity
+                style={styles.photoTouchable}
+                activeOpacity={0.9}
+                onPress={() => setPhotoPreviewVisible(true)}
+              >
+                {imageLoading && (
+                  <View style={styles.photoLoadingOverlay}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={styles.photoLoadingText}>
+                      {language === 'hi' ? 'फोटो लोड हो रही है...' : 'Loading photo...'}
+                    </Text>
+                  </View>
+                )}
+                <Image
+                  source={{
+                    uri: resolvePhotoUrl(complaint.photo)!,
+                  }}
+                  style={styles.photo}
+                  resizeMode="cover"
+                  onLoadStart={() => {
+                    setImageLoading(true);
+                    setImageError(false);
+                  }}
+                  onLoadEnd={() => setImageLoading(false)}
+                  onError={() => {
+                    setImageLoading(false);
+                    setImageError(true);
+                  }}
+                />
+                <View style={styles.photoZoomOverlayBadge}>
+                  <Ionicons name="search" size={14} color="#FFFFFF" />
+                  <Text style={styles.photoZoomOverlayText}>
+                    {language === 'hi' ? 'बड़ा करके देखें (Zoom)' : 'Tap to Zoom'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             ) : (
               <View style={styles.photoFallbackBox}>
                 <Ionicons name="image-outline" size={38} color={COLORS.primary} />
@@ -1926,6 +1966,16 @@ export default function ComplaintDetailsScreen() {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* FULL ENLARGED PHOTO PREVIEW MODAL */}
+      <PhotoPreviewModal
+        visible={photoPreviewVisible}
+        imageUri={complaint?.photo}
+        userName={complaint ? `#${complaint.complaintId} • ${getCategoryLabel(complaint.category)}` : (language === 'hi' ? 'शिकायत फोटो' : 'Complaint Photo')}
+        userRole={complaint?.ward || (language === 'hi' ? 'ग्राम पंचायत' : 'Gram Panchayat')}
+        onClose={() => setPhotoPreviewVisible(false)}
+        isHindi={language === 'hi'}
+      />
     </SafeAreaView>
   );
 }
@@ -2287,11 +2337,54 @@ const styles = StyleSheet.create({
     padding: 13,
   },
 
+  photoTouchable: {
+    width: '100%',
+    height: 230,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#F2F4F7',
+  },
+
   photo: {
     width: '100%',
     height: 230,
     borderRadius: 16,
     backgroundColor: '#F2F4F7',
+  },
+
+  photoLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F2F4F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    gap: 8,
+  },
+
+  photoLoadingText: {
+    fontSize: 12,
+    color: '#667085',
+    fontWeight: '600',
+  },
+
+  photoZoomOverlayBadge: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 5,
+  },
+
+  photoZoomOverlayText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
 
   photoFallbackBox: {

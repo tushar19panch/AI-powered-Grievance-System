@@ -53,6 +53,54 @@ export async function setApiBaseUrl(url: string): Promise<void> {
   await AsyncStorage.setItem(API_STORAGE_KEY, url.trim().replace(/\/+$/, ''));
 }
 
+export function resolvePhotoUrl(photo: string | null | undefined): string | null {
+  if (!photo) return null;
+  const trimmed = String(photo).trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === '""') return null;
+
+  // 1. Direct standard data / file / blob URIs
+  if (
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('file:') ||
+    trimmed.startsWith('content:') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+
+  // 2. Full HTTP/HTTPS URLs
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // 3. Raw Base64 image payload (any long data string > 100 chars)
+  if (trimmed.length > 100) {
+    if (trimmed.startsWith('iVBORw0KGgo') || trimmed.startsWith('iVBOR')) {
+      return `data:image/png;base64,${trimmed}`;
+    }
+    if (trimmed.startsWith('R0lGOD')) {
+      return `data:image/gif;base64,${trimmed}`;
+    }
+    if (trimmed.startsWith('UklGR')) {
+      return `data:image/webp;base64,${trimmed}`;
+    }
+    return `data:image/jpeg;base64,${trimmed}`;
+  }
+
+  // 4. Short raw base64 signatures
+  if (trimmed.startsWith('/9j/')) {
+    return `data:image/jpeg;base64,${trimmed}`;
+  }
+
+  // 5. Server relative URLs (/uploads/..., uploads/...)
+  const baseUrl = DEFAULT_API_URL.replace(/\/+$/, '');
+  if (trimmed.startsWith('/')) {
+    return `${baseUrl}${trimmed}`;
+  }
+
+  return `${baseUrl}/${trimmed}`;
+}
+
 export function isValidJwt(token: string | null | undefined): boolean {
   if (!token || typeof token !== 'string') return false;
   const trimmed = token.trim();

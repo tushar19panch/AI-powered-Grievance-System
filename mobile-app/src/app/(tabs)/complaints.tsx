@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import { complaintApi, ComplaintData, authApi, getAuthToken, setAuthToken, isValidJwt } from '../../services/api';
+import { complaintApi, ComplaintData, authApi, getAuthToken, setAuthToken, isValidJwt, resolvePhotoUrl } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { PhotoPreviewModal } from '../../components/PhotoPreviewModal';
 import {
@@ -57,6 +57,61 @@ type Complaint = {
   dateTime?: string;
 };
 
+const ComplaintCardPhoto = ({
+  photo,
+  formattedId,
+  categoryName,
+  isHindi,
+  onPress,
+}: {
+  photo: string;
+  formattedId: string;
+  categoryName: string;
+  isHindi: boolean;
+  onPress: (url: string) => void;
+}) => {
+  const [loadError, setLoadError] = useState(false);
+  const resolved = resolvePhotoUrl(photo);
+
+  useEffect(() => {
+    setLoadError(false);
+  }, [photo]);
+
+  if (!resolved) return null;
+
+  if (loadError) {
+    return (
+      <View style={styles.cardPhotoFallbackBox}>
+        <Ionicons name="image-outline" size={20} color={COLORS.primary} />
+        <Text style={styles.cardPhotoFallbackText}>
+          {isHindi ? '📷 फोटो संलग्न है (सुरक्षित रिकॉर्ड)' : '📷 Photo Attached (Saved in Record)'}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.photoContainer}
+      activeOpacity={0.9}
+      onPress={() => onPress(resolved)}
+    >
+      <Image
+        source={{ uri: resolved }}
+        style={styles.thumbnailImage}
+        resizeMode="cover"
+        onError={() => setLoadError(true)}
+      />
+      <View style={styles.photoZoomBadge}>
+        <Ionicons name="search" size={13} color="#FFFFFF" />
+        <Text style={styles.photoZoomText}>
+          {isHindi ? 'फोटो देखें' : 'View Photo'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 export default function ComplaintsScreen() {
   const router = useRouter();
 
@@ -92,8 +147,8 @@ export default function ComplaintsScreen() {
     duplicateOfId: item.duplicateOfId ? String(item.duplicateOfId) : '',
     deadline: item.deadline || null,
     description: item.description || '',
-    photo: item.photo || null,
-    audioUrl: item.audioUrl || null,
+    photo: item.photo || item.payload?.photo || null,
+    audioUrl: item.audioUrl || item.payload?.audioUrl || null,
     location: item.location || (item.villageName ? item.villageName : ''),
     status: item.status || 'SUBMITTED',
     dateTime: item.createdAt || item.dateTime || new Date().toISOString(),
@@ -243,7 +298,12 @@ export default function ComplaintsScreen() {
         s === 'UNDER REVIEW' ||
         s === 'UNDER_REVIEW';
       const isRes = s === 'RESOLVED' || s === 'CLOSED' || s === 'VERIFICATION';
-      if (isInProg || isRes) return false;
+      const isRej = s === 'REJECTED' || s === 'REJECT' || isFakeClassification(c) || isDuplicateClassification(c);
+      if (isInProg || isRes || isRej) return false;
+    } else if (selectedFilter === 'rejected') {
+      const s = String(c.status || '').toUpperCase();
+      const isRej = s === 'REJECTED' || s === 'REJECT' || isFakeClassification(c) || isDuplicateClassification(c);
+      if (!isRej) return false;
     } else if (selectedFilter === 'in-progress') {
       const s = String(c.status || '').toUpperCase();
       if (
@@ -427,6 +487,16 @@ export default function ComplaintsScreen() {
           iconBg: COLORS.primaryLight,
           emptyTitle: isHindi ? 'कोई लंबित शिकायत नहीं है' : 'No Pending Complaints',
           emptyDesc: isHindi ? 'सभी शिकायतों पर संज्ञान लिया जा चुका है।' : 'All complaints have been reviewed.',
+        };
+      case 'rejected':
+        return {
+          title: isHindi ? 'अस्वीकृत / अमान्य शिकायतें' : 'Rejected / Invalid Complaints',
+          badgeText: isHindi ? '🚫 अस्वीकृत' : '🚫 Rejected',
+          icon: 'close-circle-outline' as const,
+          iconColor: '#DC2626',
+          iconBg: '#FEE2E2',
+          emptyTitle: isHindi ? 'कोई अस्वीकृत शिकायत नहीं है' : 'No Rejected Complaints',
+          emptyDesc: isHindi ? 'आपकी कोई भी शिकायत अस्वीकृत या अमान्य नहीं पाई गई है।' : 'None of your grievances have been rejected or marked invalid.',
         };
       case 'reopened':
         return {
@@ -861,26 +931,16 @@ export default function ComplaintsScreen() {
 
                 {/* 4. ATTACHED PHOTO PREVIEW */}
                 {hasPhoto && (
-                  <TouchableOpacity
-                    style={styles.photoContainer}
-                    activeOpacity={0.9}
-                    onPress={() => {
-                      setPreviewPhoto(String(complaint.photo).trim());
+                  <ComplaintCardPhoto
+                    photo={complaint.photo!}
+                    formattedId={formattedId}
+                    categoryName={categoryInfo.name}
+                    isHindi={isHindi}
+                    onPress={(url) => {
+                      setPreviewPhoto(url);
                       setPreviewTitle(`${formattedId} • ${categoryInfo.name}`);
                     }}
-                  >
-                    <Image
-                      source={{ uri: String(complaint.photo).trim() }}
-                      style={styles.thumbnailImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.photoZoomBadge}>
-                      <Ionicons name="search" size={13} color="#FFFFFF" />
-                      <Text style={styles.photoZoomText}>
-                        {isHindi ? 'फोटो देखें' : 'View Photo'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+                  />
                 )}
 
                 {/* 5. CARD FOOTER: DATE & ACTION CTA */}
@@ -1213,12 +1273,29 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 12,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#E2E8F0',
   },
   thumbnailImage: {
     width: '100%',
     height: 180,
     borderRadius: 12,
+  },
+  cardPhotoFallbackBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  cardPhotoFallbackText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
   },
   photoZoomBadge: {
     position: 'absolute',

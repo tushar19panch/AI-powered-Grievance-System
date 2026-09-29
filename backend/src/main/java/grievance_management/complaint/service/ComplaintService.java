@@ -174,7 +174,7 @@ public class ComplaintService {
                 .imageHash(imageHash)
                 .duplicateOfId(duplicateOfId)
                 .deadline(request.getDeadline())
-                .photo(processPhotoUrl(null, photoData))
+                .photo(photoData)
                 .audioUrl(
                         request.getAudioUrl() != null
                                 ? request.getAudioUrl().trim()
@@ -327,18 +327,7 @@ public class ComplaintService {
                     complaint.getWard().getWardNumber();
         }
 
-        // Optimize photo: if photo is a huge raw base64 string, write it to uploads/ and return clean URL
         String photoUrl = complaint.getPhoto();
-        if (photoUrl != null && (photoUrl.startsWith("data:image/") || photoUrl.length() > 500)) {
-            String processed = processPhotoUrl(complaint.getId(), photoUrl);
-            if (!processed.equals(photoUrl)) {
-                photoUrl = processed;
-                try {
-                    complaint.setPhoto(photoUrl);
-                    complaintRepository.save(complaint);
-                } catch (Exception ignore) {}
-            }
-        }
 
         return ComplaintResponse.builder()
                 .id(complaint.getId())

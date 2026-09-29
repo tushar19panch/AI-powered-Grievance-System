@@ -11,10 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
 import { PanchayatPhotoManagerModal } from './PanchayatPhotoManagerModal';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
-
-import { villageApi } from '../services/api';
-
-import { Platform } from 'react-native';
+import { resolvePhotoUrl } from '../services/api';
 
 interface PanchayatShowcaseCardProps {
   userName?: string;
@@ -23,66 +20,66 @@ interface PanchayatShowcaseCardProps {
   canManagePhotos?: boolean;
 }
 
-// High-quality representative Gram Panchayat Bhavan image
-const DEFAULT_VILLAGE_IMAGES = [
-  'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?q=80&w=1200&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?q=80&w=1200&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?q=80&w=1200&auto=format&fit=crop',
-];
-
 export function PanchayatShowcaseCard({
   userName = 'नागरिक',
   villageName = 'मुख्य ग्राम',
   isHindi = true,
   canManagePhotos = true,
 }: PanchayatShowcaseCardProps) {
-  const [photos, setPhotos] = useState<string[]>(DEFAULT_VILLAGE_IMAGES);
+  // Starts completely empty as requested: Admin will add/update photos
+  const [photos, setPhotos] = useState<string[]>([]);
   const [activeIdx, setActiveIdx] = useState<number>(0);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [managerVisible, setManagerVisible] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    const loadVillagePhotos = async () => {
+      try {
+        const storageKey = `village_photos_gallery_${villageName || 'default'}`;
+        const savedGallery = await AsyncStorage.getItem(storageKey);
+        if (savedGallery && isMounted) {
+          const parsed = JSON.parse(savedGallery);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPhotos(parsed);
+            return;
+          }
+        }
+
+        // Single photo check
+        const single =
+          (await AsyncStorage.getItem(`village_photo_${villageName}`)) ||
+          (await AsyncStorage.getItem('village_cover_photo'));
+        if (single && single.trim().length > 0 && isMounted) {
+          setPhotos([single]);
+        } else if (isMounted) {
+          setPhotos([]);
+        }
+      } catch (e) {
+        if (isMounted) setPhotos([]);
+      }
+    };
+
     loadVillagePhotos();
-    const interval = setInterval(loadVillagePhotos, 4000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+    };
   }, [villageName]);
 
-  // Dynamic automatic slideshow cycling
+  // Slideshow cycle only when multiple photos are added by Admin
   useEffect(() => {
     if (photos.length <= 1) return;
     const timer = setInterval(() => {
       setActiveIdx((prev) => (prev + 1) % photos.length);
-    }, 3500);
+    }, 4000);
     return () => clearInterval(timer);
   }, [photos.length]);
 
-  const loadVillagePhotos = async () => {
-    try {
-      const storageKey = `village_photos_gallery_${villageName || 'default'}`;
-      const savedGallery = await AsyncStorage.getItem(storageKey);
-      if (savedGallery) {
-        const parsed = JSON.parse(savedGallery);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPhotos(parsed);
-          return;
-        }
-      }
-
-      // Single photo fallback check
-      const single = await AsyncStorage.getItem(`village_photo_${villageName}`) || await AsyncStorage.getItem('village_cover_photo');
-      if (single) {
-        setPhotos([single, ...DEFAULT_VILLAGE_IMAGES.slice(1)]);
-      }
-    } catch (e) {
-      console.log('Error loading village gallery photos:', e);
-    }
-  };
-
-  const currentPhoto = photos[activeIdx] || photos[0] || DEFAULT_VILLAGE_IMAGES[0];
+  const currentPhoto = photos.length > 0 ? photos[activeIdx] || photos[0] : null;
 
   return (
     <View style={styles.card}>
-      {/* 1. TOP GREETING & VILLAGE IN ONE CLEAN HEADER */}
+      {/* 1. TOP GREETING & VILLAGE HEADER */}
       <View style={styles.greetingHeader}>
         <View style={styles.greetingTextWrap}>
           <Text style={styles.greetingTitle} numberOfLines={1}>
@@ -107,62 +104,114 @@ export function PanchayatShowcaseCard({
         </View>
       </View>
 
-      {/* 2. DYNAMIC ROTATING PANCHAYAT PHOTO BANNER */}
-      <TouchableOpacity
-        activeOpacity={0.92}
-        onPress={() => setPreviewVisible(true)}
-        style={styles.photoContainer}
-      >
-        <Image
-          source={{ uri: currentPhoto }}
-          style={styles.showcaseImage}
-          resizeMode="cover"
-        />
+      {/* 2. DYNAMIC PANCHAYAT PHOTO BANNER OR CLEAN EMPTY STATE */}
+      {currentPhoto ? (
+        <TouchableOpacity
+          activeOpacity={0.92}
+          onPress={() => setPreviewVisible(true)}
+          style={styles.photoContainer}
+        >
+          <Image
+            source={{ uri: resolvePhotoUrl(currentPhoto) || currentPhoto }}
+            style={styles.showcaseImage}
+            resizeMode="cover"
+          />
 
-        {/* CLEAN PHOTO DISPLAY - NO TEXT OVERLAYS */}
+          {canManagePhotos && (
+            <TouchableOpacity
+              style={styles.manageBadgeBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                setManagerVisible(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="camera" size={13} color="#FFFFFF" />
+              <Text style={styles.manageBadgeText}>
+                {isHindi ? 'फोटो बदलें' : 'Update'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
-        {/* BOTTOM DOTS PAGINATION */}
-        {photos.length > 1 && (
-          <View style={styles.dotsContainer}>
-            {photos.map((_, idx) => (
-              <TouchableOpacity
-                key={`dot-${idx}`}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setActiveIdx(idx);
-                }}
-                style={[
-                  styles.dot,
-                  activeIdx === idx && styles.dotActive,
-                ]}
-              />
-            ))}
+          {/* DOTS PAGINATION */}
+          {photos.length > 1 && (
+            <View style={styles.dotsContainer}>
+              {photos.map((_, idx) => (
+                <TouchableOpacity
+                  key={`dot-${idx}`}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setActiveIdx(idx);
+                  }}
+                  style={[
+                    styles.dot,
+                    activeIdx === idx && styles.dotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+        </TouchableOpacity>
+      ) : (
+        /* CLEAN EMPTY PROFILE STATE (NO RANDOM STOCK IMAGES) */
+        <TouchableOpacity
+          style={styles.emptyContainer}
+          activeOpacity={canManagePhotos ? 0.85 : 1}
+          onPress={() => canManagePhotos && setManagerVisible(true)}
+        >
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="business-outline" size={28} color={COLORS.primary} />
           </View>
-        )}
-      </TouchableOpacity>
+          <Text style={styles.emptyTitle}>
+            {isHindi ? 'ग्राम पंचायत प्रोफाइल' : 'Gram Panchayat Profile'}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {isHindi
+              ? canManagePhotos
+                ? 'पंचायत भवन की फोटो जोड़ने हेतु यहां टैप करें'
+                : 'पंचायत फोटो एडमिन द्वारा अपडेट की जाएगी'
+              : canManagePhotos
+              ? 'Tap to add Panchayat Bhavan photos'
+              : 'Panchayat photo will be updated by Admin'}
+          </Text>
+          {canManagePhotos && (
+            <View style={styles.emptyAddBtn}>
+              <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.emptyAddBtnText}>
+                {isHindi ? 'फोटो जोड़ें' : 'Add Photo'}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* FULL SCREEN PHOTO PREVIEW MODAL */}
-      <PhotoPreviewModal
-        visible={previewVisible}
-        imageUri={currentPhoto}
-        userName={isHindi ? `ग्राम पंचायत: ${villageName}` : `Gram Panchayat: ${villageName}`}
-        userRole={isHindi ? `फोटो ${activeIdx + 1} / ${photos.length}` : `Photo ${activeIdx + 1} of ${photos.length}`}
-        onClose={() => setPreviewVisible(false)}
-        isHindi={isHindi}
-      />
+      {currentPhoto && (
+        <PhotoPreviewModal
+          visible={previewVisible}
+          imageUri={currentPhoto}
+          userName={isHindi ? `ग्राम पंचायत: ${villageName}` : `Gram Panchayat: ${villageName}`}
+          userRole={isHindi ? `फोटो ${activeIdx + 1} / ${photos.length}` : `Photo ${activeIdx + 1} of ${photos.length}`}
+          onClose={() => setPreviewVisible(false)}
+          onChangePhoto={canManagePhotos ? () => setManagerVisible(true) : undefined}
+          isHindi={isHindi}
+        />
+      )}
 
       {/* PHOTO MANAGER & CROP/ROTATE MODAL */}
-      <PanchayatPhotoManagerModal
-        visible={managerVisible}
-        onClose={() => setManagerVisible(false)}
-        villageName={villageName}
-        photos={photos}
-        onPhotosUpdated={(updated) => {
-          setPhotos(updated);
-          setActiveIdx(0);
-        }}
-        isHindi={isHindi}
-      />
+      {canManagePhotos && (
+        <PanchayatPhotoManagerModal
+          visible={managerVisible}
+          onClose={() => setManagerVisible(false)}
+          villageName={villageName}
+          photos={photos}
+          onPhotosUpdated={(updated) => {
+            setPhotos(updated);
+            setActiveIdx(0);
+          }}
+          isHindi={isHindi}
+        />
+      )}
     </View>
   );
 }
@@ -181,7 +230,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   greetingTextWrap: {
     flex: 1,
@@ -230,95 +279,26 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#0F172A',
-    marginBottom: 8,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 4,
   },
   showcaseImage: {
     width: '100%',
     height: 145,
   },
-  imageOverlay: {
+  manageBadgeBtn: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.18)',
-    justifyContent: 'space-between',
-    padding: 8,
-  },
-  panchayatBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  panchayatBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  zoomHintBadge: {
-    alignSelf: 'flex-end',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  zoomHintText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-
-  /* FOOTER */
-  footerRow: {
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
-  tricolorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FF9933',
-  },
-  footerTagline: {
-    fontSize: 10.5,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  imageTopOverlay: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    right: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  editBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  editBadgeText: {
+  manageBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
@@ -326,23 +306,74 @@ const styles = StyleSheet.create({
   dotsContainer: {
     position: 'absolute',
     bottom: 8,
-    left: 0,
-    right: 0,
+    alignSelf: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
   dotActive: {
-    width: 18,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: COLORS.saffron,
+    backgroundColor: '#FFFFFF',
+    width: 14,
+    borderRadius: 4,
+  },
+
+  /* EMPTY PROFILE STATE */
+  emptyContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  emptyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 3,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FF9933',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+  },
+  emptyAddBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
+
+export default PanchayatShowcaseCard;

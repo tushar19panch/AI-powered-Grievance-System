@@ -147,16 +147,26 @@ export default function ReportScreen() {
       return uri;
     }
     try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      return await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.onerror = () => resolve(uri);
-        reader.readAsDataURL(blob);
-      });
+      if (Platform.OS === 'web') {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+          reader.onerror = () => resolve(uri);
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: 'base64',
+        });
+        if (base64) {
+          return `data:image/jpeg;base64,${base64}`;
+        }
+      }
+      return uri;
     } catch (e) {
       console.log('Error converting image to data URL:', e);
       return uri;
@@ -639,14 +649,26 @@ export default function ReportScreen() {
         isSavedOffline = true;
       }
 
-      if (backendId && audioUri) {
+      const newComplaintId = backendId || String(Date.now());
+      setComplaintId(newComplaintId);
+
+      if (image) {
         try {
-          await AsyncStorage.setItem(`complaint_audio_${backendId}`, audioUri);
+          await AsyncStorage.setItem(`complaint_photo_${newComplaintId}`, image);
+          if (backendId) {
+            await AsyncStorage.setItem(`complaint_photo_${backendId}`, image);
+          }
         } catch {}
       }
 
-      const newComplaintId = backendId || String(Date.now());
-      setComplaintId(newComplaintId);
+      if (audioUri) {
+        try {
+          await AsyncStorage.setItem(`complaint_audio_${newComplaintId}`, audioUri);
+          if (backendId) {
+            await AsyncStorage.setItem(`complaint_audio_${backendId}`, audioUri);
+          }
+        } catch {}
+      }
 
       // Set complete submitted details for the Pop-up Modal
       setSubmittedData({

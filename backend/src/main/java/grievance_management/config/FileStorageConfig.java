@@ -13,7 +13,9 @@ public class FileStorageConfig implements WebMvcConfigurer {
 
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(
-                        "file:uploads/"
+                        "file:uploads/",
+                        "file:./uploads/",
+                        "file:../uploads/"
                 );
     }
 }

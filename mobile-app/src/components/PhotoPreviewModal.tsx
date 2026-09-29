@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -10,9 +10,11 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, TYPOGRAPHY, RADIUS, SHADOWS } from '../theme';
+import { resolvePhotoUrl } from '../services/api';
 
 interface PhotoPreviewModalProps {
   visible: boolean;
@@ -36,12 +38,24 @@ export function PhotoPreviewModal({
   isHindi = true,
 }: PhotoPreviewModalProps) {
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  const resolvedUri = imageUri ? resolvePhotoUrl(imageUri) : null;
+
+  useEffect(() => {
+    if (visible) {
+      setZoomLevel(1);
+      setImageLoading(true);
+      setHasError(false);
+    }
+  }, [visible, imageUri]);
 
   if (!visible) return null;
 
   const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(prev + 0.5, 3));
+    setZoomLevel((prev) => Math.min(prev + 0.5, 3.5));
   };
 
   const handleZoomOut = () => {
@@ -60,9 +74,9 @@ export function PhotoPreviewModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor="#0B0F19" />
       <View style={styles.overlay}>
-        {/* TOP BAR */}
+        {/* TOP HEADER BAR */}
         <View style={styles.topBar}>
           <TouchableOpacity
             style={styles.closeButton}
@@ -80,7 +94,7 @@ export function PhotoPreviewModal({
               {userName}
             </Text>
             {userRole ? (
-              <Text style={styles.userRole}>
+              <Text style={styles.userRole} numberOfLines={1}>
                 {userRole}
               </Text>
             ) : null}
@@ -103,30 +117,47 @@ export function PhotoPreviewModal({
           )}
         </View>
 
-        {/* IMAGE CONTAINER WITH PINCH / SCROLL ZOOM */}
+        {/* IMAGE VIEW CONTAINER */}
         <View style={styles.imageWrapper}>
-          {imageUri ? (
+          {resolvedUri && !hasError ? (
             <View style={styles.zoomContainer}>
+              {imageLoading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#FF9933" />
+                  <Text style={styles.loadingText}>
+                    {isHindi ? 'फोटो लोड हो रही है...' : 'Loading photo...'}
+                  </Text>
+                </View>
+              )}
+
               <ScrollView
                 ref={scrollRef}
                 maximumZoomScale={4}
                 minimumZoomScale={1}
                 showsHorizontalScrollIndicator={false}
                 showsVerticalScrollIndicator={false}
-                centerContent={true}
                 contentContainerStyle={styles.scrollContent}
               >
                 <Image
-                  source={{ uri: imageUri }}
+                  source={{ uri: resolvedUri }}
                   style={[
                     styles.fullImage,
                     { transform: [{ scale: zoomLevel }] },
                   ]}
                   resizeMode="contain"
+                  onLoadStart={() => {
+                    setImageLoading(true);
+                    setHasError(false);
+                  }}
+                  onLoadEnd={() => setImageLoading(false)}
+                  onError={() => {
+                    setImageLoading(false);
+                    setHasError(true);
+                  }}
                 />
               </ScrollView>
 
-              {/* QUICK ZOOM CONTROLS */}
+              {/* FLOATING ZOOM CONTROLS */}
               <View style={styles.zoomControls}>
                 <TouchableOpacity
                   style={styles.zoomButton}
@@ -158,9 +189,18 @@ export function PhotoPreviewModal({
             </View>
           ) : (
             <View style={styles.placeholderContainer}>
-              <Ionicons name="person" size={100} color="#888888" />
-              <Text style={styles.placeholderText}>
-                {isHindi ? 'कोई प्रोफाइल फोटो उपलब्ध नहीं है' : 'No profile photo available'}
+              <View style={styles.placeholderIconCircle}>
+                <Ionicons name={hasError ? "alert-circle-outline" : "image-outline"} size={52} color="#FF9933" />
+              </View>
+              <Text style={styles.placeholderTitle}>
+                {hasError
+                  ? (isHindi ? 'फोटो लोड नहीं हो सकी' : 'Unable to load photo')
+                  : (isHindi ? 'कोई फोटो उपलब्ध नहीं है' : 'No photo available')}
+              </Text>
+              <Text style={styles.placeholderSub}>
+                {hasError
+                  ? (isHindi ? 'फ़ाइल प्रारूप या नेटवर्क में समस्या हो सकती है।' : 'The file format or network connection could not load the image.')
+                  : (isHindi ? 'इस रिकॉर्ड के साथ कोई फोटो संलग्न नहीं की गई है।' : 'No image was attached with this report.')}
               </Text>
             </View>
           )}
@@ -192,6 +232,7 @@ export function PhotoPreviewModal({
               }}
               activeOpacity={0.85}
             >
+              <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
               <Text style={styles.actionBtnText}>
                 {isHindi ? 'बंद करें' : 'Close'}
               </Text>
@@ -206,7 +247,7 @@ export function PhotoPreviewModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    backgroundColor: '#0B0F19',
     justifyContent: 'space-between',
   },
   topBar: {
@@ -216,6 +257,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 25,
     paddingBottom: 15,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   closeButton: {
     width: 42,
@@ -236,7 +280,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   userRole: {
-    color: '#CCCCCC',
+    color: '#94A3B8',
     fontSize: TYPOGRAPHY.xs,
     marginTop: 2,
   },
@@ -260,28 +304,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  loadingContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  loadingText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    marginTop: 10,
+    fontWeight: '600',
+  },
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: '100%',
+    minHeight: '100%',
   },
   fullImage: {
-    width: width * 0.92,
-    height: height * 0.58,
-    borderRadius: RADIUS.lg,
+    width: width * 0.94,
+    height: height * 0.65,
+    borderRadius: RADIUS.md,
   },
   zoomControls: {
     position: 'absolute',
     right: 16,
     bottom: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     borderRadius: 24,
-    padding: 4,
+    padding: 6,
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    ...SHADOWS.medium,
   },
   zoomButton: {
     width: 38,
@@ -302,24 +361,44 @@ const styles = StyleSheet.create({
   },
   zoomResetText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   placeholderContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 30,
+    maxWidth: 340,
   },
-  placeholderText: {
-    color: '#AAAAAA',
-    fontSize: TYPOGRAPHY.medium,
-    marginTop: 15,
+  placeholderIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 153, 51, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  placeholderTitle: {
+    color: '#FFFFFF',
+    fontSize: TYPOGRAPHY.large,
+    fontWeight: 'bold',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  placeholderSub: {
+    color: '#94A3B8',
+    fontSize: TYPOGRAPHY.small,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   bottomBar: {
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    paddingTop: 12,
+    paddingTop: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   actionBtn: {
     backgroundColor: '#FF9933',
