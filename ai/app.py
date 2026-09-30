@@ -271,7 +271,7 @@ def transcribe_and_analyze():
 
         # 2. Analyze transcribed text
         if transcribed_text.strip():
-            analysis = analyze_complaint(transcribed_text)
+            analysis = analyzer_module.analyze_complaint(transcribed_text)
         else:
             analysis = {
                 "category": "Other",

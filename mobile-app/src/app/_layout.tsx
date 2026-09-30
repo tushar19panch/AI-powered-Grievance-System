@@ -20,7 +20,13 @@ export default function RootLayout() {
           <Stack.Screen name="report" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="register" />
+          <Stack.Screen name="citizen-dashboard" />
           <Stack.Screen name="complaint-details" />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="help-line" />
+          <Stack.Screen name="audit-report" />
+          <Stack.Screen name="ward-scorecard" />
+          <Stack.Screen name="forgot-password" />
           <Stack.Screen name="explore" />
           <Stack.Screen name="admin" />
           <Stack.Screen name="admin-register" />

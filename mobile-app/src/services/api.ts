@@ -561,6 +561,35 @@ export const notificationApi = {
   },
 };
 
+export interface ChatMessageResult {
+  reply: string;
+  message?: string;
+  intent?: string;
+  language?: string;
+  requiresInput?: boolean;
+  nextMissingField?: string;
+  sessionContext?: Record<string, any>;
+  complaintData?: any;
+  aiAnalysis?: any;
+  quickReplies?: string[];
+}
+
+export const chatApi = {
+  sendMessage: async (payload: {
+    message: string;
+    language?: string;
+    sessionContext?: Record<string, any>;
+    activeIntent?: string;
+    conversationId?: string;
+  }): Promise<ChatMessageResult> => {
+    return await request<ChatMessageResult>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+
 
 
 

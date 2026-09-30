@@ -986,7 +986,7 @@ export default function ComplaintDetailsScreen() {
                 </Text>
               </View>
               <View style={styles.aiTagBadge}>
-                <Ionicons name="sparkles" size={11} color="#000080" />
+                <Ionicons name="shield-checkmark" size={11} color="#000080" />
                 <Text style={styles.aiTagText}>AI Audit</Text>
               </View>
             </View>

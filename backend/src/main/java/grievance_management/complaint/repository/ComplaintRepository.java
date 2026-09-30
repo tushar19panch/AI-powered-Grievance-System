@@ -20,4 +20,6 @@ public interface ComplaintRepository
     );
 
     List<Complaint> findByWardId(Long wardId);
+
+    List<Complaint> findTop5ByOrderByCreatedAtDesc();
 }

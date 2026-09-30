@@ -76,6 +76,41 @@ public class AiService {
         return fallback(description);
     }
 
+    public Map<String, Object> understandChatMessage(String message, String activeIntent) {
+        if (message == null || message.trim().isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        try {
+            String chatNluUrl = aiServiceUrl.replace("/analyze", "/chat-nlu");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("message", message.trim());
+            if (activeIntent != null) {
+                payload.put("active_intent", activeIntent);
+            }
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    chatNluUrl,
+                    requestEntity,
+                    Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return (Map<String, Object>) response.getBody();
+            }
+        } catch (Exception e) {
+            log.debug("AI Chat NLU service connection skipped: {}", e.getMessage());
+        }
+
+        return Collections.emptyMap();
+    }
+
     private AiAnalysisResult fallback(String text) {
         String lower = text != null ? text.toLowerCase().trim() : "";
 
