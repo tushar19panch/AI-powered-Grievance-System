@@ -76,6 +76,7 @@ public class AiService {
         return fallback(description);
     }
 
+<<<<<<< HEAD
     public Map<String, Object> understandChatMessage(String message, String activeIntent) {
         if (message == null || message.trim().isEmpty()) {
             return Collections.emptyMap();
@@ -101,13 +102,32 @@ public class AiService {
                     Map.class
             );
 
+=======
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> understandChatMessage(String message, String activeIntent) {
+        try {
+            String url = aiServiceUrl.replace("/analyze", "/chat/understand");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("message", message);
+            payload.put("active_intent", activeIntent);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+>>>>>>> a4476720e65a0033d5e414a4ffd28cad9b582e11
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 return (Map<String, Object>) response.getBody();
             }
         } catch (Exception e) {
+<<<<<<< HEAD
             log.debug("AI Chat NLU service connection skipped: {}", e.getMessage());
         }
 
+=======
+            log.debug("Python NLU service at [{}] not reachable: {}. Using native rule engine.", aiServiceUrl, e.getMessage());
+        }
+>>>>>>> a4476720e65a0033d5e414a4ffd28cad9b582e11
         return Collections.emptyMap();
     }
 

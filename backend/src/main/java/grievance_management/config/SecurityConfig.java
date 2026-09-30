@@ -84,7 +84,11 @@ public class SecurityConfig {
 
                                 // General Complaints (for browser testing / public feed)
                                 "/api/complaints",
-                                "/api/complaints/**"
+                                "/api/complaints/**",
+
+                                // Citizen Chatbot Assistant
+                                "/api/chat",
+                                "/api/chat/**"
                         ).permitAll()
 
                         // Notifications for all authenticated users

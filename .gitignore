@@ -38,8 +38,12 @@ Thumbs.db
 .env.local
 .env*.local
 
+<<<<<<< HEAD
 # Python
 **/__pycache__/
 *.py[cod]
 *$py.class
+=======
+__pycache__/
+>>>>>>> a4476720e65a0033d5e414a4ffd28cad9b582e11
 *.pyc
