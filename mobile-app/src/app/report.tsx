@@ -922,7 +922,7 @@ export default function ReportScreen() {
           </View>
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
-              {isHindi ? 'आवाज़ रिकॉर्ड करें (Voice to Text)' : 'Record Voice & Voice-to-Text'}
+              {isHindi ? 'आवाज़ रिकॉर्ड करें' : 'Record Voice'}
             </Text>
           </View>
         </View>
@@ -945,18 +945,20 @@ export default function ReportScreen() {
             <View style={styles.audioTextBlock}>
               <Text style={styles.audioTitle}>
                 {recorderState.isRecording
-                  ? isHindi ? '🎙️ रिकॉर्डिंग व स्पीच-टू-टेक्स्ट जारी...' : '🎙️ Recording & Transcribing...'
+                  ? isHindi ? '🎙️ रिकॉर्डिंग जारी है...' : '🎙️ Recording...'
                   : audioUri
                     ? isHindi ? 'ऑडियो रिकॉर्ड हो गया' : 'Audio Recorded'
                     : isHindi ? 'बोलकर समस्या बताएं' : 'Speak into Microphone'}
               </Text>
-              <Text style={styles.audioDuration}>
-                {recorderState.isRecording
-                  ? `${Math.floor(recorderState.durationMillis / 1000)}s`
-                  : audioUri
-                    ? isHindi ? 'ऑडियो व टेक्स्ट तैयार' : 'Audio & Text Ready'
-                    : isHindi ? 'AI स्वतः टेक्स्ट में बदलेगा' : 'Auto converts speech to text'}
-              </Text>
+              {recorderState.isRecording ? (
+                <Text style={styles.audioDuration}>
+                  {`${Math.floor(recorderState.durationMillis / 1000)}s`}
+                </Text>
+              ) : audioUri ? (
+                <Text style={styles.audioDuration}>
+                  {isHindi ? 'ऑडियो तैयार' : 'Audio Ready'}
+                </Text>
+              ) : null}
             </View>
 
             <TouchableOpacity
@@ -1032,7 +1034,7 @@ export default function ReportScreen() {
           </View>
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>
-              {isHindi ? 'समस्या का विवरण (AI इनपुट)' : 'Problem Description (AI Input)'}
+              {isHindi ? 'समस्या का विवरण' : 'Problem Description'}
             </Text>
           </View>
         </View>
@@ -1041,7 +1043,7 @@ export default function ReportScreen() {
           style={styles.descriptionInput}
           placeholder={
             isHindi
-              ? 'यहाँ समस्या का विवरण लिखें या माइक से बोलें (जैसे: 5 दिन से पानी की सप्लाई बंद है, सड़क पर गड्ढा है)...'
+              ? 'यहाँ समस्या का विवरण लिखें या बोलें (जैसे: 5 दिन से पानी की सप्लाई बंद है, सड़क पर गड्ढा है)...'
               : 'Describe the issue or dictate by voice (e.g. No water supply for 5 days, broken road)...'
           }
           placeholderTextColor={COLORS.textMuted}
@@ -1056,7 +1058,7 @@ export default function ReportScreen() {
         {detectedWard && detectedWard !== problemWard ? (
           <View style={styles.wardMismatchCard}>
             <View style={styles.mismatchLeft}>
-              <Ionicons name="sparkles" size={17} color={COLORS.saffron} />
+              <Ionicons name="location-outline" size={17} color={COLORS.saffron} />
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <Text style={styles.mismatchTitle}>
                   {isHindi
@@ -1184,7 +1186,7 @@ export default function ReportScreen() {
             <Text style={styles.locationCardSub} numberOfLines={1}>
               {location
                 ? location
-                : isHindi ? 'टैप करके सटीक लोकेशन दर्ज करें (वैकल्पिक)' : 'Tap to capture exact coordinates (Optional)'}
+                : isHindi ? 'टैप करके सटीक लोकेशन दर्ज करें' : 'Tap to capture exact coordinates'}
             </Text>
           </View>
 

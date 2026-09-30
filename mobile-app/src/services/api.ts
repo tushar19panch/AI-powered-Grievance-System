@@ -561,6 +561,29 @@ export const notificationApi = {
   },
 };
 
+<<<<<<< HEAD
+export interface ChatMessageResult {
+  reply: string;
+  message?: string;
+  intent?: string;
+  language?: string;
+  requiresInput?: boolean;
+  nextMissingField?: string;
+  sessionContext?: Record<string, any>;
+  complaintData?: any;
+  aiAnalysis?: any;
+  quickReplies?: string[];
+}
+
+export const chatApi = {
+  sendMessage: async (payload: {
+    message: string;
+    language?: string;
+    sessionContext?: Record<string, any>;
+    activeIntent?: string;
+    conversationId?: string;
+  }): Promise<ChatMessageResult> => {
+=======
 // -------------------------------------------------------------
 // Citizen Assistant (Gram Mitra) Chatbot APIs
 // -------------------------------------------------------------
@@ -598,6 +621,7 @@ export interface ChatMessageResult {
 
 export const chatApi = {
   sendMessage: async (payload: ChatMessagePayload): Promise<ChatMessageResult> => {
+>>>>>>> a4476720e65a0033d5e414a4ffd28cad9b582e11
     return await request<ChatMessageResult>('/api/chat', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -612,6 +636,10 @@ export const chatApi = {
   },
 };
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> a4476720e65a0033d5e414a4ffd28cad9b582e11
 
 
 

@@ -471,10 +471,16 @@ export function GramMitraModal({
             </View>
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.headerTitle}>ग्राम मित्र (Gram Mitra)</Text>
+                <Text style={styles.headerTitle}>{language === 'hi' ? 'AI ग्राम मित्र' : 'Gram Mitra AI'}</Text>
                 <View style={styles.onlineDot} />
               </View>
+<<<<<<< HEAD
               <Text style={styles.headerSubtitle}>AI Voice Assistant • 24/7 Active</Text>
+=======
+              <Text style={styles.headerSubtitle}>
+                {language === 'hi' ? 'नागरिक सेवा सहायक • 24x7 सक्रिय' : 'Citizen Grievance Assistant • 24/7 Active'}
+              </Text>
+>>>>>>> b1357157339cae8b45a8aec2160c382ace62a248
             </View>
           </View>
 
@@ -553,7 +559,7 @@ export function GramMitraModal({
               >
                 {item.sender === 'bot' && (
                   <View style={styles.smallBotAvatar}>
-                    <Ionicons name="sparkles" size={12} color={COLORS.white} />
+                    <Ionicons name="chatbubbles" size={12} color={COLORS.white} />
                   </View>
                 )}
 
@@ -701,7 +707,7 @@ export function GramMitraModal({
             {loading && (
               <View style={[styles.messageRow, styles.botRow]}>
                 <View style={styles.smallBotAvatar}>
-                  <Ionicons name="sparkles" size={12} color={COLORS.white} />
+                  <Ionicons name="chatbubbles" size={12} color={COLORS.white} />
                 </View>
                 <View style={[styles.bubble, styles.botBubble, { paddingVertical: 10 }]}>
                   <ActivityIndicator size="small" color={COLORS.primary} />
