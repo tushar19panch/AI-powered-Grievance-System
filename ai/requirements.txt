@@ -7,3 +7,4 @@ imagehash
 numpy
 scipy
 openai-whisper
+gunicorn

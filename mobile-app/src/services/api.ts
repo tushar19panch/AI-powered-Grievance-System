@@ -41,6 +41,9 @@ const TOKEN_STORAGE_KEY = '@village_jwt_token';
 const USER_STORAGE_KEY = '@village_user_session';
 
 export async function getApiBaseUrl(): Promise<string> {
+  if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim().length > 0) {
+    return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
+  }
   try {
     const saved = await AsyncStorage.getItem(API_STORAGE_KEY);
     return saved || DEFAULT_API_URL;
