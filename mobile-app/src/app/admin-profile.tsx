@@ -421,27 +421,31 @@ export default function AdminProfile() {
       }
 
       if (admin.role === 'secretary') {
-        await AsyncStorage.setItem(
-          'secretary',
-          JSON.stringify({
-            name: cleanName,
-            mobile: cleanMobile,
-            village: cleanVillage,
-            secretaryId: cleanId,
-            profileImage: admin.profileImage,
-          })
-        );
+        const secData = {
+          name: cleanName,
+          mobile: cleanMobile,
+          village: cleanVillage,
+          secretaryId: cleanId,
+          role: 'secretary',
+          profileImage: admin.profileImage,
+        };
+        await AsyncStorage.setItem('secretary', JSON.stringify(secData));
+        if (cleanVillage) {
+          await AsyncStorage.setItem(`secretary_sync_${cleanVillage}`, JSON.stringify(secData));
+        }
       } else {
-        await AsyncStorage.setItem(
-          'admin',
-          JSON.stringify({
-            name: cleanName,
-            mobile: cleanMobile,
-            village: cleanVillage,
-            adminId: cleanId,
-            profileImage: admin.profileImage,
-          })
-        );
+        const sarpanchData = {
+          name: cleanName,
+          mobile: cleanMobile,
+          village: cleanVillage,
+          adminId: cleanId,
+          role: 'sarpanch',
+          profileImage: admin.profileImage,
+        };
+        await AsyncStorage.setItem('admin', JSON.stringify(sarpanchData));
+        if (cleanVillage) {
+          await AsyncStorage.setItem(`sarpanch_sync_${cleanVillage}`, JSON.stringify(sarpanchData));
+        }
       }
 
       setEditing(false);

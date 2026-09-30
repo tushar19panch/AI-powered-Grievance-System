@@ -40,4 +40,13 @@ public class RegisterRequest {
 
     // Existing frontend uses secretaryId
     private String secretaryId;
+
+    // BDO & DM IDs
+    private String bdoId;
+
+    private String dmId;
+
+    private String district;
+
+    private String block;
 }

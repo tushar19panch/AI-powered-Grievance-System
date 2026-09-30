@@ -14,12 +14,27 @@ public interface ComplaintRepository
 
     List<Complaint> findByVillageId(Long villageId);
 
+    List<Complaint> findByVillageIdAndParentComplaintIdIsNull(Long villageId);
+
+    List<Complaint> findByVillageIdAndStatusAndParentComplaintIdIsNull(
+            Long villageId,
+            ComplaintStatus status
+    );
+
+    List<Complaint> findByParentComplaintIdIsNull();
+
+    List<Complaint> findByParentComplaintId(Long parentComplaintId);
+
     List<Complaint> findByVillageIdAndStatus(
             Long villageId,
             ComplaintStatus status
     );
 
     List<Complaint> findByWardId(Long wardId);
+
+    List<Complaint> findByEscalationLevel(Integer escalationLevel);
+
+    List<Complaint> findByEscalationLevelAndParentComplaintIdIsNull(Integer escalationLevel);
 
     List<Complaint> findTop5ByOrderByCreatedAtDesc();
 }

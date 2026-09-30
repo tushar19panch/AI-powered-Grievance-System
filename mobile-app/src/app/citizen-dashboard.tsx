@@ -417,18 +417,18 @@ export default function CitizenDashboard() {
               </Text>
             </TouchableOpacity>
 
-            {/* REJECTED / INVALID */}
+            {/* PENDING */}
             <TouchableOpacity
               style={styles.serviceActionCard}
-              onPress={() => openComplaints('rejected')}
+              onPress={() => openComplaints('pending')}
               activeOpacity={0.82}
             >
               <View style={[styles.statIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+                <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
               </View>
-              <Text style={styles.statNumber}>{rejectedComplaints}</Text>
+              <Text style={styles.statNumber}>{pendingComplaints}</Text>
               <Text style={styles.statLabel} numberOfLines={1}>
-                {isHindi ? 'अस्वीकृत' : 'Rejected'}
+                {isHindi ? 'लंबित' : 'Pending'}
               </Text>
             </TouchableOpacity>
 

@@ -281,10 +281,13 @@ export default function SecretaryScreen() {
     router.push('/admin-profile');
   };
 
-  const openComplaints = (filter?: string) => {
+  const openComplaints = (filter?: string, priority?: string) => {
     router.push({
       pathname: '/(tabs)/complaints',
-      params: filter ? { filter } : {},
+      params: {
+        ...(filter ? { filter } : {}),
+        ...(priority ? { priority } : {}),
+      },
     });
   };
 
@@ -486,82 +489,7 @@ export default function SecretaryScreen() {
         )}
 
         {/* =================================================
-            COMPLAINT OVERVIEW / STATS (4 STAT CARDS)
-        ================================================= */}
-        <View style={styles.sectionHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle} numberOfLines={1}>
-              {isHindi ? 'शिकायतों का अवलोकन' : 'Complaint Overview'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.problemCard}>
-          <View style={styles.categoryGrid}>
-            {/* TOTAL */}
-            <TouchableOpacity
-              style={styles.categoryCard}
-              onPress={() => openComplaints('all')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.categoryIcon, { backgroundColor: COLORS.primaryLight }]}>
-                <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
-              </View>
-              <Text style={styles.countText}>{total}</Text>
-              <Text style={styles.categoryText} numberOfLines={1}>
-                {isHindi ? 'कुल शिकायतें' : 'Total Grievances'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* PENDING */}
-            <TouchableOpacity
-              style={styles.categoryCard}
-              onPress={() => openComplaints('pending')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.categoryIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
-              </View>
-              <Text style={styles.countText}>{pending}</Text>
-              <Text style={styles.categoryText} numberOfLines={1}>
-                {isHindi ? 'लंबित' : 'Pending'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* IN PROGRESS */}
-            <TouchableOpacity
-              style={styles.categoryCard}
-              onPress={() => openComplaints('in-progress')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.categoryIcon, { backgroundColor: COLORS.warningLight }]}>
-                <Ionicons name="time-outline" size={18} color={COLORS.warning} />
-              </View>
-              <Text style={styles.countText}>{inProgress}</Text>
-              <Text style={styles.categoryText} numberOfLines={1}>
-                {isHindi ? 'प्रगति में' : 'In Progress'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* RESOLVED */}
-            <TouchableOpacity
-              style={styles.categoryCard}
-              onPress={() => openComplaints('resolved')}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.categoryIcon, { backgroundColor: COLORS.successLight }]}>
-                <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.success} />
-              </View>
-              <Text style={styles.countText}>{resolved}</Text>
-              <Text style={styles.categoryText} numberOfLines={1}>
-                {isHindi ? 'निस्तारित' : 'Resolved'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* =================================================
-            COMPLAINT BREAKDOWNS (PRIORITY & CLASSIFICATION)
+            COMPLAINT OVERVIEW & NESTED PRIORITY BREAKDOWN
         ================================================= */}
         <ComplaintOverviewSection
           complaints={complaints}

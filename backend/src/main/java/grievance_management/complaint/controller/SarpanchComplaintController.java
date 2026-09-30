@@ -142,37 +142,16 @@ public class SarpanchComplaintController {
         }
 
         // -----------------------------------------------------
-        // Update status
+        // Update status with cascade to child complaints
         // -----------------------------------------------------
-
-        complaint.setStatus(newStatus);
 
         Complaint updatedComplaint =
-                complaintService.saveComplaint(complaint);
-
-        // -----------------------------------------------------
-        // Save status history
-        // -----------------------------------------------------
-
-        StatusHistory history =
-                StatusHistory.builder()
-                        .complaint(updatedComplaint)
-                        .changedBy(sarpanch)
-                        .oldStatus(oldStatus)
-                        .newStatus(newStatus)
-                        .remarks(request.getRemarks())
-                        .build();
-
-        statusHistoryRepository.save(history);
-
-        // -----------------------------------------------------
-        // Notify citizen
-        // -----------------------------------------------------
-
-        notificationService.createStatusNotification(
-                updatedComplaint,
-                newStatus
-        );
+                complaintService.updateComplaintStatusWithCascade(
+                        complaint,
+                        newStatus,
+                        sarpanch,
+                        request.getRemarks()
+                );
 
         return ResponseEntity.ok(
                 complaintService.convertToResponse(

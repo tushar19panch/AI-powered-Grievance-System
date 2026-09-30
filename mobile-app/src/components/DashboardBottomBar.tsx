@@ -12,7 +12,7 @@ import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
 interface DashboardBottomBarProps {
   activeTab?: 'home' | 'notices' | 'profile';
-  role?: 'citizen' | 'sarpanch' | 'secretary' | 'admin';
+  role?: 'citizen' | 'sarpanch' | 'secretary' | 'admin' | 'bdo' | 'dm';
   isHindi?: boolean;
 }
 
@@ -25,7 +25,11 @@ export function DashboardBottomBar({
 
   const openHome = () => {
     if (activeTab === 'home') return;
-    if (role === 'sarpanch' || role === 'admin') {
+    if (role === 'bdo') {
+      router.replace('/bdo-dashboard' as any);
+    } else if (role === 'dm') {
+      router.replace('/dm-dashboard' as any);
+    } else if (role === 'sarpanch' || role === 'admin') {
       router.replace('/admin');
     } else if (role === 'secretary') {
       router.replace('/secretary');

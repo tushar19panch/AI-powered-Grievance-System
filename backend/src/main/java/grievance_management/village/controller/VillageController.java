@@ -76,23 +76,30 @@ public class VillageController {
 
         if (villageName != null && !villageName.isBlank()) {
             Optional<Village> vOpt = villageRepository.findByNameIgnoreCase(villageName.trim());
-            if (vOpt.isPresent()) {
-                Village v = vOpt.get();
-                v.setPhotoUrl(photoUrl);
-                villageRepository.save(v);
-                response.put("message", "Village photo updated successfully");
-                response.put("photoUrl", photoUrl != null ? photoUrl : "");
-                return ResponseEntity.ok(response);
-            }
+            Village v = vOpt.orElseGet(() -> {
+                Village newV = new Village();
+                newV.setName(villageName.trim());
+                return newV;
+            });
+            v.setPhotoUrl(photoUrl);
+            villageRepository.save(v);
+            response.put("message", "Village photo updated successfully");
+            response.put("photoUrl", photoUrl != null ? photoUrl : "");
+            return ResponseEntity.ok(response);
         }
 
-        // If village not found or not specified, update all existing villages
+        // If village not specified, update all existing villages or create default
         List<Village> villages = villageRepository.findAll();
         if (!villages.isEmpty()) {
             for (Village v : villages) {
                 v.setPhotoUrl(photoUrl);
                 villageRepository.save(v);
             }
+        } else {
+            Village defV = new Village();
+            defV.setName("Gram Panchayat");
+            defV.setPhotoUrl(photoUrl);
+            villageRepository.save(defV);
         }
 
         response.put("message", "Village photo updated successfully");

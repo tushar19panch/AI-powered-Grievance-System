@@ -58,6 +58,17 @@ public class Complaint {
     // If duplicate, reference ID of original complaint
     private String duplicateOfId;
 
+    // Parent Complaint ID if this ticket is merged into a primary issue
+    private Long parentComplaintId;
+
+    // Number of citizens who reported or supported this same issue (Default: 1)
+    @Builder.Default
+    private Integer supportCount = 1;
+
+    // True if this complaint was merged into a parent issue
+    @Builder.Default
+    private Boolean isMerged = false;
+
     private Double latitude;
 
     private Double longitude;
@@ -88,6 +99,21 @@ public class Complaint {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    // 3-Tier Multi-Level Governance Escalation
+    // Level 1: Gram Panchayat (Sarpanch / Secretary)
+    // Level 2: Block Development Office (BDO / Taluka)
+    // Level 3: District Administration (DM / Zilla Parishad)
+    @Builder.Default
+    private Integer escalationLevel = 1;
+
+    @Builder.Default
+    private String currentAuthority = "SARPANCH";
+
+    private LocalDateTime escalatedAt;
+
+    @Column(length = 1000)
+    private String escalationReason;
 
     @PrePersist
     protected void onCreate() {

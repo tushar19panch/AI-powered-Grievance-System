@@ -27,7 +27,7 @@ import {
   SHADOWS,
 } from '../theme';
 
-type UserRole = 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
+type UserRole = 'CITIZEN' | 'SARPANCH' | 'SECRETARY' | 'BLOCK_OFFICER' | 'DISTRICT_OFFICER';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -62,6 +62,10 @@ export default function LoginScreen() {
       router.replace('/admin');
     } else if (r === 'secretary') {
       router.replace('/secretary');
+    } else if (r === 'block_officer' || r === 'bdo') {
+      router.replace('/bdo-dashboard' as any);
+    } else if (r === 'district_officer' || r === 'dm') {
+      router.replace('/dm-dashboard' as any);
     }
   };
 
@@ -186,11 +190,37 @@ export default function LoginScreen() {
           }
         }
 
+        const savedBdo = await AsyncStorage.getItem('bdo');
+        if (!loginData && savedBdo) {
+          const b = JSON.parse(savedBdo);
+          const idMatches =
+            String(b.bdoId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(b.officialId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(b.mobile || '').trim() === cleanIdentifier;
+          if (idMatches && b.password === password) {
+            loginData = { name: b.name, mobileNumber: cleanIdentifier, role: 'BLOCK_OFFICER' as const };
+          }
+        }
+
+        const savedDm = await AsyncStorage.getItem('dm');
+        if (!loginData && savedDm) {
+          const d = JSON.parse(savedDm);
+          const idMatches =
+            String(d.dmId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(d.officialId || '').trim().toLowerCase() === cleanIdentifier.toLowerCase() ||
+            String(d.mobile || '').trim() === cleanIdentifier;
+          if (idMatches && d.password === password) {
+            loginData = { name: d.name, mobileNumber: cleanIdentifier, role: 'DISTRICT_OFFICER' as const };
+          }
+        }
+
         if (!loginData) {
           throw new Error(apiErr?.message || 'Login failed. Invalid ID/Mobile number or password.');
         }
       }
 
+      // -------------------------------------------------------------
+      // STRICT ROLE TAB VALIDATION
       // -------------------------------------------------------------
       // STRICT ROLE TAB VALIDATION
       // -------------------------------------------------------------
@@ -203,18 +233,28 @@ export default function LoginScreen() {
       const isActualSecretary = actualRole === 'SECRETARY';
       const isRequestedSecretary = requestedRole === 'SECRETARY';
 
-      const isActualCitizen = actualRole === 'CITIZEN' || (!isActualAdmin && !isActualSecretary);
+      const isActualBdo = actualRole === 'BLOCK_OFFICER';
+      const isRequestedBdo = requestedRole === 'BLOCK_OFFICER';
+
+      const isActualDm = actualRole === 'DISTRICT_OFFICER';
+      const isRequestedDm = requestedRole === 'DISTRICT_OFFICER';
+
+      const isActualCitizen = actualRole === 'CITIZEN' || (!isActualAdmin && !isActualSecretary && !isActualBdo && !isActualDm);
       const isRequestedCitizen = requestedRole === 'CITIZEN';
 
       if (isRequestedCitizen && !isActualCitizen) {
         const targetRole = isActualAdmin
           ? (isHindi ? 'ग्राम प्रधान / सरपंच' : 'Sarpanch / Admin')
-          : (isHindi ? 'ग्राम सचिव' : 'Secretary');
+          : isActualSecretary
+          ? (isHindi ? 'ग्राम सचिव' : 'Secretary')
+          : isActualBdo
+          ? (isHindi ? 'प्रखंड विकास अधिकारी (BDO)' : 'BDO')
+          : (isHindi ? 'जिलाधिकारी (DM)' : 'DM');
         showAlert(
           isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
           isHindi
-            ? `यह खाता ${targetRole} का है। कृपया ऊपर '${targetRole}' टैब चुनकर लॉगिन करें।`
-            : `This account is registered as ${targetRole}. Please tap the '${targetRole}' tab above to login.`
+            ? `यह खाता ${targetRole} का है। कृपया सही टैब चुनकर लॉगिन करें।`
+            : `This account is registered as ${targetRole}. Please select the correct tab to login.`
         );
         return;
       }
@@ -222,9 +262,7 @@ export default function LoginScreen() {
       if (isRequestedAdmin && !isActualAdmin) {
         showAlert(
           isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
-          isHindi
-            ? `यह खाता नागरिक का है। कृपया ऊपर 'नागरिक' टैब चुनकर लॉगिन करें।`
-            : `This account is a Citizen account. Please tap the 'Citizen' tab above to login.`
+          isHindi ? 'यह खाता सरपंच का नहीं है।' : 'This account is not a Sarpanch account.'
         );
         return;
       }
@@ -232,16 +270,38 @@ export default function LoginScreen() {
       if (isRequestedSecretary && !isActualSecretary) {
         showAlert(
           isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
-          isHindi
-            ? `यह खाता ग्राम सचिव का नहीं है। कृपया सही टैब चुनकर लॉगिन करें।`
-            : `This account does not have Secretary permissions. Please select the correct tab.`
+          isHindi ? 'यह खाता ग्राम सचिव का नहीं है।' : 'This account does not have Secretary permissions.'
+        );
+        return;
+      }
+
+      if (isRequestedBdo && !isActualBdo) {
+        showAlert(
+          isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
+          isHindi ? 'यह खाता प्रखंड विकास अधिकारी (BDO) का नहीं है।' : 'This account is not a BDO account.'
+        );
+        return;
+      }
+
+      if (isRequestedDm && !isActualDm) {
+        showAlert(
+          isHindi ? 'भूमिका चयन त्रुटि' : 'Incorrect Role Selected',
+          isHindi ? 'यह खाता जिलाधिकारी (DM) का नहीं है।' : 'This account is not a District Officer (DM) account.'
         );
         return;
       }
 
       // Determine role from backend response or current selection
       const userRole = (loginData?.role || selectedRole).toUpperCase();
-      const roleStr = userRole === 'SARPANCH' ? 'sarpanch' : userRole === 'SECRETARY' ? 'secretary' : 'citizen';
+      const roleStr = userRole === 'SARPANCH'
+        ? 'sarpanch'
+        : userRole === 'SECRETARY'
+        ? 'secretary'
+        : userRole === 'BLOCK_OFFICER'
+        ? 'bdo'
+        : userRole === 'DISTRICT_OFFICER'
+        ? 'dm'
+        : 'citizen';
 
       const userMobileOrId = loginData?.mobileNumber || cleanIdentifier;
 
@@ -288,6 +348,29 @@ export default function LoginScreen() {
           })
         );
         router.replace('/secretary');
+      } else if (userRole === 'BLOCK_OFFICER') {
+        await AsyncStorage.setItem(
+          'bdo',
+          JSON.stringify({
+            name: loginData?.name || '',
+            mobile: userMobileOrId,
+            bdoId: cleanIdentifier,
+            district: loginData?.district || '',
+            block: loginData?.block || '',
+          })
+        );
+        router.replace('/bdo-dashboard' as any);
+      } else if (userRole === 'DISTRICT_OFFICER') {
+        await AsyncStorage.setItem(
+          'dm',
+          JSON.stringify({
+            name: loginData?.name || '',
+            mobile: userMobileOrId,
+            dmId: cleanIdentifier,
+            district: loginData?.district || '',
+          })
+        );
+        router.replace('/dm-dashboard' as any);
       } else {
         await AsyncStorage.setItem(
           'citizen',
@@ -317,6 +400,10 @@ export default function LoginScreen() {
       router.push('/admin-register');
     } else if (selectedRole === 'SECRETARY') {
       router.push('/secretary-register');
+    } else if (selectedRole === 'BLOCK_OFFICER') {
+      router.push('/bdo-register' as any);
+    } else if (selectedRole === 'DISTRICT_OFFICER') {
+      router.push('/dm-register' as any);
     } else {
       router.push('/register');
     }
@@ -328,6 +415,10 @@ export default function LoginScreen() {
         return isHindi ? 'सरपंच / एडमिन' : 'SARPANCH / ADMIN';
       case 'SECRETARY':
         return isHindi ? 'ग्राम सचिव' : 'GRAM SECRETARY';
+      case 'BLOCK_OFFICER':
+        return isHindi ? 'प्रखंड विकास अधिकारी (BDO)' : 'BLOCK OFFICER (BDO)';
+      case 'DISTRICT_OFFICER':
+        return isHindi ? 'जिलाधिकारी (DM / कलेक्टर)' : 'DISTRICT MAGISTRATE (DM)';
       default:
         return isHindi ? 'नागरिक' : 'CITIZEN';
     }
@@ -339,6 +430,10 @@ export default function LoginScreen() {
         return 'ribbon-outline';
       case 'SECRETARY':
         return 'briefcase-outline';
+      case 'BLOCK_OFFICER':
+        return 'business-outline';
+      case 'DISTRICT_OFFICER':
+        return 'shield-checkmark-outline';
       default:
         return 'person-outline';
     }
@@ -406,8 +501,13 @@ export default function LoginScreen() {
               <View style={styles.onlineDot} />
             </View>
 
-            {/* ROLE SELECTOR PILLS */}
-            <View style={styles.roleTabsContainer}>
+            {/* ROLE SELECTOR PILLS (ALL 5 TIERS & ROLES) */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.roleTabsContainer}
+              style={{ maxHeight: 48, marginBottom: SPACING.md }}
+            >
               <TouchableOpacity
                 style={[
                   styles.roleTab,
@@ -476,7 +576,53 @@ export default function LoginScreen() {
                   {isHindi ? 'सचिव' : 'Secretary'}
                 </Text>
               </TouchableOpacity>
-            </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.roleTab,
+                  selectedRole === 'BLOCK_OFFICER' && styles.activeRoleTab,
+                ]}
+                onPress={() => setSelectedRole('BLOCK_OFFICER')}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="business"
+                  size={14}
+                  color={selectedRole === 'BLOCK_OFFICER' ? COLORS.textWhite : COLORS.navy}
+                />
+                <Text
+                  style={[
+                    styles.roleTabText,
+                    selectedRole === 'BLOCK_OFFICER' && styles.activeRoleTabText,
+                  ]}
+                >
+                  {isHindi ? 'BDO (प्रखंड)' : 'BDO (Block)'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.roleTab,
+                  selectedRole === 'DISTRICT_OFFICER' && styles.activeRoleTab,
+                ]}
+                onPress={() => setSelectedRole('DISTRICT_OFFICER')}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="shield-checkmark"
+                  size={14}
+                  color={selectedRole === 'DISTRICT_OFFICER' ? COLORS.textWhite : COLORS.navy}
+                />
+                <Text
+                  style={[
+                    styles.roleTabText,
+                    selectedRole === 'DISTRICT_OFFICER' && styles.activeRoleTabText,
+                  ]}
+                >
+                  {isHindi ? 'DM (जिला)' : 'DM (District)'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
 
             <View style={styles.roleBadge}>
               <Ionicons
@@ -522,13 +668,17 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* IDENTIFIER: MOBILE NUMBER (CITIZEN) OR OFFICIAL ID / MOBILE (SARPANCH/SECRETARY) */}
+            {/* IDENTIFIER */}
             <Text style={styles.label}>
               {selectedRole === 'CITIZEN'
                 ? (isHindi ? 'मोबाइल नंबर' : 'Mobile Number')
                 : selectedRole === 'SARPANCH'
                   ? (isHindi ? 'सरपंच आईडी या मोबाइल नंबर' : 'Sarpanch ID or Mobile Number')
-                  : (isHindi ? 'ग्राम सचिव आईडी या मोबाइल नंबर' : 'Secretary ID or Mobile Number')}
+                  : selectedRole === 'SECRETARY'
+                    ? (isHindi ? 'ग्राम सचिव आईडी या मोबाइल नंबर' : 'Secretary ID or Mobile Number')
+                    : selectedRole === 'BLOCK_OFFICER'
+                      ? (isHindi ? 'BDO आईडी या मोबाइल नंबर' : 'BDO ID or Mobile Number')
+                      : (isHindi ? 'DM आईडी या मोबाइल नंबर' : 'DM ID or Mobile Number')}
             </Text>
 
             <View style={styles.inputContainer}>
@@ -539,7 +689,11 @@ export default function LoginScreen() {
                       ? 'call-outline'
                       : selectedRole === 'SARPANCH'
                         ? 'ribbon-outline'
-                        : 'briefcase-outline'
+                        : selectedRole === 'SECRETARY'
+                          ? 'briefcase-outline'
+                          : selectedRole === 'BLOCK_OFFICER'
+                            ? 'business-outline'
+                            : 'shield-checkmark-outline'
                   }
                   size={20}
                   color={COLORS.navy}
@@ -552,8 +706,12 @@ export default function LoginScreen() {
                   selectedRole === 'CITIZEN'
                     ? (isHindi ? '10 अंकों का मोबाइल नंबर' : '10-digit mobile number')
                     : selectedRole === 'SARPANCH'
-                      ? (isHindi ? 'सरपंच आईडी (उदा. SAR101) या मोबाइल' : 'Sarpanch ID or Mobile Number')
-                      : (isHindi ? 'सचिव आईडी (उदा. SEC201) या मोबाइल' : 'Secretary ID or Mobile Number')
+                      ? (isHindi ? 'सरपंच आईडी (उदा. SAR-001) या मोबाइल' : 'Sarpanch ID or Mobile Number')
+                      : selectedRole === 'SECRETARY'
+                        ? (isHindi ? 'सचिव आईडी (उदा. SEC-001) या मोबाइल' : 'Secretary ID or Mobile Number')
+                        : selectedRole === 'BLOCK_OFFICER'
+                          ? (isHindi ? 'BDO आईडी (उदा. BDO-001) या मोबाइल' : 'BDO ID (e.g. BDO-001) or Mobile')
+                          : (isHindi ? 'DM आईडी (उदा. DM-001) या मोबाइल' : 'DM ID (e.g. DM-001) or Mobile')
                 }
                 placeholderTextColor={COLORS.textMuted}
                 value={mobile}

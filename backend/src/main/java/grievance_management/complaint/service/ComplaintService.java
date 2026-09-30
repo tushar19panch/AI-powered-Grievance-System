@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -160,6 +162,85 @@ public class ComplaintService {
         String duplicateOfId = aiResult.getDuplicate_of_id();
 
         // ---------------------------------------------------------
+        // Immediate Rejection for Fake / Invalid / Mismatched Photos
+        // ---------------------------------------------------------
+        if ("FAKE".equalsIgnoreCase(classification)) {
+            String msg = classificationReason != null && !classificationReason.isBlank()
+                    ? classificationReason
+                    : "अमान्य फोटो: अपलोड की गई फोटो खाली, काली या अमान्य है। कृपया समस्या स्थल की स्पष्ट फोटो लगाएं।";
+            throw new RuntimeException("INVALID_IMAGE: " + msg);
+        }
+        if ("MISMATCH_SUSPICIOUS".equalsIgnoreCase(classification)) {
+            String msg = classificationReason != null && !classificationReason.isBlank()
+                    ? classificationReason
+                    : "अमान्य फोटो: समस्या स्थल के स्थान पर सेल्फी, स्क्रीनशॉट या असंबंधित फोटो नहीं लगाई जा सकती। कृपया वास्तविक समस्या की फोटो अपलोड करें।";
+            throw new RuntimeException("INVALID_IMAGE: " + msg);
+        }
+
+        Long parentComplaintId = null;
+        boolean isMerged = false;
+
+        // ---------------------------------------------------------
+        // Intelligent Duplicate Linking & Priority Escalation
+        // ---------------------------------------------------------
+        if (duplicateOfId != null && !duplicateOfId.isBlank()) {
+            try {
+                Long parentId = Long.parseLong(duplicateOfId.trim());
+                Optional<Complaint> parentOpt = complaintRepository.findById(parentId);
+                if (parentOpt.isPresent()) {
+                    Complaint parent = parentOpt.get();
+                    // Link to ultimate parent if parent was also merged
+                    if (parent.getParentComplaintId() != null) {
+                        parentId = parent.getParentComplaintId();
+                        parent = complaintRepository.findById(parentId).orElse(parent);
+                    }
+                    parentComplaintId = parentId;
+                    isMerged = true;
+
+                    // Increment support count on parent ticket
+                    int currentSupport = parent.getSupportCount() != null ? parent.getSupportCount() : 1;
+                    parent.setSupportCount(currentSupport + 1);
+
+                    // Automatic Priority Escalation based on citizen support
+                    if (parent.getSupportCount() >= 5) {
+                        parent.setPriority("CRITICAL");
+                    } else if (parent.getSupportCount() >= 3 && !"CRITICAL".equalsIgnoreCase(parent.getPriority())) {
+                        parent.setPriority("HIGH");
+                    }
+
+                    complaintRepository.save(parent);
+
+                    // Add history log on parent ticket
+                    StatusHistory parentUpdateHistory = StatusHistory.builder()
+                            .complaint(parent)
+                            .changedBy(citizen)
+                            .oldStatus(parent.getStatus())
+                            .newStatus(parent.getStatus())
+                            .remarks("Issue supported by citizen " + citizen.getName() + " (Total supporters: " + parent.getSupportCount() + ")")
+                            .build();
+                    statusHistoryRepository.save(parentUpdateHistory);
+
+                    // Notify Sarpanch of heightened priority/support
+                    try {
+                        List<User> officials = userRepository.findAll().stream()
+                                .filter(u -> (u.getRole() == Role.SARPANCH || u.getRole() == Role.SECRETARY)
+                                        && (u.getVillage() == null || citizen.getVillage() == null ||
+                                        u.getVillage().getId().equals(citizen.getVillage().getId())))
+                                .toList();
+                        String supportMsg = "🚨 High Priority Alert: Issue #" + parent.getId() + " (" + parent.getProblemType() + ") has now been reported by " + parent.getSupportCount() + " citizens in " + (parent.getWard() != null ? "Ward " + parent.getWard().getWardNumber() : "Village") + ".";
+                        for (User official : officials) {
+                            notificationService.createNotification(official, supportMsg, parent.getId());
+                        }
+                    } catch (Exception e) {
+                        log.warn("Could not notify officials of escalated support: {}", e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error resolving parent complaint for duplicate {}: {}", duplicateOfId, e.getMessage());
+            }
+        }
+
+        // ---------------------------------------------------------
         // Create complaint
         // ---------------------------------------------------------
 
@@ -173,7 +254,22 @@ public class ComplaintService {
                 .classificationReason(classificationReason)
                 .imageHash(imageHash)
                 .duplicateOfId(duplicateOfId)
-                .deadline(request.getDeadline())
+                .parentComplaintId(parentComplaintId)
+                .isMerged(isMerged)
+                .supportCount(1)
+                .deadline(
+                        request.getDeadline() != null
+                                ? request.getDeadline()
+                                : ("CRITICAL".equalsIgnoreCase(priority) || "VERY_HIGH".equalsIgnoreCase(priority)
+                                        ? LocalDate.now().plusDays(1) // 24 Hours Emergency
+                                        : "HIGH".equalsIgnoreCase(priority)
+                                                ? LocalDate.now().plusDays(2) // 48 Hours
+                                                : "MEDIUM".equalsIgnoreCase(priority)
+                                                        ? LocalDate.now().plusDays(4) // 4 Days
+                                                        : LocalDate.now().plusDays(7)) // 7 Days Low
+                )
+                .escalationLevel(1)
+                .currentAuthority("SARPANCH")
                 .photo(photoData)
                 .audioUrl(
                         request.getAudioUrl() != null
@@ -197,30 +293,37 @@ public class ComplaintService {
         // Create initial status history
         // ---------------------------------------------------------
 
+        String initialRemarks = isMerged
+                ? "Complaint submitted and automatically merged with primary issue #" + parentComplaintId
+                : "Complaint submitted by citizen";
+
         StatusHistory history = StatusHistory.builder()
                 .complaint(savedComplaint)
                 .changedBy(citizen)
                 .oldStatus(ComplaintStatus.SUBMITTED)
                 .newStatus(ComplaintStatus.SUBMITTED)
-                .remarks("Complaint submitted by citizen")
+                .remarks(initialRemarks)
                 .build();
 
         statusHistoryRepository.save(history);
 
         // ---------------------------------------------------------
-        // Notify Sarpanch and Secretary of the village
+        // Notify Sarpanch and Secretary if not a duplicate merge
+        // (If merged, Sarpanch already received the consolidated escalation alert)
         // ---------------------------------------------------------
-        try {
-            List<User> officials = userRepository.findAll().stream()
-                    .filter(u -> (u.getRole() == grievance_management.user.entity.Role.SARPANCH ||
-                            u.getRole() == grievance_management.user.entity.Role.SECRETARY)
-                            && (u.getVillage() == null || citizen.getVillage() == null ||
-                            u.getVillage().getId().equals(citizen.getVillage().getId())))
-                    .toList();
+        if (!isMerged) {
+            try {
+                List<User> officials = userRepository.findAll().stream()
+                        .filter(u -> (u.getRole() == grievance_management.user.entity.Role.SARPANCH ||
+                                u.getRole() == grievance_management.user.entity.Role.SECRETARY)
+                                && (u.getVillage() == null || citizen.getVillage() == null ||
+                                u.getVillage().getId().equals(citizen.getVillage().getId())))
+                        .toList();
 
-            notificationService.notifyOfficialsOnNewComplaint(savedComplaint, officials);
-        } catch (Exception e) {
-            System.err.println("Failed to send official notifications: " + e.getMessage());
+                notificationService.notifyOfficialsOnNewComplaint(savedComplaint, officials);
+            } catch (Exception e) {
+                System.err.println("Failed to send official notifications: " + e.getMessage());
+            }
         }
 
         return convertToResponse(savedComplaint);
@@ -296,35 +399,94 @@ public class ComplaintService {
                         new RuntimeException("Complaint not found"));
     }
 
+    public ComplaintResponse getComplaintById(Long complaintId) {
+        Complaint c = getComplaint(complaintId);
+        return convertToResponse(c);
+    }
+
     // =========================================================
-    // SARPANCH - GET ALL COMPLAINTS OF VILLAGE
+    // SARPANCH - GET ALL CONSOLIDATED COMPLAINTS OF VILLAGE
+    // Duplicates are filtered out (merged into parent)
     // =========================================================
 
     public List<ComplaintResponse> getComplaintsByVillage(
             Long villageId) {
 
         return complaintRepository
-                .findByVillageId(villageId)
+                .findByVillageIdAndParentComplaintIdIsNull(villageId)
                 .stream()
                 .map(this::convertToResponse)
                 .toList();
     }
 
     // =========================================================
-    // SUPER ADMIN / DISTRICT OFFICER - GET ALL COMPLAINTS
+    // SUPER ADMIN / DISTRICT OFFICER - GET ALL PRIMARY COMPLAINTS
     // =========================================================
 
     public List<ComplaintResponse> getAllComplaints() {
         return complaintRepository
-                .findAll()
+                .findByParentComplaintIdIsNull()
                 .stream()
                 .map(this::convertToResponse)
                 .toList();
     }
 
     // =========================================================
-    // SARPANCH - SAVE UPDATED COMPLAINT
+    // SARPANCH - SAVE UPDATED COMPLAINT & CASCADE TO MERGED TICKETS
     // =========================================================
+
+    public Complaint updateComplaintStatusWithCascade(
+            Complaint complaint,
+            ComplaintStatus newStatus,
+            User updatedBy,
+            String remarks) {
+
+        ComplaintStatus oldStatus = complaint.getStatus();
+        complaint.setStatus(newStatus);
+        Complaint savedComplaint = complaintRepository.save(complaint);
+
+        // Create status history for parent ticket
+        StatusHistory history = StatusHistory.builder()
+                .complaint(savedComplaint)
+                .changedBy(updatedBy)
+                .oldStatus(oldStatus)
+                .newStatus(newStatus)
+                .remarks(remarks)
+                .build();
+        statusHistoryRepository.save(history);
+
+        // Notify parent ticket citizen
+        notificationService.createStatusNotification(savedComplaint, newStatus);
+
+        // Cascade to all merged child tickets
+        try {
+            List<Complaint> childComplaints = complaintRepository.findByParentComplaintId(savedComplaint.getId());
+            for (Complaint child : childComplaints) {
+                ComplaintStatus childOldStatus = child.getStatus();
+                child.setStatus(newStatus);
+                complaintRepository.save(child);
+
+                StatusHistory childHistory = StatusHistory.builder()
+                        .complaint(child)
+                        .changedBy(updatedBy)
+                        .oldStatus(childOldStatus)
+                        .newStatus(newStatus)
+                        .remarks("Synchronized with primary issue #" + savedComplaint.getId() + (remarks != null ? ": " + remarks : ""))
+                        .build();
+                statusHistoryRepository.save(childHistory);
+
+                // Send notification to child citizen
+                if (child.getCitizen() != null) {
+                    String childMsg = "Your issue #" + child.getId() + " (merged with primary issue #" + savedComplaint.getId() + ") is now " + newStatus + ".";
+                    notificationService.createNotification(child.getCitizen(), childMsg, child.getId());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error cascading status update to child complaints: {}", e.getMessage());
+        }
+
+        return savedComplaint;
+    }
 
     public Complaint saveComplaint(
             Complaint complaint) {
@@ -375,6 +537,11 @@ public class ComplaintService {
             citizenMobile = complaint.getCitizen().getMobileNumber();
         }
 
+        Long daysRemaining = null;
+        if (complaint.getDeadline() != null) {
+            daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), complaint.getDeadline());
+        }
+
         return ComplaintResponse.builder()
                 .id(complaint.getId())
                 .problemType(complaint.getProblemType())
@@ -383,11 +550,19 @@ public class ComplaintService {
                 .department(complaint.getDepartment())
                 .sentiment(complaint.getSentiment())
                 .deadline(complaint.getDeadline())
+                .daysRemaining(daysRemaining)
+                .escalationLevel(complaint.getEscalationLevel() != null ? complaint.getEscalationLevel() : 1)
+                .currentAuthority(complaint.getCurrentAuthority() != null ? complaint.getCurrentAuthority() : "SARPANCH")
+                .escalatedAt(complaint.getEscalatedAt())
+                .escalationReason(complaint.getEscalationReason())
                 .photo(photoUrl)
                 .imageHash(complaint.getImageHash())
                 .classification(complaint.getClassification())
                 .classificationReason(complaint.getClassificationReason())
                 .duplicateOfId(complaint.getDuplicateOfId())
+                .parentComplaintId(complaint.getParentComplaintId())
+                .supportCount(complaint.getSupportCount() != null ? complaint.getSupportCount() : 1)
+                .isMerged(complaint.getIsMerged() != null ? complaint.getIsMerged() : false)
                 .audioUrl(complaint.getAudioUrl())
                 .latitude(complaint.getLatitude())
                 .longitude(complaint.getLongitude())

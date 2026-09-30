@@ -107,6 +107,26 @@ public class DataInitializer implements CommandLineRunner {
                             .village(village)
                             .build()));
 
+            userRepository.findByMobileNumber("9876543213").orElseGet(() ->
+                    userRepository.save(User.builder()
+                            .name("Shri Alok Verma (BDO)")
+                            .mobileNumber("9876543213")
+                            .officialId("BDO-001")
+                            .password(passwordEncoder.encode("password123"))
+                            .role(Role.BLOCK_OFFICER)
+                            .village(village)
+                            .build()));
+
+            userRepository.findByMobileNumber("9876543214").orElseGet(() ->
+                    userRepository.save(User.builder()
+                            .name("Smt. Neha Sharma (DM / District Officer)")
+                            .mobileNumber("9876543214")
+                            .officialId("DM-001")
+                            .password(passwordEncoder.encode("password123"))
+                            .role(Role.DISTRICT_OFFICER)
+                            .village(village)
+                            .build()));
+
             // 5. Ensure Complaint #38 exists in MySQL
             Optional<Complaint> c38Opt = complaintRepository.findById(38L);
             if (c38Opt.isEmpty()) {

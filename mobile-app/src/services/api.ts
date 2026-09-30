@@ -31,7 +31,7 @@ function getDefaultApiUrl(): string {
   }
 
   // Physical Android/iOS devices on local Wi-Fi LAN
-  return 'http://192.168.31.144:8080';
+  return 'http://192.168.1.80:8080';
 }
 
 export const DEFAULT_API_URL = getDefaultApiUrl();
@@ -246,7 +246,7 @@ export interface LoginPayload {
   mobileNumber?: string;
   identifier?: string;
   password: string;
-  role?: 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
+  role?: 'CITIZEN' | 'SARPANCH' | 'SECRETARY' | 'BLOCK_OFFICER' | 'DISTRICT_OFFICER';
 }
 
 export interface LoginResponseData {
@@ -254,16 +254,18 @@ export interface LoginResponseData {
   userId: number;
   name: string;
   mobileNumber: string;
-  role: 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
+  role: 'CITIZEN' | 'SARPANCH' | 'SECRETARY' | 'BLOCK_OFFICER' | 'DISTRICT_OFFICER';
   villageName?: string;
   wardNumber?: string;
+  district?: string;
+  block?: string;
 }
 
 export interface RegisterPayload {
   name: string;
   mobileNumber: string;
   password: string;
-  role: 'CITIZEN' | 'SARPANCH' | 'SECRETARY';
+  role: 'CITIZEN' | 'SARPANCH' | 'SECRETARY' | 'BLOCK_OFFICER' | 'DISTRICT_OFFICER';
   state?: string;
   district?: string;
   block?: string;
@@ -274,6 +276,8 @@ export interface RegisterPayload {
   officialId?: string;
   adminId?: string;
   secretaryId?: string;
+  bdoId?: string;
+  dmId?: string;
   villageId?: number;
   wardId?: number;
 }
@@ -376,8 +380,21 @@ export interface ComplaintData {
     | 'REOPENED'
     | 'OVERDUE'
     | 'ESCALATED';
+  classification?: string;
+  classificationReason?: string;
+  duplicateOfId?: string;
+  parentComplaintId?: number;
+  supportCount?: number;
+  isMerged?: boolean;
+  citizenName?: string;
+  citizenMobile?: string;
   createdAt: string;
   updatedAt?: string;
+  escalationLevel?: number;
+  currentAuthority?: string;
+  escalatedAt?: string;
+  escalationReason?: string;
+  daysRemaining?: number;
 }
 
 export const complaintApi = {
@@ -403,7 +420,7 @@ export const complaintApi = {
       const fallbackSession = await AsyncStorage.getItem('user_session');
       const session = sessionData ? JSON.parse(sessionData) : (fallbackSession ? JSON.parse(fallbackSession) : null);
       const role = String(session?.role || '').toUpperCase();
-      isOfficial = role === 'SARPANCH' || role === 'SECRETARY' || role === 'ADMIN' || role === 'SUPER_ADMIN';
+      isOfficial = role === 'SARPANCH' || role === 'SECRETARY' || role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'BLOCK_OFFICER' || role === 'DISTRICT_OFFICER';
     } catch {
       // default to citizen
     }
@@ -610,6 +627,47 @@ export const chatApi = {
     return await request<{ status: string; text: string; language?: string }>('/api/chat/transcribe', {
       method: 'POST',
       body: JSON.stringify({ audio: audioBase64, language }),
+    });
+  },
+};
+
+// -------------------------------------------------------------
+// Escalation & Multi-Tier Governance APIs
+// -------------------------------------------------------------
+export interface EscalationHierarchyInfo {
+  tier: number;
+  name: string;
+  hindiName: string;
+  designation: string;
+  slaInfo: string;
+}
+
+export const escalationApi = {
+  getHierarchy: async (): Promise<EscalationHierarchyInfo[]> => {
+    return await request<EscalationHierarchyInfo[]>('/api/escalation/hierarchy', {
+      method: 'GET',
+    });
+  },
+  runCheck: async (): Promise<{ message: string; count: number }> => {
+    return await request<{ message: string; count: number }>('/api/escalation/run-check', {
+      method: 'POST',
+    });
+  },
+  escalateComplaint: async (
+    id: number,
+    reason?: string
+  ): Promise<{ message: string; complaint: ComplaintData }> => {
+    return await request<{ message: string; complaint: ComplaintData }>(
+      `/api/escalation/${id}/escalate`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }
+    );
+  },
+  getByTier: async (tierLevel: number): Promise<ComplaintData[]> => {
+    return await request<ComplaintData[]>(`/api/escalation/tier/${tierLevel}`, {
+      method: 'GET',
     });
   },
 };

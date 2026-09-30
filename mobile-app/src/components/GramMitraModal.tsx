@@ -23,6 +23,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import * as FileSystem from 'expo-file-system';
 import { chatApi, ChatMessageResult } from '../services/api';
 import {
   voiceAssistant,
@@ -190,23 +191,28 @@ export function GramMitraModal({
     // 2. Try Web Speech API (Chrome, Edge, Safari, Firefox web simulator)
     if (voiceAssistant.isWebSpeechRecognitionSupported()) {
       setIsListening(true);
-      setInterimTranscript('');
+      setInterimTranscript(
+        language === 'hi' ? 'सुन रहा हूँ... बोलिए' : 'Listening... Speak now'
+      );
 
       const started = voiceAssistant.startWebSpeechRecognition({
         language,
         onStart: () => {
           setIsListening(true);
+          setInterimTranscript(
+            language === 'hi' ? 'सुन रहा हूँ... बोलिए' : 'Listening... Speak now'
+          );
         },
         onInterim: (text) => {
-          setInterimTranscript(text);
-          setInputText(text);
+          if (text && text.trim()) {
+            setInterimTranscript(text);
+            setInputText(text);
+          }
         },
         onFinal: (finalText) => {
-          setIsListening(false);
-          setInterimTranscript('');
           if (finalText && finalText.trim()) {
             setInputText(finalText.trim());
-            handleSend(finalText.trim(), true);
+            setInterimTranscript(finalText.trim());
           }
         },
         onEnd: () => {
@@ -214,6 +220,14 @@ export function GramMitraModal({
         },
         onError: (err) => {
           console.log('Web speech error:', err);
+          if (err?.error === 'not-allowed') {
+            Alert.alert(
+              language === 'hi' ? 'माइक्रोफ़ोन अनुमति' : 'Microphone Permission',
+              language === 'hi'
+                ? 'ब्राउज़र में माइक्रोफ़ोन की अनुमति दें।'
+                : 'Please allow microphone access in your browser settings.'
+            );
+          }
           setIsListening(false);
         },
       });
@@ -260,56 +274,71 @@ export function GramMitraModal({
     setIsListening(false);
     voiceAssistant.stopListening();
 
-    // If native audio recorder was used:
-    if (recorderState.isRecording) {
-      try {
-        await audioRecorder.stop();
-        if (audioRecorder.uri) {
-          setLoading(true);
-          try {
-            let base64Audio = '';
-            if (Platform.OS === 'web' && typeof window !== 'undefined') {
-              const res = await fetch(audioRecorder.uri);
-              const blob = await res.blob();
-              const reader = new FileReader();
-              base64Audio = await new Promise((resolve) => {
-                reader.onloadend = () => {
-                  const dataUrl = reader.result as string;
-                  resolve(dataUrl.split(',')[1] || dataUrl);
-                };
-                reader.readAsDataURL(blob);
-              });
-            }
+    // If on mobile or native audio recorder was active:
+    try {
+      await audioRecorder.stop();
+    } catch (err) {
+      console.log('Audio recorder stop check:', err);
+    }
 
-            if (base64Audio) {
-              const transcribeRes = await chatApi.transcribeAudio(base64Audio, language);
-              if (transcribeRes && transcribeRes.text && transcribeRes.text.trim()) {
-                handleSend(transcribeRes.text.trim(), true);
-                setInterimTranscript('');
-                return;
-              }
-            }
-          } catch (e) {
-            console.log('Transcription call failed:', e);
-          } finally {
-            setLoading(false);
+    if (audioRecorder.uri) {
+      setLoading(true);
+      try {
+        let base64Audio = '';
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const res = await fetch(audioRecorder.uri);
+          const blob = await res.blob();
+          const reader = new FileReader();
+          base64Audio = await new Promise((resolve) => {
+            reader.onloadend = () => {
+              const dataUrl = reader.result as string;
+              resolve(dataUrl.split(',')[1] || dataUrl);
+            };
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          try {
+            base64Audio = await FileSystem.readAsStringAsync(audioRecorder.uri, {
+              encoding: 'base64',
+            });
+          } catch (fsErr) {
+            console.log('File system base64 error:', fsErr);
           }
         }
-      } catch (err) {
-        console.log('Error stopping native audio recorder:', err);
+
+        if (base64Audio) {
+          const transcribeRes = await chatApi.transcribeAudio(base64Audio, language);
+          if (transcribeRes && transcribeRes.text && transcribeRes.text.trim()) {
+            handleSend(transcribeRes.text.trim(), true);
+            setInterimTranscript('');
+            return;
+          } else if (Platform.OS !== 'web') {
+            Alert.alert(
+              language === 'hi' ? 'आवाज़ पहचान' : 'Voice Recognition',
+              language === 'hi'
+                ? 'आवाज़ स्पष्ट नहीं सुनाई दी। कृपया थोड़ा और पास से बोलें।'
+                : 'Audio could not be recognized clearly. Please speak closer to the mic.'
+            );
+          }
+        }
+      } catch (e) {
+        console.log('Transcription call failed:', e);
+      } finally {
+        setLoading(false);
       }
     }
 
     // If live transcript exists:
+    const finalSpeechText = (interimTranscript || inputText).trim();
     if (
-      interimTranscript.trim() &&
-      interimTranscript !== 'सुन रहा हूँ... बोलिए' &&
-      interimTranscript !== 'Listening... Speak now'
+      finalSpeechText &&
+      finalSpeechText !== 'सुन रहा हूँ... बोलिए' &&
+      finalSpeechText !== 'Listening... Speak now' &&
+      finalSpeechText !== 'आवाज़ पहचानी जा रही है...' &&
+      finalSpeechText !== 'Listening to your voice...'
     ) {
-      handleSend(interimTranscript.trim(), true);
+      handleSend(finalSpeechText, true);
       setInterimTranscript('');
-    } else if (inputText.trim()) {
-      handleSend(inputText.trim(), true);
     }
   };
 
@@ -474,13 +503,9 @@ export function GramMitraModal({
                 <Text style={styles.headerTitle}>{language === 'hi' ? 'AI ग्राम मित्र' : 'Gram Mitra AI'}</Text>
                 <View style={styles.onlineDot} />
               </View>
-<<<<<<< HEAD
-              <Text style={styles.headerSubtitle}>AI Voice Assistant • 24/7 Active</Text>
-=======
               <Text style={styles.headerSubtitle}>
                 {language === 'hi' ? 'नागरिक सेवा सहायक • 24x7 सक्रिय' : 'Citizen Grievance Assistant • 24/7 Active'}
               </Text>
->>>>>>> b1357157339cae8b45a8aec2160c382ace62a248
             </View>
           </View>
 

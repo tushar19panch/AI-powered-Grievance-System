@@ -54,6 +54,11 @@ interface SubmittedComplaintInfo {
   photo?: string | null;
   audioUrl?: string | null;
   isOffline?: boolean;
+  isMerged?: boolean;
+  parentComplaintId?: number;
+  supportCount?: number;
+  classification?: string;
+  rejectionReason?: string;
 }
 
 export default function ReportScreen() {
@@ -132,6 +137,59 @@ export default function ReportScreen() {
 
     loadUser();
   }, []);
+
+  // ==========================================
+  // CITIZEN-FRIENDLY REJECTION REASON FORMATTER
+  // ==========================================
+  const formatRejectionReason = (rawReason?: string, isHi: boolean = true): string => {
+    if (!rawReason) {
+      return isHi
+        ? 'अपलोड की गई फोटो समस्या स्थल से संबंधित नहीं पाई गई। कृपया वास्तविक समस्या की स्पष्ट फोटो लगाएं।'
+        : 'The uploaded photo does not appear to show the grievance site. Please attach a clear on-site photo.';
+    }
+
+    const lower = rawReason.toLowerCase();
+
+    // Mismatch between problem category and photo (e.g. fire vs water supply)
+    if (lower.includes('does not correlate') || lower.includes('mismatch') || lower.includes('correlate')) {
+      if (lower.includes('water') || lower.includes('fire') || lower.includes('blaze')) {
+        return isHi
+          ? 'अपलोड की गई फोटो और चुनी गई समस्या (जैसे पानी आपूर्ति) आपस में मेल नहीं खा रही हैं। कृपया सही समस्या चुनें अथवा मौके की सही फोटो लगाएं।'
+          : 'The uploaded photo does not match the selected problem category. Please select the appropriate category or upload the relevant photo.';
+      }
+      return isHi
+        ? 'अपलोड की गई फोटो चुनी गई समस्या श्रेणी से मेल नहीं खाती है। कृपया वास्तविक मौके की संबंधित फोटो लगाएं।'
+        : 'The uploaded photo does not correspond to the chosen problem category. Please upload an authentic on-site photo.';
+    }
+
+    // Blank or Dark photo
+    if (lower.includes('blank') || lower.includes('black') || lower.includes('dark') || lower.includes('empty')) {
+      return isHi
+        ? 'अपलोड की गई फोटो खाली, अत्यधिक अंधेरी या अस्पष्ट है। कृपया पर्याप्त रोशनी में समस्या स्थल की साफ फोटो खींचें।'
+        : 'The photo appears blank, dark, or unclear. Please capture a well-lit photo of the actual issue.';
+    }
+
+    // Selfie or Personal photo
+    if (lower.includes('selfie') || lower.includes('face') || lower.includes('person') || lower.includes('portrait')) {
+      return isHi
+        ? 'फोटो में समस्या स्थल के बजाय व्यक्ति का चेहरा या सेल्फी पाई गई है। कृपया मौके की समस्या (सड़क, नाली, कचरा, लाइट आदि) की फोटो लगाएं।'
+        : 'The photo contains a personal selfie rather than the grievance site. Please photograph the physical issue.';
+    }
+
+    // Screenshot or non-camera image
+    if (lower.includes('screenshot') || lower.includes('screen') || lower.includes('wallpaper')) {
+      return isHi
+        ? 'स्क्रीनशॉट या मोबाइल स्क्रीन की फोटो मान्य नहीं है। कृपया मौके पर जाकर कैमरे से वास्तविक समस्या की फोटो खींचें।'
+        : 'Screenshots are not accepted. Please capture a real live photo of the issue on-site.';
+    }
+
+    // If in Hindi and raw reason contains English technical text
+    if (isHi && /[a-zA-Z]{5,}/.test(rawReason)) {
+      return 'अपलोड की गई फोटो समस्या स्थल से मेल नहीं खाती है। कृपया मौके पर जाकर वास्तविक समस्या की स्पष्ट फोटो लगाएं।';
+    }
+
+    return rawReason.replace(/Flagged for supervisor review\.?/gi, '').trim();
+  };
 
   // ==========================================
   // IMAGE CONVERSION HELPER
@@ -579,6 +637,7 @@ export default function ReportScreen() {
       let finalDepartment = deducedDepartment;
       let finalPriority = deducedPriority;
       let finalSentiment = deducedSentiment;
+      let apiRes: any = null;
 
       let token = await getAuthToken();
       if (!token || !isValidJwt(token)) {
@@ -602,7 +661,6 @@ export default function ReportScreen() {
       }
 
       try {
-        let apiRes: any = null;
         try {
           apiRes = await complaintApi.createComplaint(payload);
         } catch (firstErr: any) {
@@ -639,7 +697,31 @@ export default function ReportScreen() {
           if (apiRes.priority) finalPriority = apiRes.priority;
           if ((apiRes as any).sentiment) finalSentiment = (apiRes as any).sentiment;
         }
-      } catch (apiErr) {
+      } catch (apiErr: any) {
+        if (apiErr?.message?.includes('INVALID_IMAGE:')) {
+          const reason = apiErr.message.replace('INVALID_IMAGE:', '').trim();
+          setSubmittedData({
+            id: '',
+            problemType: deducedProblemType,
+            category: deducedCategory,
+            department: deducedDepartment,
+            priority: deducedPriority,
+            sentiment: deducedSentiment,
+            ward: effectiveWard,
+            location: location || effectiveWard,
+            description: finalDescription,
+            status: 'REJECTED',
+            photo: image,
+            audioUrl: audioUri,
+            rejectionReason: reason || (isHindi
+              ? 'अपलोड की गई फोटो समस्या स्थल से संबंधित नहीं है (जैसे सेल्फी, खाली स्क्रीन, या अस्पष्ट फोटो)।'
+              : 'The uploaded photo is not recognized as a civic grievance photo.'),
+          });
+          setShowSuccessModal(true);
+          setIsSubmitting(false);
+          return;
+        }
+
         console.log('Backend complaint submission notice, queuing offline:', apiErr);
         const offlineItem = await queueOfflineComplaint(payload, {
           citizenName: userName,
@@ -685,6 +767,10 @@ export default function ReportScreen() {
         photo: image,
         audioUrl: audioUri,
         isOffline: isSavedOffline,
+        isMerged: (apiRes as any)?.isMerged || false,
+        parentComplaintId: (apiRes as any)?.parentComplaintId || undefined,
+        supportCount: (apiRes as any)?.supportCount || 1,
+        classification: (apiRes as any)?.classification,
       });
 
       // Show Problem Details Pop-up Modal
@@ -1241,69 +1327,176 @@ export default function ReportScreen() {
             </View>
 
             <View style={styles.modalBodyContent}>
-              {/* SUCCESS ICON CIRCLE */}
-              <View style={styles.modalSuccessCircle}>
-                <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
-              </View>
+              {submittedData?.status === 'REJECTED' ? (
+                <>
+                  {/* REJECTED ICON CIRCLE */}
+                  <View style={[styles.modalSuccessCircle, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                    <Ionicons name="alert-circle" size={52} color="#DC2626" />
+                  </View>
 
-              {/* THANKS & MAIN TITLE */}
-              <Text style={styles.modalThankYouTitle}>
-                {isHindi ? 'धन्यवाद !' : 'Thank You!'}
-              </Text>
-
-              <Text style={styles.modalMainMessage}>
-                {isHindi
-                  ? 'आपकी समस्या सफलतापूर्वक दर्ज कर ली गई है।'
-                  : 'Your problem has been submitted successfully.'}
-              </Text>
-
-              {/* RESOLUTION ASSURANCE MESSAGE */}
-              <View style={styles.resolutionMessageBox}>
-                <Ionicons name="time" size={18} color="#EA580C" />
-                <Text style={styles.resolutionMessageText}>
-                  {isHindi
-                    ? 'आपकी समस्या का समाधान जल्द ही किया जाएगा।'
-                    : 'Your problem will be resolved soon.'}
-                </Text>
-              </View>
-
-              {/* COMPLAINT ID BADGE */}
-              {submittedData?.id ? (
-                <View style={styles.modalTicketPill}>
-                  <Ionicons name="ticket-outline" size={16} color={COLORS.primary} />
-                  <Text style={styles.modalTicketText}>
-                    {isHindi ? 'शिकायत संख्या:' : 'Complaint ID:'} #{submittedData?.id}
+                  {/* TITLE */}
+                  <Text style={[styles.modalThankYouTitle, { color: '#B91C1C', fontSize: 20 }]}>
+                    {isHindi ? 'फोटो का सत्यापन नहीं हो सका' : 'Photo Verification Required'}
                   </Text>
-                </View>
-              ) : null}
 
-              {/* ACTION BUTTONS */}
-              <View style={styles.modalActionGroup}>
-                <TouchableOpacity
-                  style={styles.modalPrimaryBtn}
-                  onPress={() => {
-                    setShowSuccessModal(false);
-                    router.replace('/citizen-dashboard');
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <Ionicons name="grid-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.modalPrimaryBtnText}>
-                    {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
+                  <Text style={styles.modalMainMessage}>
+                    {isHindi
+                      ? 'अपलोड की गई फोटो समस्या स्थल से मेल नहीं खा रही है।'
+                      : 'The uploaded photo does not correlate with the selected grievance.'}
                   </Text>
-                </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.modalSecondaryBtn}
-                  onPress={() => setShowSuccessModal(false)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="checkmark" size={16} color={COLORS.primary} />
-                  <Text style={styles.modalSecondaryBtnText}>
-                    {isHindi ? 'ठीक है' : 'OK'}
+                  {/* REJECTION DOCUMENTARY BOX */}
+                  <View style={{ backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 14, width: '100%' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <Ionicons name="information-circle" size={18} color="#DC2626" />
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>
+                        {isHindi ? 'मुख्य कारण:' : 'Verification Reason:'}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 19, marginBottom: 8 }}>
+                      {formatRejectionReason(submittedData?.rejectionReason, isHindi)}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' }}>
+                      <Ionicons name="shield-checkmark" size={13} color="#991B1B" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#991B1B' }}>
+                        {isHindi ? 'स्वचालित ग्राम सुरक्षा • निष्पक्ष सत्यापन' : 'Automated Verification Active'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* ADVICE MESSAGE */}
+                  <View style={[styles.resolutionMessageBox, { borderColor: '#FED7AA', backgroundColor: '#FFF7ED', paddingVertical: 10 }]}>
+                    <Ionicons name="bulb-outline" size={18} color="#EA580C" />
+                    <Text style={[styles.resolutionMessageText, { color: '#9A3412', fontSize: 12.5 }]}>
+                      {isHindi
+                        ? 'सुझाव: कृपया मौके (समस्या स्थल) पर जाकर स्पष्ट फोटो खींचें ताकि पंचायत द्वारा त्वरित कार्रवाई की जा सके।'
+                        : 'Tip: Please take a clear on-site photo of the issue for prompt panchayat action.'}
+                    </Text>
+                  </View>
+
+                  {/* ACTION BUTTONS FOR REJECTION */}
+                  <View style={styles.modalActionGroup}>
+                    <TouchableOpacity
+                      style={[styles.modalPrimaryBtn, { backgroundColor: COLORS.primary }]}
+                      onPress={() => {
+                        setShowSuccessModal(false);
+                        setImage(null);
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="camera-outline" size={18} color="#FFFFFF" />
+                      <Text style={styles.modalPrimaryBtnText}>
+                        {isHindi ? 'फोटो दोबारा खींचें / बदलें' : 'Take Photo Again'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.modalSecondaryBtn}
+                      onPress={() => {
+                        setShowSuccessModal(false);
+                        router.replace('/citizen-dashboard');
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="home-outline" size={16} color={COLORS.primary} />
+                      <Text style={styles.modalSecondaryBtnText}>
+                        {isHindi ? 'डैशबोर्ड पर वापस जाएं' : 'Return to Dashboard'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  {/* SUCCESS ICON CIRCLE */}
+                  <View style={styles.modalSuccessCircle}>
+                    <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
+                  </View>
+
+                  {/* THANKS & MAIN TITLE */}
+                  <Text style={styles.modalThankYouTitle}>
+                    {isHindi ? 'धन्यवाद !' : 'Thank You!'}
                   </Text>
-                </TouchableOpacity>
-              </View>
+
+                  <Text style={styles.modalMainMessage}>
+                    {isHindi
+                      ? 'आपकी समस्या सफलतापूर्वक दर्ज कर ली गई है।'
+                      : 'Your problem has been submitted successfully.'}
+                  </Text>
+
+                  {/* SMART MERGED / COLLECTIVE TICKET INFO */}
+                  {(submittedData?.isMerged || submittedData?.parentComplaintId) ? (
+                    <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14, width: '100%' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Ionicons name="git-merge" size={18} color="#2563EB" />
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#1E40AF' }}>
+                          {isHindi ? '🔗 मुख्य समस्या से एकीकृत (Auto-Merged)' : '🔗 Merged with Primary Issue'}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: '#1E3A8A', lineHeight: 17 }}>
+                        {isHindi
+                          ? `यह समस्या पहले से दर्ज मुख्य शिकायत #${submittedData.parentComplaintId} के साथ जोड़ दी गई है।`
+                          : `Your complaint is linked with existing master issue #${submittedData.parentComplaintId}.`}
+                      </Text>
+                      {Boolean(submittedData.supportCount && submittedData.supportCount > 1) && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6, backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' }}>
+                          <Ionicons name="people" size={13} color="#1E40AF" />
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E40AF' }}>
+                            {isHindi ? `कुल ${submittedData.supportCount} ग्रामीणों का समर्थन • उच्च प्राथमिकता` : `${submittedData.supportCount} Citizens Supported • Escalated Priority`}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : null}
+
+                  {/* RESOLUTION ASSURANCE MESSAGE */}
+                  <View style={styles.resolutionMessageBox}>
+                    <Ionicons name="time" size={18} color="#EA580C" />
+                    <Text style={styles.resolutionMessageText}>
+                      {isHindi
+                        ? 'आपकी समस्या का समाधान जल्द ही किया जाएगा।'
+                        : 'Your problem will be resolved soon.'}
+                    </Text>
+                  </View>
+
+                  {/* COMPLAINT ID BADGE */}
+                  {submittedData?.id ? (
+                    <View style={styles.modalTicketPill}>
+                      <Ionicons name="ticket-outline" size={16} color={COLORS.primary} />
+                      <Text style={styles.modalTicketText}>
+                        {isHindi ? 'शिकायत संख्या:' : 'Complaint ID:'} #{submittedData?.id}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* ACTION BUTTONS */}
+                  <View style={styles.modalActionGroup}>
+                    <TouchableOpacity
+                      style={styles.modalPrimaryBtn}
+                      onPress={() => {
+                        setShowSuccessModal(false);
+                        router.replace('/citizen-dashboard');
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons name="grid-outline" size={18} color="#FFFFFF" />
+                      <Text style={styles.modalPrimaryBtnText}>
+                        {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.modalSecondaryBtn}
+                      onPress={() => setShowSuccessModal(false)}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="checkmark" size={16} color={COLORS.primary} />
+                      <Text style={styles.modalSecondaryBtnText}>
+                        {isHindi ? 'ठीक है' : 'OK'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -2143,15 +2336,19 @@ const styles = StyleSheet.create({
 
   /* MODAL ACTION GROUP */
   modalActionGroup: {
+    width: '100%',
     gap: 10,
+    marginTop: 4,
   },
   modalPrimaryBtn: {
+    width: '100%',
     height: 48,
     backgroundColor: '#000080',
     borderRadius: RADIUS.md,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 16,
     gap: 8,
     ...SHADOWS.medium,
   },
@@ -2161,12 +2358,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   modalSecondaryBtn: {
+    width: '100%',
     height: 44,
     backgroundColor: '#F1F5F9',
     borderRadius: RADIUS.md,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 16,
     gap: 6,
     borderWidth: 1,
     borderColor: '#CBD5E1',

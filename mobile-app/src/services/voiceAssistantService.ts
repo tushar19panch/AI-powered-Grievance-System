@@ -232,9 +232,11 @@ class VoiceAssistantManager {
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = options.language === 'hi' ? 'hi-IN' : 'en-IN';
+      recognition.maxAlternatives = 1;
+      recognition.lang =
+        options.language === 'hi' || options.language === 'hinglish' ? 'hi-IN' : 'en-IN';
 
       recognition.onstart = () => {
         this.isListeningState = true;
@@ -245,27 +247,30 @@ class VoiceAssistantManager {
         let interimTranscript = '';
         let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = 0; i < event.results.length; ++i) {
           const item = event.results[i];
           if (item.isFinal) {
-            finalTranscript += item[0].transcript;
+            finalTranscript += item[0].transcript + ' ';
           } else {
             interimTranscript += item[0].transcript;
           }
         }
 
-        if (interimTranscript && options.onInterim) {
-          options.onInterim(interimTranscript);
+        const combined = (finalTranscript + interimTranscript).trim();
+        if (combined && options.onInterim) {
+          options.onInterim(combined);
         }
 
-        if (finalTranscript && options.onFinal) {
-          options.onFinal(finalTranscript);
+        if (finalTranscript.trim() && options.onFinal) {
+          options.onFinal(finalTranscript.trim());
         }
       };
 
       recognition.onerror = (e: any) => {
         console.warn('SpeechRecognition error:', e);
-        this.isListeningState = false;
+        if (e.error !== 'no-speech') {
+          this.isListeningState = false;
+        }
         if (options.onError) options.onError(e);
       };
 

@@ -18,4 +18,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     java.util.List<User> findByVillage(grievance_management.village.entity.Village village);
 
     java.util.List<User> findByVillageId(Long villageId);
+
+    java.util.List<User> findByRole(grievance_management.user.entity.Role role);
 }

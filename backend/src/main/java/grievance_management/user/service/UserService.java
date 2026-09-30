@@ -69,14 +69,14 @@ public class UserService {
 
         } else {
 
-            // Sarpanch and Secretary are village-level users.
+            // Sarpanch, Secretary, BDO, and DM are administrative officers.
             // They do not belong to a specific ward.
 
             if (request.getWardId() != null ||
                     (request.getWardNumber() != null && !request.getWardNumber().isBlank())) {
 
                 throw new RuntimeException(
-                        "Sarpanch and Secretary should not be assigned to a ward"
+                        "Administrative officers should not be assigned to a ward"
                 );
             }
         }
@@ -92,12 +92,14 @@ public class UserService {
         // -----------------------------------------
 
         if (request.getRole() == Role.SARPANCH ||
-                request.getRole() == Role.SECRETARY) {
+                request.getRole() == Role.SECRETARY ||
+                request.getRole() == Role.BLOCK_OFFICER ||
+                request.getRole() == Role.DISTRICT_OFFICER) {
 
             if (officialId == null || officialId.isBlank()) {
 
                 throw new RuntimeException(
-                        "Official ID is required for Sarpanch and Secretary"
+                        "Official ID is required for administrative officers"
                 );
             }
 
@@ -182,8 +184,29 @@ public class UserService {
         }
 
         // ---------------------------------------------------------
-        // Administrative roles (Sarpanch / Secretary):
+        // Administrative roles (Sarpanch / Secretary / BDO / DM):
         // ---------------------------------------------------------
+
+        // Higher tier authorities (Block & District Officers) are not strictly tied to a single village
+        if (request.getRole() == Role.BLOCK_OFFICER || request.getRole() == Role.DISTRICT_OFFICER) {
+            if (request.getVillageId() != null) {
+                return villageRepository.findById(request.getVillageId()).orElse(null);
+            }
+            if (request.getVillageName() != null && !request.getVillageName().isBlank()) {
+                String dist = request.getDistrict() != null && !request.getDistrict().isBlank() ? request.getDistrict().trim() : "District";
+                return villageRepository
+                        .findByNameIgnoreCase(request.getVillageName().trim())
+                        .orElseGet(() ->
+                                villageRepository.save(
+                                        Village.builder()
+                                                .name(request.getVillageName().trim())
+                                                .district(dist)
+                                                .state("Madhya Pradesh")
+                                                .build()
+                                ));
+            }
+            return null;
+        }
 
         // First preference: villageId
         if (request.getVillageId() != null) {
@@ -302,6 +325,20 @@ public class UserService {
                 !request.getSecretaryId().isBlank()) {
 
             return request.getSecretaryId().trim();
+        }
+
+        // Frontend BDO registration
+        if (request.getBdoId() != null &&
+                !request.getBdoId().isBlank()) {
+
+            return request.getBdoId().trim();
+        }
+
+        // Frontend DM registration
+        if (request.getDmId() != null &&
+                !request.getDmId().isBlank()) {
+
+            return request.getDmId().trim();
         }
 
         return null;

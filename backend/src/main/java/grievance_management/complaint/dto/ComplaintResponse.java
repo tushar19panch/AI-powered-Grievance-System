@@ -41,6 +41,12 @@ public class ComplaintResponse {
 
     private String duplicateOfId;
 
+    private Long parentComplaintId;
+
+    private Integer supportCount;
+
+    private Boolean isMerged;
+
     private String audioUrl;
 
     private Double latitude;
@@ -64,4 +70,15 @@ public class ComplaintResponse {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    // 3-Tier Multi-Level Governance Escalation
+    private Integer escalationLevel;
+
+    private String currentAuthority;
+
+    private LocalDateTime escalatedAt;
+
+    private String escalationReason;
+
+    private Long daysRemaining;
 }

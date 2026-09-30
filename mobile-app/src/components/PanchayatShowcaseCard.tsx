@@ -12,7 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
 import { PanchayatPhotoManagerModal } from './PanchayatPhotoManagerModal';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
-import { resolvePhotoUrl } from '../services/api';
+import { resolvePhotoUrl, villageApi } from '../services/api';
 import { localizeName, localizeVillageName } from '../utils/hindiTransliteration';
 
 const DEFAULT_VILLAGE_IMAGE =
@@ -43,35 +43,55 @@ export function PanchayatShowcaseCard({
     let isMounted = true;
     const loadVillagePhotos = async () => {
       try {
+        // 1. Instant Cache Check for zero screen-blink
         const storageKey = `village_photos_gallery_${villageName || 'default'}`;
         const savedGallery = await AsyncStorage.getItem(storageKey);
         if (savedGallery && isMounted) {
-          const parsed = JSON.parse(savedGallery);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setPhotos(parsed);
-            return;
+          try {
+            const parsed = JSON.parse(savedGallery);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setPhotos(parsed);
+            }
+          } catch {}
+        } else {
+          const single =
+            (await AsyncStorage.getItem(`village_photo_${villageName}`)) ||
+            (await AsyncStorage.getItem('village_cover_photo')) ||
+            (await AsyncStorage.getItem('village_photos_gallery_default'));
+          if (single && single.trim().length > 0 && isMounted) {
+            try {
+              const parsed = JSON.parse(single);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setPhotos(parsed);
+              } else {
+                setPhotos([single]);
+              }
+            } catch {
+              setPhotos([single]);
+            }
           }
         }
 
-        // Single photo check
-        const single =
-          (await AsyncStorage.getItem(`village_photo_${villageName}`)) ||
-          (await AsyncStorage.getItem('village_cover_photo')) ||
-          (await AsyncStorage.getItem('village_photos_gallery_default'));
-        if (single && single.trim().length > 0 && isMounted) {
-          try {
-            const parsed = JSON.parse(single);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setPhotos(parsed);
-              return;
-            }
-          } catch { }
-          setPhotos([single]);
-          return;
+        // 2. LIVE SERVER SYNC: Fetch the official photo uploaded by Sarpanch / Admin
+        try {
+          const res = await villageApi.getPhoto(villageName);
+          const serverPhoto = res?.photoUrl;
+          if (serverPhoto && serverPhoto.trim().length > 0 && isMounted) {
+            setPhotos((prev) => {
+              if (prev[0] === serverPhoto) return prev;
+              return [serverPhoto, ...prev.filter((p) => p !== serverPhoto && p !== DEFAULT_VILLAGE_IMAGE)];
+            });
+            await AsyncStorage.setItem(`village_photo_${villageName}`, serverPhoto);
+            await AsyncStorage.setItem('village_cover_photo', serverPhoto);
+            return;
+          }
+        } catch (apiErr) {
+          console.log('Error fetching live village photo from server:', apiErr);
         }
 
+        // 3. Fallback if no photo anywhere
         if (isMounted) {
-          setPhotos([DEFAULT_VILLAGE_IMAGE]);
+          setPhotos((prev) => (prev.length > 0 ? prev : [DEFAULT_VILLAGE_IMAGE]));
         }
       } catch (e) {
         if (isMounted) setPhotos([DEFAULT_VILLAGE_IMAGE]);

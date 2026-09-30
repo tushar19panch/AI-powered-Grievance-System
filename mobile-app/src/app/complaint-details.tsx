@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -24,13 +24,9 @@ import {
   SHADOWS,
 } from '../theme';
 
-import { complaintApi, authApi, getAuthToken, setAuthToken, isValidJwt, resolvePhotoUrl } from '../services/api';
+import { complaintApi, authApi, getAuthToken, setAuthToken, isValidJwt, resolvePhotoUrl, escalationApi } from '../services/api';
 import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
-import {
-  isNeedsVerificationClassification,
-  isDuplicateClassification,
-  isFakeClassification,
-} from '../services/complaintClassification';
+import { HierarchyEscalationSection } from '../components/HierarchyEscalationSection';
 
 export default function ComplaintDetailsScreen() {
   const router = useRouter();
@@ -137,135 +133,141 @@ export default function ComplaintDetailsScreen() {
   // LOAD COMPLAINT
   // --------------------------------------------------
 
-  useEffect(() => {
-    const loadComplaint = async () => {
-      try {
-        setLoading(true);
-        setComplaint(null);
-        setImageError(false);
+  const loadComplaint = useCallback(async () => {
+    try {
+      setLoading(true);
+      setComplaint(null);
+      setImageError(false);
 
-        const complaintId = Array.isArray(id) ? id[0] : id;
-        if (!complaintId) return;
+      const complaintId = Array.isArray(id) ? id[0] : id;
+      if (!complaintId) return;
 
-        const sessionData = await AsyncStorage.getItem('user_session');
-        const session = sessionData ? JSON.parse(sessionData) : null;
-        const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
-        setUserRole(role);
+      const sessionData = await AsyncStorage.getItem('user_session');
+      const session = sessionData ? JSON.parse(sessionData) : null;
+      const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
+      setUserRole(role);
 
-        let token = await getAuthToken();
-        if (!token || !isValidJwt(token)) {
-          const savedPass = session?.password;
-          const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
-          if (savedPass && savedMobile) {
-            try {
-              const loginRes = await authApi.login({
-                mobileNumber: savedMobile,
-                identifier: savedMobile,
-                password: savedPass,
-              });
-              if (loginRes?.token && isValidJwt(loginRes.token)) {
-                await setAuthToken(loginRes.token);
-              }
-            } catch {}
-          }
-        }
-
-        // 1. Fetch complaint from Backend Database API
-        let foundComplaint: any = null;
-        const cleanId = String(complaintId).replace(/^[^\d]*/, '');
-        if (/^\d+$/.test(cleanId)) {
+      let token = await getAuthToken();
+      if (!token || !isValidJwt(token)) {
+        const savedPass = session?.password;
+        const savedMobile = session?.mobile || session?.adminId || session?.secretaryId;
+        if (savedPass && savedMobile) {
           try {
-            const apiComplaint = await complaintApi.getSingleComplaint(Number(cleanId));
-            if (apiComplaint && (apiComplaint.id || (apiComplaint as any).complaintNumber)) {
-              foundComplaint = apiComplaint;
+            const loginRes = await authApi.login({
+              mobileNumber: savedMobile,
+              identifier: savedMobile,
+              password: savedPass,
+            });
+            if (loginRes?.token && isValidJwt(loginRes.token)) {
+              await setAuthToken(loginRes.token);
             }
-          } catch (apiErr: any) {
-            // Quiet fallback to list endpoints
-          }
+          } catch {}
         }
-
-        // If not found by direct ID, check role-specific complaints list from backend DB
-        if (!foundComplaint) {
-          try {
-            const list = role === 'citizen' 
-              ? await complaintApi.getCitizenComplaints()
-              : await complaintApi.getSarpanchComplaints();
-            if (Array.isArray(list)) {
-              foundComplaint = list.find((c: any) => 
-                String(c.id) === String(complaintId) || 
-                String(c.id) === String(cleanId) ||
-                String(c.complaintNumber) === String(complaintId) ||
-                String(c.complaintNumber) === String(cleanId)
-              );
-            }
-          } catch (listErr: any) {
-            // Handled gracefully
-          }
-        }
-
-        if (foundComplaint) {
-          const complaintKey = foundComplaint.id || foundComplaint.complaintNumber || complaintId;
-          const soundUri = foundComplaint.audioUrl || (await AsyncStorage.getItem(`complaint_audio_${complaintKey}`)) || null;
-          if (soundUri) {
-            setAudioUri(soundUri);
-          }
-
-          const photoUri =
-            foundComplaint.photo ||
-            foundComplaint.payload?.photo ||
-            (await AsyncStorage.getItem(`complaint_photo_${complaintKey}`)) ||
-            (await AsyncStorage.getItem(`complaint_photo_${cleanId}`)) ||
-            null;
-
-          const rawCitizen = await AsyncStorage.getItem('citizen');
-          const parsedCitizen = rawCitizen ? JSON.parse(rawCitizen) : null;
-          const resolvedCitizenName =
-            (foundComplaint.citizenName && foundComplaint.citizenName !== 'Citizen' && foundComplaint.citizenName.trim() !== '')
-              ? foundComplaint.citizenName
-              : (session?.name && session.name !== 'Citizen' ? session.name : (parsedCitizen?.name || (language === 'hi' ? 'नागरिक' : 'Citizen')));
-          const resolvedCitizenMobile =
-            foundComplaint.citizenMobile || session?.mobile || parsedCitizen?.mobile || '';
-
-          setComplaint({
-            complaintId: String(complaintKey),
-            citizenName: resolvedCitizenName,
-            citizenMobile: resolvedCitizenMobile,
-            category: foundComplaint.category || foundComplaint.problemType || 'Village Issue',
-            ward: foundComplaint.wardNumber ? `Ward ${foundComplaint.wardNumber}` : foundComplaint.location || '',
-            priority: foundComplaint.priority || 'MEDIUM',
-            department: foundComplaint.department || '',
-            deadline: foundComplaint.deadline || null,
-            description: foundComplaint.description || '',
-            photo: photoUri,
-            audioUrl: soundUri,
-            location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
-            status: foundComplaint.status || 'SUBMITTED',
-            classification: foundComplaint.classification || null,
-            classificationReason: foundComplaint.classificationReason || foundComplaint.reason || null,
-            duplicateOfId: foundComplaint.duplicateOfId || foundComplaint.duplicate_of_id || null,
-            dateTime: foundComplaint.createdAt || new Date().toISOString(),
-            statusTimeline: [],
-          });
-
-          // Check if citizen already rated this complaint
-          try {
-            const rawRating = await AsyncStorage.getItem(`rating_complaint_${foundComplaint.id || foundComplaint.complaintNumber || complaintId}`);
-            if (rawRating) {
-              setSavedRatingData(JSON.parse(rawRating));
-            }
-          } catch (rErr) {
-            console.log('Error reading saved rating:', rErr);
-          }
-        }
-      } catch (error) {
-        console.log('Unable to load complaint from database:', error);
-      } finally {
-        setLoading(false);
       }
-    };
 
+      // 1. Fetch complaint from Backend Database API
+      let foundComplaint: any = null;
+      const cleanId = String(complaintId).replace(/^[^\d]*/, '');
+      if (/^\d+$/.test(cleanId)) {
+        try {
+          const apiComplaint = await complaintApi.getSingleComplaint(Number(cleanId));
+          if (apiComplaint && (apiComplaint.id || (apiComplaint as any).complaintNumber)) {
+            foundComplaint = apiComplaint;
+          }
+        } catch (apiErr: any) {
+          // Quiet fallback to list endpoints
+        }
+      }
+
+      // If not found by direct ID, check role-specific complaints list from backend DB
+      if (!foundComplaint) {
+        try {
+          const list = role === 'citizen' 
+            ? await complaintApi.getCitizenComplaints()
+            : await complaintApi.getSarpanchComplaints();
+          if (Array.isArray(list)) {
+            foundComplaint = list.find((c: any) => 
+              String(c.id) === String(complaintId) || 
+              String(c.id) === String(cleanId) ||
+              String(c.complaintNumber) === String(complaintId) ||
+              String(c.complaintNumber) === String(cleanId)
+            );
+          }
+        } catch (listErr: any) {
+          // Handled gracefully
+        }
+      }
+
+      if (foundComplaint) {
+        const complaintKey = foundComplaint.id || foundComplaint.complaintNumber || complaintId;
+        const soundUri = foundComplaint.audioUrl || (await AsyncStorage.getItem(`complaint_audio_${complaintKey}`)) || null;
+        if (soundUri) {
+          setAudioUri(soundUri);
+        }
+
+        const photoUri =
+          foundComplaint.photo ||
+          foundComplaint.payload?.photo ||
+          (await AsyncStorage.getItem(`complaint_photo_${complaintKey}`)) ||
+          (await AsyncStorage.getItem(`complaint_photo_${cleanId}`)) ||
+          null;
+
+        const rawCitizen = await AsyncStorage.getItem('citizen');
+        const parsedCitizen = rawCitizen ? JSON.parse(rawCitizen) : null;
+        const resolvedCitizenName =
+          (foundComplaint.citizenName && foundComplaint.citizenName !== 'Citizen' && foundComplaint.citizenName.trim() !== '')
+            ? foundComplaint.citizenName
+            : (session?.name && session.name !== 'Citizen' ? session.name : (parsedCitizen?.name || (language === 'hi' ? 'नागरिक' : 'Citizen')));
+        const resolvedCitizenMobile =
+          foundComplaint.citizenMobile || session?.mobile || parsedCitizen?.mobile || '';
+
+        setComplaint({
+          complaintId: String(complaintKey),
+          rawId: foundComplaint.id || cleanId,
+          citizenName: resolvedCitizenName,
+          citizenMobile: resolvedCitizenMobile,
+          category: foundComplaint.category || foundComplaint.problemType || 'Village Issue',
+          ward: foundComplaint.wardNumber ? `Ward ${foundComplaint.wardNumber}` : foundComplaint.location || '',
+          priority: foundComplaint.priority || 'MEDIUM',
+          department: foundComplaint.department || '',
+          deadline: foundComplaint.deadline || null,
+          escalationLevel: foundComplaint.escalationLevel || 1,
+          currentAuthority: foundComplaint.currentAuthority || 'SARPANCH',
+          escalatedAt: foundComplaint.escalatedAt || null,
+          escalationReason: foundComplaint.escalationReason || null,
+          daysRemaining: foundComplaint.daysRemaining !== undefined ? foundComplaint.daysRemaining : null,
+          description: foundComplaint.description || '',
+          photo: photoUri,
+          audioUrl: soundUri,
+          location: foundComplaint.location || (foundComplaint.villageName ? foundComplaint.villageName : ''),
+          status: foundComplaint.status || 'SUBMITTED',
+          classification: foundComplaint.classification || null,
+          classificationReason: foundComplaint.classificationReason || foundComplaint.reason || null,
+          duplicateOfId: foundComplaint.duplicateOfId || foundComplaint.duplicate_of_id || null,
+          dateTime: foundComplaint.createdAt || new Date().toISOString(),
+          statusTimeline: [],
+        });
+
+        // Check if citizen already rated this complaint
+        try {
+          const rawRating = await AsyncStorage.getItem(`rating_complaint_${foundComplaint.id || foundComplaint.complaintNumber || complaintId}`);
+          if (rawRating) {
+            setSavedRatingData(JSON.parse(rawRating));
+          }
+        } catch (rErr) {
+          console.log('Error reading saved rating:', rErr);
+        }
+      }
+    } catch (error) {
+      console.log('Unable to load complaint from database:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, language]);
+
+  useEffect(() => {
     loadComplaint();
-  }, [id]);
+  }, [loadComplaint]);
 
   // --------------------------------------------------
   // CATEGORY LABEL
@@ -950,6 +952,46 @@ export default function ComplaintDetailsScreen() {
           </Text>
         </View>
 
+        {/* COLLECTIVE COMMUNITY SUPPORT BANNER */}
+        {Boolean(complaint?.supportCount && complaint.supportCount > 1) && (
+          <View style={{ backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="people" size={24} color="#DC2626" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#991B1B' }}>
+                {language === 'hi'
+                  ? `🚨 कुल ${complaint.supportCount} ग्रामीणों द्वारा समर्थित समस्या`
+                  : `🚨 High Impact: Supported by ${complaint.supportCount} Citizens`}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#B91C1C', marginTop: 2 }}>
+                {language === 'hi'
+                  ? 'कई ग्रामीणों द्वारा रिपोर्ट किए जाने के कारण प्राथमिकता स्वतः उच्च कर दी गई है।'
+                  : 'Auto-escalated to high priority due to multiple community reports.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* MERGED TICKET BANNER */}
+        {Boolean(complaint?.isMerged || complaint?.parentComplaintId) && (
+          <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="git-merge" size={24} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#1E40AF' }}>
+                {language === 'hi' ? '🔗 मुख्य समस्या से संबद्ध (Smart Merged)' : '🔗 Merged with Primary Issue'}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#1E3A8A', marginTop: 2 }}>
+                {language === 'hi'
+                  ? `यह शिकायत मुख्य समस्या #${complaint.parentComplaintId || complaint.duplicateOfId} के साथ एकीकृत है। समाधान होते ही आपको सूचना मिलेगी।`
+                  : `Linked with parent ticket #${complaint.parentComplaintId || complaint.duplicateOfId}. You will receive automatic updates upon resolution.`}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* VERIFICATION REASON CARD (FOR UNDER REVIEW / VERIFICATION) */}
         {(normalizedStatus === 'VERIFICATION' ||
           normalizedStatus === 'UNDER REVIEW' ||
@@ -1007,6 +1049,14 @@ export default function ComplaintDetailsScreen() {
             </View>
           </View>
         )}
+
+        {/* 3-TIER ADMINISTRATIVE GOVERNANCE HIERARCHY & SLA TIMER */}
+        <HierarchyEscalationSection
+          complaint={complaint}
+          userRole={userRole}
+          isHindi={language === 'hi'}
+          onEscalateSuccess={loadComplaint}
+        />
 
         {/* TIMELINE */}
         <View style={styles.card}>
@@ -1112,114 +1162,54 @@ export default function ComplaintDetailsScreen() {
         </View>
 
         {/* ========================================================= */}
-        {/* AI CLASSIFICATION & CITIZEN ACTION BANNER                 */}
+        {/* COLLECTIVE COMMUNITY SUPPORT BANNER                       */}
         {/* ========================================================= */}
         {Boolean(
-          isNeedsVerificationClassification(complaint) ||
-          isDuplicateClassification(complaint) ||
-          isFakeClassification(complaint)
+          complaint.parentComplaintId ||
+          (complaint.supportCount && complaint.supportCount > 1)
         ) && (
           <View
             style={[
               styles.aiBannerCard,
-              isNeedsVerificationClassification(complaint)
-                ? styles.aiBannerNeedsVerify
-                : isDuplicateClassification(complaint)
-                  ? styles.aiBannerDuplicate
-                  : styles.aiBannerFake,
+              { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
             ]}
           >
-            {/* Header / Badge */}
             <View style={styles.aiBannerHeaderRow}>
               <View
                 style={[
                   styles.aiBannerIconCircle,
-                  isNeedsVerificationClassification(complaint)
-                    ? { backgroundColor: '#FEF3C7' }
-                    : isDuplicateClassification(complaint)
-                      ? { backgroundColor: '#DBEAFE' }
-                      : { backgroundColor: '#FEE2E2' },
+                  { backgroundColor: '#DBEAFE' },
                 ]}
               >
-                <Ionicons
-                  name={
-                    isNeedsVerificationClassification(complaint)
-                      ? 'warning'
-                      : isDuplicateClassification(complaint)
-                        ? 'copy'
-                        : 'shield-outline'
-                  }
-                  size={20}
-                  color={
-                    isNeedsVerificationClassification(complaint)
-                      ? '#D97706'
-                      : isDuplicateClassification(complaint)
-                        ? '#2563EB'
-                        : '#DC2626'
-                  }
-                />
+                <Ionicons name="people" size={20} color="#2563EB" />
               </View>
 
               <View style={{ flex: 1 }}>
                 <View style={styles.aiBadgeInline}>
-                  <Text
-                    style={[
-                      styles.aiBadgeInlineText,
-                      {
-                        color: isNeedsVerificationClassification(complaint)
-                          ? '#92400E'
-                          : isDuplicateClassification(complaint)
-                            ? '#1E40AF'
-                            : '#991B1B',
-                      },
-                    ]}
-                  >
-                    {isNeedsVerificationClassification(complaint)
-                      ? (language === 'hi' ? 'सत्यापन आवश्यक' : 'Verification Needed')
-                      : isDuplicateClassification(complaint)
-                        ? (language === 'hi' ? 'संभावित डुप्लिकेट' : 'Potential Duplicate')
-                        : (language === 'hi' ? 'अमान्य / मिसमैच फोटो' : 'Flagged Mismatch')}
+                  <Text style={[styles.aiBadgeInlineText, { color: '#1E40AF' }]}>
+                    {language === 'hi' ? 'सामूहिक जन-समस्या' : 'Collective Civic Issue'}
                   </Text>
                 </View>
                 <Text style={styles.aiBannerTitle}>
-                  {isNeedsVerificationClassification(complaint)
-                    ? (language === 'hi' ? 'स्पष्ट फोटो / मुआयना अपेक्षित' : 'Clear Photo / Inspection Needed')
-                    : isDuplicateClassification(complaint)
-                      ? (language === 'hi' ? 'पूर्व में दर्ज शिकायत से मिलान' : 'Matching Previous Complaint')
-                      : (language === 'hi' ? 'असंगत या अमान्य विवरण' : 'Irrelevant Image Attachment')}
+                  {complaint.supportCount && complaint.supportCount > 1
+                    ? (language === 'hi'
+                        ? `कुल ${complaint.supportCount} ग्रामीणों द्वारा समर्थित समस्या`
+                        : `Supported by ${complaint.supportCount} Citizens`)
+                    : (language === 'hi'
+                        ? `मुख्य शिकायत #${complaint.parentComplaintId} से एकीकृत`
+                        : `Linked with Master Issue #${complaint.parentComplaintId}`)}
                 </Text>
               </View>
             </View>
 
-            {/* AI Explanation Text */}
-            <View style={styles.aiReasonBox}>
-              <Text style={styles.aiReasonText}>
-                {complaint.classificationReason || (
-                  isNeedsVerificationClassification(complaint)
-                    ? (language === 'hi'
-                        ? 'अपलोड की गई फोटो में अत्यधिक धुंधलापन, अंधेरा या लेंस ढका होना पाया गया है। सटीक समाधान हेतु स्पष्ट फोटो की आवश्यकता है।'
-                        : 'Uploaded photo is blurry, dark, or lens is obstructed. Clear on-site photo recommended.')
-                    : isDuplicateClassification(complaint)
-                      ? (language === 'hi'
-                          ? `समान वार्ड/लोकेशन में पूर्व शिकायत ${complaint.duplicateOfId ? '#' + complaint.duplicateOfId : ''} पहले से सक्रिय है।`
-                          : `A matching complaint ${complaint.duplicateOfId ? '#' + complaint.duplicateOfId : ''} already exists for this issue.`)
-                      : (language === 'hi'
-                          ? 'अपलोड की गई फोटो शिकायत की श्रेणी से मेल नहीं खाती (उदा. सड़क/पानी की जगह सेल्फी या स्क्रीनशॉट)। कृपया वास्तविक समस्या की फोटो लगाएं।'
-                          : 'Attached photo does not correlate with the civic category. Please attach an authentic on-site photograph.')
-                )}
-              </Text>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.aiActionBtnRow}>
-              {/* If Duplicate, provide direct button to view original ticket */}
-              {isDuplicateClassification(complaint) && Boolean(complaint.duplicateOfId) && (
+            {Boolean(complaint.parentComplaintId) && (
+              <View style={styles.aiActionBtnRow}>
                 <TouchableOpacity
                   style={styles.aiActionPrimaryBtn}
                   onPress={() => {
                     router.push({
                       pathname: '/complaint-details' as any,
-                      params: { id: String(complaint.duplicateOfId) },
+                      params: { id: String(complaint.parentComplaintId) },
                     });
                   }}
                   activeOpacity={0.85}
@@ -1227,51 +1217,12 @@ export default function ComplaintDetailsScreen() {
                   <Ionicons name="eye-outline" size={17} color="#FFFFFF" />
                   <Text style={styles.aiActionPrimaryBtnText}>
                     {language === 'hi'
-                      ? `मूल शिकायत #${complaint.duplicateOfId} देखें`
-                      : `View Original #${complaint.duplicateOfId}`}
+                      ? `मुख्य शिकायत #${complaint.parentComplaintId} देखें`
+                      : `View Master Complaint #${complaint.parentComplaintId}`}
                   </Text>
                 </TouchableOpacity>
-              )}
-
-              {/* Re-submit / Re-report CTA for Citizen */}
-              {userRole === 'citizen' && (
-                <TouchableOpacity
-                  style={[
-                    styles.aiActionSecondaryBtn,
-                    !isDuplicateClassification(complaint) && styles.aiActionPrimaryBtn,
-                  ]}
-                  onPress={() => {
-                    router.push({
-                      pathname: '/report' as any,
-                      params: {
-                        prefillCategory: complaint.category,
-                        prefillWard: complaint.ward,
-                        prefillDesc: complaint.description,
-                      },
-                    });
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name={isNeedsVerificationClassification(complaint) ? 'camera-outline' : 'refresh-outline'}
-                    size={17}
-                    color={!isDuplicateClassification(complaint) ? '#FFFFFF' : COLORS.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.aiActionSecondaryBtnText,
-                      !isDuplicateClassification(complaint) && styles.aiActionPrimaryBtnText,
-                    ]}
-                  >
-                    {isNeedsVerificationClassification(complaint)
-                      ? (language === 'hi' ? '📷 स्पष्ट फोटो के साथ पुनः दर्ज करें' : '📷 Re-submit Clear Photo')
-                      : isDuplicateClassification(complaint)
-                        ? (language === 'hi' ? '✍️ यदि यह अलग समस्या है तो पुनः दर्ज करें' : '✍️ Report as Distinct Issue')
-                        : (language === 'hi' ? '✍️ सही फोटो के साथ पुनः दर्ज करें' : '✍️ Re-report with Valid Photo')}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+              </View>
+            )}
           </View>
         )}
 

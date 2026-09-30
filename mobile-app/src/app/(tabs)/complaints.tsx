@@ -49,7 +49,15 @@ type Complaint = {
   classification?: string;
   classificationReason?: string;
   duplicateOfId?: string;
+  supportCount?: number;
+  isMerged?: boolean;
+  parentComplaintId?: number;
   deadline?: string | null;
+  escalationLevel?: number;
+  currentAuthority?: string;
+  daysRemaining?: number | null;
+  escalatedAt?: string;
+  escalationReason?: string;
   description?: string;
   photo?: string | null;
   audioUrl?: string | null;
@@ -116,8 +124,10 @@ const ComplaintCardPhoto = ({
 export default function ComplaintsScreen() {
   const router = useRouter();
 
-  const { filter, ward } = useLocalSearchParams<{
+  const { filter, status, priority, ward } = useLocalSearchParams<{
     filter?: string;
+    status?: string;
+    priority?: string;
     ward?: string;
   }>();
 
@@ -147,7 +157,15 @@ export default function ComplaintsScreen() {
     classification: item.classification || item.imageClassification || item.aiClassification || '',
     classificationReason: item.classificationReason || '',
     duplicateOfId: item.duplicateOfId ? String(item.duplicateOfId) : '',
+    supportCount: item.supportCount || 1,
+    isMerged: item.isMerged || false,
+    parentComplaintId: item.parentComplaintId || undefined,
     deadline: item.deadline || null,
+    escalationLevel: item.escalationLevel || 1,
+    currentAuthority: item.currentAuthority || 'SARPANCH',
+    daysRemaining: item.daysRemaining !== undefined ? item.daysRemaining : null,
+    escalatedAt: item.escalatedAt || null,
+    escalationReason: item.escalationReason || null,
     description: item.description || '',
     photo: item.photo || item.payload?.photo || null,
     audioUrl: item.audioUrl || item.payload?.audioUrl || null,
@@ -275,7 +293,20 @@ export default function ComplaintsScreen() {
     }, [])
   );
 
-  const selectedFilter = typeof filter === 'string' ? filter.trim() : '';
+  const rawFilter = typeof filter === 'string' ? filter.trim() : '';
+  const rawStatus = typeof status === 'string' ? status.trim() : '';
+  const rawPriority = typeof priority === 'string' ? priority.trim() : '';
+
+  const selectedStatus =
+    rawStatus ||
+    (['pending', 'in-progress', 'resolved', 'all', 'rejected', 'reopened'].includes(rawFilter)
+      ? rawFilter
+      : '');
+
+  const selectedPriority =
+    rawPriority ||
+    (rawFilter.startsWith('priority-') ? rawFilter : '');
+
   const selectedWard = typeof ward === 'string' ? ward.trim() : '';
 
   const extractWardNumber = (wardStr?: string | null, locStr?: string | null): string | null => {
@@ -290,7 +321,8 @@ export default function ComplaintsScreen() {
   };
 
   const filteredComplaints = complaints.filter((c) => {
-    if (selectedFilter === 'pending') {
+    // 1. Status Filter
+    if (selectedStatus === 'pending') {
       const s = String(c.status || '').toUpperCase();
       const isInProg =
         s === 'IN PROGRESS' ||
@@ -300,13 +332,9 @@ export default function ComplaintsScreen() {
         s === 'UNDER REVIEW' ||
         s === 'UNDER_REVIEW';
       const isRes = s === 'RESOLVED' || s === 'CLOSED' || s === 'VERIFICATION';
-      const isRej = s === 'REJECTED' || s === 'REJECT' || isFakeClassification(c) || isDuplicateClassification(c);
+      const isRej = s === 'REJECTED' || s === 'REJECT';
       if (isInProg || isRes || isRej) return false;
-    } else if (selectedFilter === 'rejected') {
-      const s = String(c.status || '').toUpperCase();
-      const isRej = s === 'REJECTED' || s === 'REJECT' || isFakeClassification(c) || isDuplicateClassification(c);
-      if (!isRej) return false;
-    } else if (selectedFilter === 'in-progress') {
+    } else if (selectedStatus === 'in-progress') {
       const s = String(c.status || '').toUpperCase();
       if (
         s !== 'IN PROGRESS' &&
@@ -316,28 +344,26 @@ export default function ComplaintsScreen() {
         s !== 'UNDER REVIEW' &&
         s !== 'UNDER_REVIEW'
       ) return false;
-    } else if (selectedFilter === 'resolved') {
+    } else if (selectedStatus === 'resolved') {
       const s = String(c.status || '').toUpperCase();
       if (s !== 'RESOLVED' && s !== 'CLOSED' && s !== 'VERIFICATION') return false;
-    } else if (selectedFilter === 'reopened') {
+    } else if (selectedStatus === 'rejected') {
+      const s = String(c.status || '').toUpperCase();
+      if (s !== 'REJECTED' && s !== 'REJECT') return false;
+    } else if (selectedStatus === 'reopened') {
       const s = String(c.status || '').toUpperCase();
       if (s !== 'REOPENED') return false;
-    } else if (selectedFilter === 'priority-very-high') {
+    }
+
+    // 2. Priority Filter (can combine with Status!)
+    if (selectedPriority === 'priority-very-high' || selectedPriority === 'CRITICAL') {
       if (!isVeryHighPriority(c)) return false;
-    } else if (selectedFilter === 'priority-high') {
+    } else if (selectedPriority === 'priority-high' || selectedPriority === 'HIGH') {
       if (!isHighPriority(c)) return false;
-    } else if (selectedFilter === 'priority-medium') {
+    } else if (selectedPriority === 'priority-medium' || selectedPriority === 'MEDIUM') {
       if (!isMediumPriority(c)) return false;
-    } else if (selectedFilter === 'priority-low') {
+    } else if (selectedPriority === 'priority-low' || selectedPriority === 'LOW') {
       if (!isLowPriority(c)) return false;
-    } else if (selectedFilter === 'class-duplicate') {
-      if (!isDuplicateClassification(c)) return false;
-    } else if (selectedFilter === 'class-fake') {
-      if (!isFakeClassification(c)) return false;
-    } else if (selectedFilter === 'class-verification') {
-      if (!isNeedsVerificationClassification(c)) return false;
-    } else if (selectedFilter === 'class-genuine') {
-      if (!isGenuineClassification(c)) return false;
     }
 
     if (selectedWard) {
@@ -379,148 +405,95 @@ export default function ComplaintsScreen() {
         emptyDesc: isHindi ? `वार्ड ${selectedWard} में वर्तमान में कोई समस्या दर्ज नहीं है।` : `There are currently no complaints recorded in Ward ${selectedWard}.`,
       };
     }
-    switch (selectedFilter) {
-      case 'priority-very-high':
-        return {
-          title: isHindi ? 'अति गंभीर शिकायतें' : 'Very High Priority Complaints',
-          badgeText: isHindi ? '🔴 अति गंभीर (Very High)' : '🔴 Very High Priority',
-          icon: 'alert-circle-outline' as const,
-          iconColor: COLORS.error,
-          iconBg: COLORS.errorLight,
-          emptyTitle: isHindi ? 'कोई अति गंभीर शिकायत नहीं है' : 'No Very High Priority Complaints',
-          emptyDesc: isHindi ? 'ग्राम पंचायत में कोई अति गंभीर या आपातकालीन समस्या लंबित नहीं है।' : 'No urgent or critical complaints are currently pending in this category.',
-        };
-      case 'priority-high':
-        return {
-          title: isHindi ? 'उच्च प्राथमिकता शिकायतें' : 'High Priority Complaints',
-          badgeText: isHindi ? '🟠 उच्च (High Priority)' : '🟠 High Priority',
-          icon: 'flame-outline' as const,
-          iconColor: COLORS.saffron,
-          iconBg: COLORS.accentLight,
-          emptyTitle: isHindi ? 'कोई उच्च प्राथमिकता शिकायत नहीं है' : 'No High Priority Complaints',
-          emptyDesc: isHindi ? 'वर्तमान में उच्च प्राथमिकता वाली कोई शिकायत लंबित नहीं है।' : 'No high priority issues are currently pending in the system.',
-        };
-      case 'priority-medium':
-        return {
-          title: isHindi ? 'मध्यम प्राथमिकता शिकायतें' : 'Medium Priority Complaints',
-          badgeText: isHindi ? '🟡 मध्यम (Medium)' : '🟡 Medium Priority',
-          icon: 'time-outline' as const,
-          iconColor: COLORS.warning,
-          iconBg: COLORS.warningLight,
-          emptyTitle: isHindi ? 'कोई मध्यम प्राथमिकता शिकायत नहीं है' : 'No Medium Priority Complaints',
-          emptyDesc: isHindi ? 'मध्यम प्राथमिकता श्रेणी में कोई शिकायत दर्ज नहीं है।' : 'No medium priority issues recorded.',
-        };
-      case 'priority-low':
-        return {
-          title: isHindi ? 'सामान्य प्राथमिकता शिकायतें' : 'Low Priority Complaints',
-          badgeText: isHindi ? '🟢 सामान्य (Low)' : '🟢 Low Priority',
-          icon: 'checkmark-circle-outline' as const,
-          iconColor: COLORS.success,
-          iconBg: COLORS.successLight,
-          emptyTitle: isHindi ? 'कोई सामान्य प्राथमिकता शिकायत नहीं है' : 'No Low Priority Complaints',
-          emptyDesc: isHindi ? 'सामान्य प्राथमिकता श्रेणी में कोई शिकायत नहीं है।' : 'No routine or low priority complaints found.',
-        };
-      case 'class-genuine':
-        return {
-          title: isHindi ? 'वास्तविक शिकायतें' : 'Genuine Complaints',
-          badgeText: isHindi ? '🟢 वास्तविक (Genuine)' : '🟢 Genuine Verified',
-          icon: 'shield-checkmark-outline' as const,
-          iconColor: COLORS.success,
-          iconBg: COLORS.successLight,
-          emptyTitle: isHindi ? 'कोई वास्तविक शिकायत नहीं है' : 'No Genuine Complaints',
-          emptyDesc: isHindi ? 'सत्यापित वास्तविक श्रेणी में कोई शिकायत नहीं है।' : 'No verified real complaints found in this view.',
-        };
-      case 'class-duplicate':
-        return {
-          title: isHindi ? 'डुप्लीकेट शिकायतें' : 'Duplicate Complaints',
-          badgeText: isHindi ? '🔵 डुप्लीकेट (Duplicate)' : '🔵 Linked Duplicates',
-          icon: 'copy-outline' as const,
-          iconColor: COLORS.info,
-          iconBg: COLORS.infoLight,
-          emptyTitle: isHindi ? 'कोई डुप्लीकेट शिकायत नहीं है' : 'No Duplicate Complaints',
-          emptyDesc: isHindi ? 'ग्राम पंचायत में कोई समान या डुप्लीकेट शिकायत नहीं पाई गई है।' : 'No linked duplicate complaints detected by AI.',
-        };
-      case 'class-fake':
-        return {
-          title: isHindi ? 'अमान्य / फर्जी शिकायतें' : 'Fake / Invalid Complaints',
-          badgeText: isHindi ? '⚫ अमान्य (Invalid)' : '⚫ Invalid / Rejected',
-          icon: 'close-circle-outline' as const,
-          iconColor: COLORS.textSecondary,
-          iconBg: COLORS.primaryLight,
-          emptyTitle: isHindi ? 'कोई अमान्य शिकायत नहीं है' : 'No Invalid Complaints',
-          emptyDesc: isHindi ? 'कोई भी फर्जी या अमान्य शिकायत दर्ज नहीं है।' : 'No spam or invalid complaints found.',
-        };
-      case 'class-verification':
-        return {
-          title: isHindi ? 'सत्यापन योग्य शिकायतें' : 'Needs Verification Complaints',
-          badgeText: isHindi ? '🟣 सत्यापन (Verification)' : '🟣 Needs Verification',
-          icon: 'help-circle-outline' as const,
-          iconColor: '#9333EA',
-          iconBg: '#F3E8FF',
-          emptyTitle: isHindi ? 'सत्यापन हेतु कोई शिकायत लंबित नहीं है' : 'No Complaints Needing Verification',
-          emptyDesc: isHindi ? 'सभी शिकायतों का AI व प्राथमिक सत्यापन पूरा हो चुका है।' : 'All complaints have completed verification checks.',
-        };
-      case 'in-progress':
-        return {
-          title: isHindi ? 'प्रगति में शिकायतें' : 'In-Progress Complaints',
-          badgeText: isHindi ? '⏳ प्रगति में' : '⏳ In Progress',
-          icon: 'construct-outline' as const,
-          iconColor: COLORS.warning,
-          iconBg: COLORS.warningLight,
-          emptyTitle: isHindi ? 'कोई शिकायत प्रगति में नहीं है' : 'No In-Progress Complaints',
-          emptyDesc: isHindi ? 'वर्तमान में किसी शिकायत पर कार्रवाई लंबित नहीं है।' : 'No complaints are currently under progress.',
-        };
-      case 'resolved':
-        return {
-          title: isHindi ? 'हल की गई शिकायतें' : 'Resolved Complaints',
-          badgeText: isHindi ? '✅ हल की गई' : '✅ Resolved',
-          icon: 'checkmark-done-circle-outline' as const,
-          iconColor: COLORS.success,
-          iconBg: COLORS.successLight,
-          emptyTitle: isHindi ? 'कोई हल की गई शिकायत नहीं है' : 'No Resolved Complaints',
-          emptyDesc: isHindi ? 'अभी तक कोई शिकायत हल के रूप में चिन्हित नहीं है।' : 'No complaints marked as resolved yet.',
-        };
-      case 'pending':
-        return {
-          title: isHindi ? 'लंबित शिकायतें' : 'Pending Complaints',
-          badgeText: isHindi ? '🕒 लंबित' : '🕒 Pending',
-          icon: 'time-outline' as const,
-          iconColor: COLORS.primary,
-          iconBg: COLORS.primaryLight,
-          emptyTitle: isHindi ? 'कोई लंबित शिकायत नहीं है' : 'No Pending Complaints',
-          emptyDesc: isHindi ? 'सभी शिकायतों पर संज्ञान लिया जा चुका है।' : 'All complaints have been reviewed.',
-        };
-      case 'rejected':
-        return {
-          title: isHindi ? 'अस्वीकृत / अमान्य शिकायतें' : 'Rejected / Invalid Complaints',
-          badgeText: isHindi ? '🚫 अस्वीकृत' : '🚫 Rejected',
-          icon: 'close-circle-outline' as const,
-          iconColor: '#DC2626',
-          iconBg: '#FEE2E2',
-          emptyTitle: isHindi ? 'कोई अस्वीकृत शिकायत नहीं है' : 'No Rejected Complaints',
-          emptyDesc: isHindi ? 'आपकी कोई भी शिकायत अस्वीकृत या अमान्य नहीं पाई गई है।' : 'None of your grievances have been rejected or marked invalid.',
-        };
-      case 'reopened':
-        return {
-          title: isHindi ? 'पुनः खोली गई शिकायतें' : 'Reopened Complaints',
-          badgeText: isHindi ? '🔄 पुनः खोली गई' : '🔄 Reopened',
-          icon: 'refresh-outline' as const,
-          iconColor: COLORS.error,
-          iconBg: COLORS.errorLight,
-          emptyTitle: isHindi ? 'कोई पुनः खोली गई शिकायत नहीं है' : 'No Reopened Complaints',
-          emptyDesc: isHindi ? 'वर्तमान में कोई भी शिकायत दोबारा नहीं खोली गई है।' : 'No reopened complaints found.',
-        };
-      default:
-        return {
-          title: isHindi ? 'सभी शिकायतें' : 'All Complaints',
-          badgeText: isHindi ? '📋 सभी शिकायतें' : '📋 All Complaints',
-          icon: 'list-outline' as const,
-          iconColor: COLORS.primary,
-          iconBg: COLORS.primaryLight,
-          emptyTitle: isHindi ? 'कोई शिकायत नहीं मिली' : 'No Complaints Found',
-          emptyDesc: isHindi ? 'गाँव में अभी कोई शिकायत दर्ज नहीं है।' : 'No complaints have been registered yet.',
-        };
+    const statusLabel =
+      selectedStatus === 'pending'
+        ? (isHindi ? 'लंबित' : 'Pending')
+        : selectedStatus === 'in-progress'
+          ? (isHindi ? 'प्रगति में' : 'In Progress')
+          : selectedStatus === 'resolved'
+            ? (isHindi ? 'निस्तारित' : 'Resolved')
+            : '';
+
+    const priorityLabel =
+      selectedPriority === 'priority-very-high' || selectedPriority === 'CRITICAL'
+        ? (isHindi ? 'अति गंभीर (Critical)' : 'Critical')
+        : selectedPriority === 'priority-high' || selectedPriority === 'HIGH'
+          ? (isHindi ? 'उच्च (High)' : 'High Priority')
+          : selectedPriority === 'priority-medium' || selectedPriority === 'MEDIUM'
+            ? (isHindi ? 'मध्यम (Medium)' : 'Medium')
+            : selectedPriority === 'priority-low' || selectedPriority === 'LOW'
+              ? (isHindi ? 'सामान्य (Low)' : 'Low Priority')
+              : '';
+
+    if (statusLabel && priorityLabel) {
+      return {
+        title: `${statusLabel} • ${priorityLabel}`,
+        badgeText: `${statusLabel} • ${priorityLabel}`,
+        icon: 'funnel-outline' as const,
+        iconColor: COLORS.primary,
+        iconBg: COLORS.primaryLight,
+        emptyTitle: isHindi ? `इस प्राथमिकता में कोई शिकायत नहीं है` : `No Complaints in this view`,
+        emptyDesc: isHindi ? `"${statusLabel}" में कोई "${priorityLabel}" शिकायत दर्ज नहीं है।` : `No ${priorityLabel} complaints found under ${statusLabel}.`,
+      };
     }
+
+    if (priorityLabel) {
+      return {
+        title: isHindi ? `${priorityLabel} शिकायतें` : `${priorityLabel} Complaints`,
+        badgeText: priorityLabel,
+        icon: 'alert-circle-outline' as const,
+        iconColor: COLORS.error,
+        iconBg: COLORS.errorLight,
+        emptyTitle: isHindi ? 'कोई शिकायत नहीं है' : 'No Complaints',
+        emptyDesc: isHindi ? `${priorityLabel} श्रेणी में कोई शिकायत नहीं है।` : `No complaints found in this priority category.`,
+      };
+    }
+
+    if (selectedStatus === 'pending') {
+      return {
+        title: isHindi ? 'लंबित शिकायतें' : 'Pending Complaints',
+        badgeText: isHindi ? '🕒 लंबित' : '🕒 Pending',
+        icon: 'time-outline' as const,
+        iconColor: '#DC2626',
+        iconBg: '#FEE2E2',
+        emptyTitle: isHindi ? 'कोई लंबित शिकायत नहीं है' : 'No Pending Complaints',
+        emptyDesc: isHindi ? 'वर्तमान में कोई लंबित शिकायत नहीं है।' : 'No complaints are currently pending.',
+      };
+    }
+
+    if (selectedStatus === 'in-progress') {
+      return {
+        title: isHindi ? 'प्रगति में शिकायतें' : 'In Progress Complaints',
+        badgeText: isHindi ? '⏳ प्रगति में' : '⏳ In Progress',
+        icon: 'construct-outline' as const,
+        iconColor: COLORS.warning,
+        iconBg: COLORS.warningLight,
+        emptyTitle: isHindi ? 'कोई शिकायत प्रगति में नहीं है' : 'No In-Progress Complaints',
+        emptyDesc: isHindi ? 'वर्तमान में किसी शिकायत पर काम जारी नहीं है।' : 'No complaints currently in progress.',
+      };
+    }
+
+    if (selectedStatus === 'resolved') {
+      return {
+        title: isHindi ? 'निस्तारित शिकायतें' : 'Resolved Complaints',
+        badgeText: isHindi ? '✅ निस्तारित' : '✅ Resolved',
+        icon: 'checkmark-circle-outline' as const,
+        iconColor: COLORS.success,
+        iconBg: COLORS.successLight,
+        emptyTitle: isHindi ? 'कोई निस्तारित शिकायत नहीं है' : 'No Resolved Complaints',
+        emptyDesc: isHindi ? 'अभी कोई निस्तारित शिकायत दर्ज नहीं है।' : 'No resolved complaints found.',
+      };
+    }
+
+    return {
+      title: isHindi ? 'सभी शिकायतें' : 'All Complaints',
+      badgeText: isHindi ? '📋 सभी शिकायतें' : '📋 All Complaints',
+      icon: 'list-outline' as const,
+      iconColor: COLORS.primary,
+      iconBg: COLORS.primaryLight,
+      emptyTitle: isHindi ? 'कोई शिकायत नहीं मिली' : 'No Complaints Found',
+      emptyDesc: isHindi ? 'गाँव में अभी कोई शिकायत दर्ज नहीं है।' : 'No complaints have been registered yet.',
+    };
   };
 
   const formatComplaintId = (id?: string) => {
@@ -675,25 +648,6 @@ export default function ComplaintsScreen() {
     return { label: isHindi ? 'मध्यम' : 'Medium Priority', color: COLORS.warning, bg: '#FEF3C7', icon: 'time' as const };
   };
 
-  const getClassificationBadgeInfo = (
-    classification?: string,
-    status?: string,
-    description?: string,
-    duplicateOfId?: string | number
-  ) => {
-    const item = { classification, status, description, duplicateOfId };
-    if (isDuplicateClassification(item)) {
-      return { label: isHindi ? 'AI: डुप्लीकेट' : 'AI: Duplicate', color: COLORS.info, bg: '#E0F2FE', icon: 'copy-outline' as const };
-    }
-    if (isFakeClassification(item)) {
-      return { label: isHindi ? 'AI: अमान्य/फर्जी' : 'AI: Fake/Invalid', color: '#DC2626', bg: '#FEE2E2', icon: 'close-circle-outline' as const };
-    }
-    if (isNeedsVerificationClassification(item)) {
-      return { label: isHindi ? 'AI: सत्यापन योग्य' : 'AI: Needs Verify', color: '#9333EA', bg: '#F3E8FF', icon: 'help-circle-outline' as const };
-    }
-    return { label: isHindi ? 'AI: वास्तविक' : 'AI: Genuine', color: '#16A34A', bg: '#DCFCE7', icon: 'shield-checkmark-outline' as const };
-  };
-
   const formatWardLabel = (ward?: string, location?: string | null) => {
     const raw = (ward || location || '').trim();
     if (!raw) return isHindi ? 'वार्ड: मुख्य क्षेत्र' : 'Ward: Main Area';
@@ -776,7 +730,7 @@ export default function ComplaintsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ACTIVE FILTER BADGE CARD */}
-        {(selectedWard || (selectedFilter && selectedFilter !== 'all')) ? (
+        {(selectedWard || selectedPriority || (selectedStatus && selectedStatus !== 'all')) ? (
           <View style={styles.activeFilterCard}>
             <View style={styles.activeFilterLeft}>
               <View style={[styles.filterIconBadge, { backgroundColor: filterInfo.iconBg }]}>
@@ -798,7 +752,7 @@ export default function ComplaintsScreen() {
             <TouchableOpacity
               style={styles.clearFilterBtn}
               onPress={() => {
-                router.setParams({ filter: undefined, ward: undefined });
+                router.setParams({ filter: undefined, status: undefined, priority: undefined, ward: undefined });
               }}
               activeOpacity={0.8}
             >
@@ -833,10 +787,10 @@ export default function ComplaintsScreen() {
               {filterInfo.emptyDesc}
             </Text>
 
-            {(selectedWard || (selectedFilter && selectedFilter !== 'all')) && (
+            {(selectedWard || (selectedStatus && selectedStatus !== 'all') || selectedPriority) && (
               <TouchableOpacity
                 style={styles.viewAllBtn}
-                onPress={() => router.setParams({ filter: undefined, ward: undefined })}
+                onPress={() => router.setParams({ filter: undefined, status: undefined, priority: undefined, ward: undefined })}
                 activeOpacity={0.85}
               >
                 <Ionicons name="list-outline" size={17} color="#FFFFFF" />
@@ -865,12 +819,6 @@ export default function ComplaintsScreen() {
             const statusInfo = getStatusInfo(complaint.status);
             const categoryInfo = getCategoryDetails(complaint.category, complaint.description);
             const priorityInfo = getPriorityBadgeInfo(complaint.priority, complaint.description);
-            const classInfo = getClassificationBadgeInfo(
-              complaint.classification,
-              complaint.status,
-              complaint.description,
-              complaint.duplicateOfId
-            );
             const formattedId = formatComplaintId(complaint.complaintId);
             const hasPhoto = Boolean(
               complaint.photo &&
@@ -906,22 +854,72 @@ export default function ComplaintsScreen() {
                   </View>
                 </View>
 
-                {/* 1B. AI & PRIORITY BADGES ROW */}
+                {/* 1B. PRIORITY & SUPPORT BADGES ROW */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: priorityInfo.bg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
                     <Ionicons name={priorityInfo.icon} size={12} color={priorityInfo.color} />
                     <Text style={{ fontSize: 11, fontWeight: '700', color: priorityInfo.color }}>{priorityInfo.label}</Text>
                   </View>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: classInfo.bg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
-                    <Ionicons name={classInfo.icon} size={12} color={classInfo.color} />
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: classInfo.color }}>{classInfo.label}</Text>
-                  </View>
+                  {/* Collective Support Count Badge */}
+                  {Boolean(complaint.supportCount && complaint.supportCount > 1) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="people" size={12} color="#DC2626" />
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#DC2626' }}>
+                        {complaint.supportCount} {isHindi ? 'ग्रामीण समर्थित' : 'Supporters'}
+                      </Text>
+                    </View>
+                  )}
 
-                  {Boolean(complaint.duplicateOfId) && (
+                  {/* Merged Link Badge */}
+                  {Boolean(complaint.isMerged || complaint.parentComplaintId) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="git-merge-outline" size={12} color="#2563EB" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#2563EB' }}>
+                        {isHindi ? `मुख्य #${complaint.parentComplaintId || complaint.duplicateOfId}` : `Merged into #${complaint.parentComplaintId || complaint.duplicateOfId}`}
+                      </Text>
+                    </View>
+                  )}
+
+                  {Boolean(complaint.duplicateOfId && !complaint.isMerged && !complaint.parentComplaintId) && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
                       <Ionicons name="link-outline" size={12} color={COLORS.primary} />
                       <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.primary }}>#{complaint.duplicateOfId}</Text>
+                    </View>
+                  )}
+
+                  {/* Escalation Level Tier Badges */}
+                  {complaint.escalationLevel === 2 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', borderColor: '#FDE68A', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="layers" size={12} color="#D97706" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#B45309' }}>
+                        {isHindi ? '🏢 स्तर 2: BDO' : '🏢 Tier 2: BDO'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {complaint.escalationLevel === 3 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3E8FF', borderColor: '#E9D5FF', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="shield-checkmark" size={12} color="#7E22CE" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#6B21A8' }}>
+                        {isHindi ? '🏛️ स्तर 3: DM' : '🏛️ Tier 3: DM'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* SLA Overdue or Imminent Deadline Badges */}
+                  {Boolean(
+                    String(complaint.status || '').toUpperCase() !== 'RESOLVED' &&
+                    String(complaint.status || '').toUpperCase() !== 'CLOSED' &&
+                    complaint.daysRemaining !== null &&
+                    complaint.daysRemaining !== undefined &&
+                    complaint.daysRemaining <= 0
+                  ) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2', borderColor: '#FECACA', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="alert-circle" size={12} color="#DC2626" />
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#DC2626' }}>
+                        {isHindi ? '🚨 समय सीमा समाप्त (Overdue)' : '🚨 Overdue'}
+                      </Text>
                     </View>
                   )}
                 </View>

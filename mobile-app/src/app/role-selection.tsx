@@ -121,6 +121,14 @@ export default function RoleSelectionScreen() {
     router.push('/secretary-register');
   };
 
+  const openBdo = () => {
+    router.push('/bdo-register' as any);
+  };
+
+  const openDm = () => {
+    router.push('/dm-register' as any);
+  };
+
   const openLogin = () => {
     router.push('/login');
   };
@@ -391,6 +399,114 @@ export default function RoleSelectionScreen() {
         </Animated.View>
 
         {/* =========================================================================
+            ROLE CARD 4: BLOCK DEVELOPMENT OFFICER (BDO - स्तर 2)
+            ========================================================================= */}
+        <Animated.View
+          style={[
+            styles.cardWrapper,
+            {
+              opacity: card3Anim,
+              transform: [{ translateY: card3Slide }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.premiumRoleCard, styles.bdoBorder, { backgroundColor: colors.card }]}
+            onPress={openBdo}
+            activeOpacity={0.88}
+          >
+            {/* Top Accent Strip */}
+            <View style={[styles.roleTopBar, { backgroundColor: '#1E3A8A' }]} />
+
+            <View style={styles.roleCardBody}>
+              <View style={styles.roleCardMain}>
+                <View style={[styles.roleIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="business" size={28} color="#1E3A8A" />
+                </View>
+
+                <View style={styles.roleInfo}>
+                  <View style={styles.roleBadgeRow}>
+                    <View style={[styles.roleTag, { backgroundColor: '#DBEAFE' }]}>
+                      <Ionicons name="layers-outline" size={12} color="#1E40AF" />
+                      <Text style={[styles.roleTagText, { color: '#1E40AF' }]}>
+                        {isHindi ? 'प्रशासनिक स्तर 2' : 'Tier 2 Authority'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.roleTitle, { color: colors.textPrimary }]}>
+                    {isHindi ? 'प्रखंड विकास अधिकारी (BDO)' : 'Block Officer (BDO)'}
+                  </Text>
+                  <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
+                    {isHindi
+                      ? 'ब्लॉक स्तरीय निरीक्षण, तकनीकी समीक्षा एवं पंचायत पर्यवेक्षण'
+                      : 'Block-level inspection, technical review & panchayat supervision'}
+                  </Text>
+                </View>
+
+                <View style={[styles.actionCircle, { backgroundColor: '#1E3A8A' }]}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* =========================================================================
+            ROLE CARD 5: DISTRICT MAGISTRATE (DM / कलेक्टर - स्तर 3)
+            ========================================================================= */}
+        <Animated.View
+          style={[
+            styles.cardWrapper,
+            {
+              opacity: card3Anim,
+              transform: [{ translateY: card3Slide }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.premiumRoleCard, styles.dmBorder, { backgroundColor: colors.card }]}
+            onPress={openDm}
+            activeOpacity={0.88}
+          >
+            {/* Top Accent Strip */}
+            <View style={[styles.roleTopBar, { backgroundColor: '#7F1D1D' }]} />
+
+            <View style={styles.roleCardBody}>
+              <View style={styles.roleCardMain}>
+                <View style={[styles.roleIconCircle, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="shield-checkmark" size={28} color="#7F1D1D" />
+                </View>
+
+                <View style={styles.roleInfo}>
+                  <View style={styles.roleBadgeRow}>
+                    <View style={[styles.roleTag, { backgroundColor: '#FEE2E2' }]}>
+                      <Ionicons name="ribbon-outline" size={12} color="#991B1B" />
+                      <Text style={[styles.roleTagText, { color: '#991B1B' }]}>
+                        {isHindi ? 'सर्वोच्च जिला स्तर 3' : 'Tier 3 Apex Authority'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.roleTitle, { color: colors.textPrimary }]}>
+                    {isHindi ? 'जिलाधिकारी (DM / कलेक्टर)' : 'District Magistrate (DM)'}
+                  </Text>
+                  <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
+                    {isHindi
+                      ? 'सर्वोच्च जिला निगरानी, विभागीय जांच व अंतिम दंडात्मक आदेश'
+                      : 'Apex district governance, inquiries, disciplinary orders & closure'}
+                  </Text>
+                </View>
+
+                <View style={[styles.actionCircle, { backgroundColor: '#7F1D1D' }]}>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* =========================================================================
             6. ALREADY REGISTERED (LOGIN LINK)
             ========================================================================= */}
         <Animated.View style={[styles.loginSection, { opacity: bottomAnim }]}>
@@ -568,6 +684,12 @@ const styles = StyleSheet.create({
   },
   secretaryBorder: {
     borderColor: '#BBF7D0',
+  },
+  bdoBorder: {
+    borderColor: '#BFDBFE',
+  },
+  dmBorder: {
+    borderColor: '#FECACA',
   },
   roleTopBar: {
     height: 4.5,

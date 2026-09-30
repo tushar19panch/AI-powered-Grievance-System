@@ -86,6 +86,10 @@ public class SecurityConfig {
                                 "/api/complaints",
                                 "/api/complaints/**",
 
+                                // Escalation APIs (Hierarchy specs, SLA check, and manual escalation)
+                                "/api/escalation",
+                                "/api/escalation/**",
+
                                 // Citizen Chatbot Assistant
                                 "/api/chat",
                                 "/api/chat/**"
@@ -105,11 +109,11 @@ public class SecurityConfig {
 
                         // Citizen APIs (Citizens, Sarpanch & Secretary can register/view complaints)
                         .requestMatchers("/api/citizen/**")
-                        .hasAnyRole("CITIZEN", "SARPANCH", "SECRETARY", "ADMIN", "SUPER_ADMIN", "DISTRICT_OFFICER")
+                        .hasAnyRole("CITIZEN", "SARPANCH", "SECRETARY", "BLOCK_OFFICER", "ADMIN", "SUPER_ADMIN", "DISTRICT_OFFICER")
 
                         // Sarpanch, Secretary & District Super Admins / Admins
                         .requestMatchers("/api/sarpanch/**", "/api/secretary/**")
-                        .hasAnyRole("SARPANCH", "SECRETARY", "SUPER_ADMIN", "DISTRICT_OFFICER", "ADMIN")
+                        .hasAnyRole("SARPANCH", "SECRETARY", "BLOCK_OFFICER", "SUPER_ADMIN", "DISTRICT_OFFICER", "ADMIN")
 
                         // Everything else requires authentication
                         .anyRequest().authenticated()
