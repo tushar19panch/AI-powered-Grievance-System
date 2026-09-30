@@ -115,6 +115,13 @@ public class Complaint {
     @Column(length = 1000)
     private String escalationReason;
 
+    @Column(length = 1000)
+    private String actionRemarks;
+
+    private String resolvedByRole;
+
+    private String resolvedByName;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();

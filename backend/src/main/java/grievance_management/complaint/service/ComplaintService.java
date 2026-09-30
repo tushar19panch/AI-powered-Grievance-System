@@ -443,6 +443,13 @@ public class ComplaintService {
 
         ComplaintStatus oldStatus = complaint.getStatus();
         complaint.setStatus(newStatus);
+        if (remarks != null && !remarks.isBlank()) {
+            complaint.setActionRemarks(remarks);
+        }
+        if (updatedBy != null) {
+            complaint.setResolvedByRole(updatedBy.getRole() != null ? updatedBy.getRole().name() : null);
+            complaint.setResolvedByName(updatedBy.getName());
+        }
         Complaint savedComplaint = complaintRepository.save(complaint);
 
         // Create status history for parent ticket
@@ -575,6 +582,9 @@ public class ComplaintService {
                 .citizenMobile(citizenMobile)
                 .createdAt(complaint.getCreatedAt())
                 .updatedAt(complaint.getUpdatedAt())
+                .actionRemarks(complaint.getActionRemarks())
+                .resolvedByRole(complaint.getResolvedByRole())
+                .resolvedByName(complaint.getResolvedByName())
                 .build();
     }
 

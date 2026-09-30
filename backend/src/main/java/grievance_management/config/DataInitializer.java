@@ -59,11 +59,15 @@ public class DataInitializer implements CommandLineRunner {
             Village village = villageRepository.findAll().stream().findFirst().orElseGet(() -> {
                 Village v = Village.builder()
                         .name("Pipariya")
-                        .district("Hoshangabad")
+                        .district("Sehore")
                         .state("Madhya Pradesh")
                         .build();
                 return villageRepository.save(v);
             });
+            if (village != null && !"Sehore".equalsIgnoreCase(village.getDistrict())) {
+                village.setDistrict("Sehore");
+                villageRepository.save(village);
+            }
 
             // 2. Wards
             Ward ward1 = wardRepository.findByVillageIdAndWardNumber(village.getId(), "1").orElseGet(() ->
@@ -109,17 +113,15 @@ public class DataInitializer implements CommandLineRunner {
 
             userRepository.findByMobileNumber("9876543213").ifPresentOrElse(
                     bdo -> {
-                        if (bdo.getBlock() == null || bdo.getDistrict() == null) {
-                            bdo.setBlock("Shahpur Block");
-                            bdo.setDistrict("Sehore");
-                            userRepository.save(bdo);
-                        }
+                        bdo.setBlock("Budhni");
+                        bdo.setDistrict("Sehore");
+                        userRepository.save(bdo);
                     },
                     () -> userRepository.save(User.builder()
                             .name("Shri Alok Verma (BDO)")
                             .mobileNumber("9876543213")
                             .officialId("BDO-001")
-                            .block("Shahpur Block")
+                            .block("Budhni")
                             .district("Sehore")
                             .password(passwordEncoder.encode("password123"))
                             .role(Role.BLOCK_OFFICER)
@@ -129,16 +131,14 @@ public class DataInitializer implements CommandLineRunner {
 
             userRepository.findByMobileNumber("9876543214").ifPresentOrElse(
                     dm -> {
-                        if (dm.getDistrict() == null) {
-                            dm.setDistrict("Indore");
-                            userRepository.save(dm);
-                        }
+                        dm.setDistrict("Sehore");
+                        userRepository.save(dm);
                     },
                     () -> userRepository.save(User.builder()
                             .name("Smt. Neha Sharma (DM / District Officer)")
                             .mobileNumber("9876543214")
                             .officialId("DM-001")
-                            .district("Indore")
+                            .district("Sehore")
                             .password(passwordEncoder.encode("password123"))
                             .role(Role.DISTRICT_OFFICER)
                             .village(village)

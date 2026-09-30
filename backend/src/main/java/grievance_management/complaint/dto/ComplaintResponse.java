@@ -81,4 +81,10 @@ public class ComplaintResponse {
     private String escalationReason;
 
     private Long daysRemaining;
+
+    private String actionRemarks;
+
+    private String resolvedByRole;
+
+    private String resolvedByName;
 }

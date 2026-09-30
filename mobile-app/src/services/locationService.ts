@@ -46,6 +46,16 @@ const FALLBACK_BLOCKS: Record<string, LocationItem[]> = {
 };
 
 const FALLBACK_VILLAGES: Record<string, LocationItem[]> = {
+  BUDNI: [
+    { id: 'BUDNI_GP', name: 'ग्राम पंचायत बुधनी (Budhni)' },
+    { id: 'PIPARIYA', name: 'ग्राम पंचायत पिपरिया (Pipariya)' },
+    { id: 'SHAHGANJ', name: 'ग्राम पंचायत शाहगंज (Shahganj)' },
+    { id: 'JAHANPUR', name: 'ग्राम पंचायत जहांनपुर (Jahanpur)' },
+    { id: 'JOSHIPUR', name: 'ग्राम पंचायत जोशीपुर (Joshipur)' },
+    { id: 'BAGWADA', name: 'ग्राम पंचायत बगवाड़ा (Bagwada)' },
+    { id: 'MIDGHAT', name: 'ग्राम पंचायत मिडघाट (Midghat)' },
+    { id: 'PILIKHEDA', name: 'ग्राम पंचायत पीलीखेड़ा (Pilikheda)' },
+  ],
   SEHORE_BLK: [
     { id: 'PRIYAPUR', name: 'पियापुर (Priyapur)' },
     { id: 'BILKISGANJ', name: 'बिलकिसगंज (Bilkisganj)' },
@@ -102,14 +112,23 @@ export const locationApi = {
       console.log('Location API fetch blocks error (using fallback):', e);
     }
 
-    const key = districtId.toUpperCase();
-    if (FALLBACK_BLOCKS[key]) {
-      return FALLBACK_BLOCKS[key];
+    const upper = String(districtId).toUpperCase();
+    if (upper.includes('SEHORE') || upper.includes('सीहोर') || upper.includes('SEH')) {
+      return FALLBACK_BLOCKS['SEHORE'];
+    }
+    if (upper.includes('BHOPAL') || upper.includes('भोपाल') || upper.includes('BHO')) {
+      return FALLBACK_BLOCKS['BHOPAL'];
+    }
+    if (upper.includes('INDORE') || upper.includes('इंदौर') || upper.includes('IND')) {
+      return FALLBACK_BLOCKS['INDORE'];
+    }
+    if (FALLBACK_BLOCKS[upper]) {
+      return FALLBACK_BLOCKS[upper];
     }
     return [
-      { id: `${key}_BLK1`, name: `विकासखंड 1 (${districtId} मुख्य)` },
-      { id: `${key}_BLK2`, name: `विकासखंड 2 (${districtId} उत्तर)` },
-      { id: `${key}_BLK3`, name: `विकासखंड 3 (${districtId} दक्षिण)` },
+      { id: `${upper}_BLK1`, name: `विकासखंड 1 (${districtId} मुख्य)` },
+      { id: `${upper}_BLK2`, name: `विकासखंड 2 (${districtId} उत्तर)` },
+      { id: `${upper}_BLK3`, name: `विकासखंड 3 (${districtId} दक्षिण)` },
     ];
   },
 
@@ -129,16 +148,28 @@ export const locationApi = {
       console.log('Location API fetch villages error (using fallback):', e);
     }
 
-    const key = blockId.toUpperCase();
-    if (FALLBACK_VILLAGES[key]) {
-      return FALLBACK_VILLAGES[key];
+    const upper = String(blockId).toUpperCase();
+    if (upper.includes('BUD') || upper.includes('बुध') || upper.includes('BUDNI') || upper.includes('BUDHNI')) {
+      return FALLBACK_VILLAGES['BUDNI'];
+    }
+    if (upper.includes('SEHORE') || upper.includes('सीहोर')) {
+      return FALLBACK_VILLAGES['SEHORE_BLK'];
+    }
+    if (upper.includes('PHANDA') || upper.includes('फंदा')) {
+      return FALLBACK_VILLAGES['PHANDA'];
+    }
+    if (upper.includes('SANWER') || upper.includes('सांवेर')) {
+      return FALLBACK_VILLAGES['SANWER'];
+    }
+    if (FALLBACK_VILLAGES[upper]) {
+      return FALLBACK_VILLAGES[upper];
     }
     return [
-      { id: `${key}_VIL1`, name: `ग्राम पंचायत आदर्श नगर (${blockId})` },
-      { id: `${key}_VIL2`, name: `ग्राम पंचायत कल्याणपुर` },
-      { id: `${key}_VIL3`, name: `ग्राम पंचायत शिवपुरी` },
-      { id: `${key}_VIL4`, name: `ग्राम पंचायत रामपुर` },
-      { id: `${key}_VIL5`, name: `ग्राम पंचायत सुंदरपुर` },
+      { id: `${upper}_VIL1`, name: `ग्राम पंचायत आदर्श नगर (${blockId})` },
+      { id: `${upper}_VIL2`, name: `ग्राम पंचायत कल्याणपुर` },
+      { id: `${upper}_VIL3`, name: `ग्राम पंचायत शिवपुरी` },
+      { id: `${upper}_VIL4`, name: `ग्राम पंचायत रामपुर` },
+      { id: `${upper}_VIL5`, name: `ग्राम पंचायत सुंदरपुर` },
     ];
   },
 

@@ -111,18 +111,29 @@ export default function AdminProfile() {
         if (savedPhoto) photoUri = savedPhoto;
       }
 
-      const blockVal = activeData.block || session?.block || '';
-      const districtVal = activeData.district || session?.district || '';
-      const villageVal = activeData.village || session?.village || '';
+      let blockVal = activeData.block || session?.block || '';
+      let districtVal = activeData.district || session?.district || '';
+      let villageVal = activeData.village || session?.village || '';
+
+      if (determinedRole === 'bdo') {
+        if (!blockVal) blockVal = 'Budhni';
+        if (!districtVal) districtVal = 'Sehore';
+      } else if (determinedRole === 'dm') {
+        if (!districtVal) districtVal = 'Sehore';
+      } else {
+        if (!villageVal) villageVal = 'Budhni';
+        if (!blockVal) blockVal = 'Budhni';
+        if (!districtVal) districtVal = 'Sehore';
+      }
 
       const officialIdVal =
         determinedRole === 'bdo'
-          ? (activeData.officialId || activeData.bdoId || session?.officialId || session?.bdoId || '')
+          ? (activeData.officialId || activeData.bdoId || session?.officialId || session?.bdoId || 'BDO-BDH-01')
           : determinedRole === 'dm'
-          ? (activeData.officialId || activeData.dmId || session?.officialId || session?.dmId || '')
+          ? (activeData.officialId || activeData.dmId || session?.officialId || session?.dmId || 'DM-SHR-01')
           : determinedRole === 'secretary'
-          ? (activeData.secretaryId || activeData.officialId || session?.secretaryId || '')
-          : (activeData.adminId || activeData.officialId || session?.adminId || '');
+          ? (activeData.secretaryId || activeData.officialId || session?.secretaryId || 'SEC-001')
+          : (activeData.adminId || activeData.officialId || session?.adminId || 'SAR-001');
 
       setAdmin({
         name: activeData.name || '',
@@ -1166,6 +1177,140 @@ export default function AdminProfile() {
             </View>
           )}
 
+          {/* SHOWCASE PHOTO MANAGEMENT SECTION */}
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {admin.role === 'dm'
+                  ? (isHindi ? 'जिला कलेक्ट्रेट फोटो प्रबंधन' : 'District Showcase Management')
+                  : admin.role === 'bdo'
+                  ? (isHindi ? 'उप-प्रभाग / विकासखंड फोटो प्रबंधन' : 'Sub-Division Showcase Management')
+                  : (isHindi ? 'ग्राम पंचायत फोटो प्रबंधन' : 'Panchayat Showcase Management')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.showcaseManageCard}>
+            <View style={styles.showcaseManageHeader}>
+              <View style={[
+                styles.showcaseManageIconBox,
+                { backgroundColor: admin.role === 'dm' ? '#F5F3FF' : admin.role === 'bdo' ? '#EFF6FF' : '#ECFDF5' }
+              ]}>
+                <Ionicons
+                  name={admin.role === 'dm' ? 'business' : admin.role === 'bdo' ? 'business-outline' : 'image'}
+                  size={22}
+                  color={admin.role === 'dm' ? '#7C3AED' : admin.role === 'bdo' ? '#1E40AF' : '#059669'}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.showcaseManageTitle}>
+                  {admin.role === 'dm'
+                    ? (isHindi ? 'जिला कलेक्ट्रेट फोटो गैलरी' : 'District Collectorate Showcase')
+                    : admin.role === 'bdo'
+                    ? (isHindi ? 'उप-प्रभाग / ब्लॉक फोटो गैलरी' : 'Sub-Division / Block Showcase')
+                    : (isHindi ? 'ग्राम पंचायत फोटो गैलरी' : 'Gram Panchayat Showcase')}
+                </Text>
+                <Text style={styles.showcaseManageSub}>
+                  {admin.role === 'dm'
+                    ? (isHindi ? 'कलेक्ट्रेट व जिला प्रशासन परिसर की मुख्य फोटो बदलें, क्रॉप करें या हटाएं' : 'Add, edit, crop or update district showcase photos')
+                    : admin.role === 'bdo'
+                    ? (isHindi ? 'सब-डिवीजन व ब्लॉक मुख्यालय की मुख्य कवर फोटो व गैलरी प्रबंधित करें' : 'Add, edit, crop or update block showcase photos')
+                    : (isHindi ? 'पंचायत भवन व विकास कार्यों की फोटो बदलें, क्रॉप करें या हटाएं' : 'Add, edit, crop or update panchayat showcase photos')}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.showcaseManageBtn,
+                { backgroundColor: admin.role === 'dm' ? '#7C3AED' : admin.role === 'bdo' ? '#1E40AF' : '#059669' }
+              ]}
+              onPress={pickVillageCoverPhoto}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="camera" size={18} color="#FFFFFF" />
+              <Text style={styles.showcaseManageBtnText}>
+                {admin.role === 'dm'
+                  ? (isHindi ? '🏛️ जिला कलेक्ट्रेट फोटो प्रबंधित करें' : 'Manage District Photos')
+                  : admin.role === 'bdo'
+                  ? (isHindi ? '🏢 सब-डिवीजन / ब्लॉक फोटो प्रबंधित करें' : 'Manage Sub-Division Photos')
+                  : (isHindi ? '📸 पंचायत फोटो प्रबंधित करें' : 'Manage Panchayat Photos')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ADMINISTRATIVE POWERS & JURISDICTION SECTION */}
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {isHindi ? 'प्रशासनिक अधिकार व कार्यक्षेत्र' : 'Powers & Jurisdiction'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.authorityCard}>
+            <View style={styles.authorityHeader}>
+              <View style={[
+                styles.authorityIconBox,
+                { backgroundColor: admin.role === 'dm' ? '#F3E8FF' : admin.role === 'bdo' ? '#E0E7FF' : '#EEF2FF' }
+              ]}>
+                <Ionicons
+                  name={admin.role === 'dm' ? 'shield-checkmark' : admin.role === 'bdo' ? 'shield-half' : 'ribbon'}
+                  size={21}
+                  color={admin.role === 'dm' ? '#7C3AED' : admin.role === 'bdo' ? '#1E40AF' : '#000080'}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.authorityTitle}>
+                  {admin.role === 'dm'
+                    ? (isHindi ? 'जिला दंडाधिकारी (District Magistrate - Tier 3)' : 'District Magistrate - Apex Tier 3')
+                    : admin.role === 'bdo'
+                    ? (isHindi ? 'प्रखंड विकास अधिकारी (Block Officer - Tier 2)' : 'Block Development Officer - Tier 2')
+                    : (isHindi ? 'ग्राम पंचायत स्तर (Tier 1 Authority)' : 'Gram Panchayat - Tier 1')}
+                </Text>
+                <Text style={styles.authorityJurisdiction}>
+                  {admin.role === 'dm'
+                    ? `📍 ${admin.district || 'Sehore'} ${isHindi ? 'संपूर्ण जिला कलेक्ट्रेट क्षेत्राधिकार' : 'Full District Jurisdiction'}`
+                    : admin.role === 'bdo'
+                    ? `📍 ${admin.block || 'Budhni'} ${isHindi ? 'उप-प्रभाग / विकासखंड' : 'Sub-Division'} • ${admin.district || 'Sehore'}`
+                    : `📍 ${admin.village || 'Budhni'} ${isHindi ? 'ग्राम पंचायत' : 'Gram Panchayat'}`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.powersList}>
+              {(admin.role === 'dm' ? [
+                { hi: 'Tier 3 (Apex) सर्वोच्च अपीलीय व अंतिम प्रशासनिक निर्णय', en: 'Tier 3 Apex Grievance Appellate Authority' },
+                { hi: 'जिले के समस्त विकासखंडों (BDOs) व ग्राम पंचायतों पर प्रशासनिक नियंत्रण', en: 'Administrative oversight over all Blocks & Panchayats' },
+                { hi: 'फ्लाइंग स्क्वाड जांच दल तैनाती व ऑन-साइट मजिस्ट्रियल जांच के आदेश', en: 'Immediate Flying Squad & magisterial inquiry deployment' },
+                { hi: 'नागरिक चार्टर SLA उल्लंघन पर अधिकारियों को कारण बताओ नोटिस', en: 'Show-cause notices & disciplinary action for SLA breaches' },
+                { hi: 'जिला कलेक्ट्रेट आधिकारिक फोटो, घोषणाएं व प्रोफाइल प्रबंधन', en: 'Collectorate official showcase & public alerts management' },
+              ] : admin.role === 'bdo' ? [
+                { hi: 'Tier 2 Grievance Redressal (प्रखंड स्तर त्वरित निस्तारण)', en: 'Tier 2 Block Level Grievance Redressal' },
+                { hi: 'ग्राम पंचायतों एवं सचिवों के कार्यों का प्रशासनिक पर्यवेक्षण व ऑडिट', en: 'Supervision & audit of Gram Panchayats & Secretaries' },
+                { hi: 'समयावधि बीतने पर पंचायत को कारण बताओ नोटिस व जांच दल तैनाती', en: 'Show-cause notices & field inspection teams dispatch' },
+                { hi: 'अति-गंभीर समस्याओं को सीधे जिलाधिकारी (DM) को एस्केलेट करने का अधिकार', en: 'Authority to escalate complex issues directly to DM' },
+                { hi: 'सब-डिवीजन / ब्लॉक आधिकारिक फोटो, योजनाएं व प्रोफाइल प्रबंधन', en: 'Sub-division showcase photo & profile management' },
+              ] : [
+                { hi: 'Tier 1 Grievance Redressal (ग्राम स्तर प्राथमिक निस्तारण)', en: 'Tier 1 Gram Panchayat Grievance Resolution' },
+                { hi: 'ग्राम विकास कार्यों का निष्पादन व तकनीकी टीम आवंटन', en: 'Village development works & resource allocation' },
+                { hi: 'समस्या स्थल का भौतिक निरीक्षण व समाधान सत्यापन', en: 'On-site physical inspection & citizen resolution verify' },
+                { hi: 'ग्राम पंचायत भवन फोटो एवं विकास कार्यों का प्रदर्शन', en: 'Panchayat showcase photo & development gallery' },
+              ]).map((power, idx) => (
+                <View key={idx} style={styles.powerItem}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color={admin.role === 'dm' ? '#7C3AED' : admin.role === 'bdo' ? '#2563EB' : '#059669'}
+                  />
+                  <Text style={styles.powerText}>
+                    {isHindi ? power.hi : power.en}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
           {/* ACCOUNT SETTINGS SECTION */}
           <View style={styles.sectionHeader}>
             <View>
@@ -1701,5 +1846,103 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.borderLight,
     marginLeft: 62,
+  },
+  showcaseManageCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.small,
+  },
+  showcaseManageHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  showcaseManageIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  showcaseManageTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  showcaseManageSub: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  showcaseManageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+    ...SHADOWS.small,
+  },
+  showcaseManageBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  authorityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.small,
+  },
+  authorityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  authorityIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authorityTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  authorityJurisdiction: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginTop: 2,
+  },
+  powersList: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  powerItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  powerText: {
+    fontSize: 12.5,
+    color: '#334155',
+    lineHeight: 18,
+    flex: 1,
+    fontWeight: '500',
   },
 });

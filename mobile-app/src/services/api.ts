@@ -396,6 +396,9 @@ export interface ComplaintData {
   escalatedAt?: string;
   escalationReason?: string;
   daysRemaining?: number;
+  actionRemarks?: string;
+  resolvedByRole?: string;
+  resolvedByName?: string;
 }
 
 export const complaintApi = {

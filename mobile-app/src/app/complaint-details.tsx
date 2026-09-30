@@ -35,7 +35,7 @@ export default function ComplaintDetailsScreen() {
 
   const [complaint, setComplaint] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'citizen' | 'sarpanch' | 'secretary'>('citizen');
+  const [userRole, setUserRole] = useState<'citizen' | 'sarpanch' | 'secretary' | 'bdo' | 'dm'>('citizen');
   const [selectedStatus, setSelectedStatus] = useState<string>('IN_PROGRESS');
   const [remarks, setRemarks] = useState<string>('');
   const [updatingStatus, setUpdatingStatus] = useState<boolean>(false);
@@ -144,7 +144,7 @@ export default function ComplaintDetailsScreen() {
 
       const sessionData = await AsyncStorage.getItem('user_session');
       const session = sessionData ? JSON.parse(sessionData) : null;
-      const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary';
+      const role = String(session?.role || 'citizen').toLowerCase() as 'citizen' | 'sarpanch' | 'secretary' | 'bdo' | 'dm';
       setUserRole(role);
 
       let token = await getAuthToken();
@@ -182,9 +182,17 @@ export default function ComplaintDetailsScreen() {
       // If not found by direct ID, check role-specific complaints list from backend DB
       if (!foundComplaint) {
         try {
-          const list = role === 'citizen' 
-            ? await complaintApi.getCitizenComplaints()
-            : await complaintApi.getSarpanchComplaints();
+          let list: any[] = [];
+          if (role === 'bdo') {
+            list = await escalationApi.getByTier(2);
+          } else if (role === 'dm') {
+            list = await escalationApi.getByTier(3);
+          } else if (role === 'citizen') {
+            list = await complaintApi.getCitizenComplaints();
+          } else {
+            list = await complaintApi.getSarpanchComplaints();
+          }
+
           if (Array.isArray(list)) {
             foundComplaint = list.find((c: any) => 
               String(c.id) === String(complaintId) || 
@@ -244,6 +252,9 @@ export default function ComplaintDetailsScreen() {
           classification: foundComplaint.classification || null,
           classificationReason: foundComplaint.classificationReason || foundComplaint.reason || null,
           duplicateOfId: foundComplaint.duplicateOfId || foundComplaint.duplicate_of_id || null,
+          actionRemarks: foundComplaint.actionRemarks || null,
+          resolvedByRole: foundComplaint.resolvedByRole || null,
+          resolvedByName: foundComplaint.resolvedByName || null,
           dateTime: foundComplaint.createdAt || new Date().toISOString(),
           statusTimeline: [],
         });
@@ -1854,36 +1865,165 @@ export default function ComplaintDetailsScreen() {
           </View>
         )}
 
-        {/* OFFICIAL ACTION PANEL (SARPANCH / SECRETARY) */}
-        {(userRole === 'sarpanch' || userRole === 'secretary') && (
+        {/* OFFICIAL REDRESSAL & RESOLUTION DETAILS CARD */}
+        {(Boolean(complaint.actionRemarks || complaint.resolvedByRole) ||
+          complaint.status === 'RESOLVED' ||
+          complaint.status === 'CLOSED' ||
+          complaint.status === 'ACTION_TAKEN') && (
+          <View style={styles.redressalCard}>
+            <View style={styles.cardHeadingRow}>
+              <View style={[styles.cardHeadingBadge, { backgroundColor: '#ECFDF5' }]}>
+                <Ionicons name="checkmark-done-circle" size={19} color="#059669" />
+              </View>
+              <Text style={[styles.officialCardTitle, { color: '#065F46' }]}>
+                {language === 'hi' ? 'आधिकारिक समाधान व कार्रवाई विवरण' : 'Official Redressal & Action Taken'}
+              </Text>
+            </View>
+
+            {/* Officer Designation Badge */}
+            <View style={styles.officerBadgeRow}>
+              <View style={[
+                styles.officerRoleBadge,
+                complaint.resolvedByRole === 'DISTRICT_OFFICER' || complaint.currentAuthority === 'DM'
+                  ? { backgroundColor: '#F3E8FF', borderColor: '#C084FC' }
+                  : complaint.resolvedByRole === 'BLOCK_OFFICER' || complaint.currentAuthority === 'BDO'
+                  ? { backgroundColor: '#E0E7FF', borderColor: '#818CF8' }
+                  : { backgroundColor: '#ECFDF5', borderColor: '#6EE7B7' }
+              ]}>
+                <Ionicons
+                  name={
+                    complaint.resolvedByRole === 'DISTRICT_OFFICER' || complaint.currentAuthority === 'DM'
+                      ? 'shield-half'
+                      : complaint.resolvedByRole === 'BLOCK_OFFICER' || complaint.currentAuthority === 'BDO'
+                      ? 'business'
+                      : 'ribbon'
+                  }
+                  size={15}
+                  color={
+                    complaint.resolvedByRole === 'DISTRICT_OFFICER' || complaint.currentAuthority === 'DM'
+                      ? '#7C3AED'
+                      : complaint.resolvedByRole === 'BLOCK_OFFICER' || complaint.currentAuthority === 'BDO'
+                      ? '#4338CA'
+                      : '#059669'
+                  }
+                />
+                <Text style={[
+                  styles.officerRoleBadgeText,
+                  {
+                    color: complaint.resolvedByRole === 'DISTRICT_OFFICER' || complaint.currentAuthority === 'DM'
+                      ? '#6B21A8'
+                      : complaint.resolvedByRole === 'BLOCK_OFFICER' || complaint.currentAuthority === 'BDO'
+                      ? '#3730A3'
+                      : '#065F46'
+                  }
+                ]}>
+                  {complaint.resolvedByRole === 'DISTRICT_OFFICER' || complaint.currentAuthority === 'DM'
+                    ? (language === 'hi' ? 'जिलाधिकारी (DM) स्तर' : 'District Magistrate (DM Level)')
+                    : complaint.resolvedByRole === 'BLOCK_OFFICER' || complaint.currentAuthority === 'BDO'
+                    ? (language === 'hi' ? 'प्रखंड विकास अधिकारी (BDO) स्तर' : 'Block Development Officer (BDO Level)')
+                    : complaint.resolvedByRole === 'SECRETARY'
+                    ? (language === 'hi' ? 'ग्राम पंचायत सचिव' : 'Panchayat Secretary')
+                    : (language === 'hi' ? 'ग्राम प्रधान / सरपंच' : 'Gram Sarpanch')}
+                </Text>
+              </View>
+
+              {Boolean(complaint.resolvedByName) && (
+                <Text style={styles.officerNameText}>
+                  {complaint.resolvedByName}
+                </Text>
+              )}
+            </View>
+
+            {/* Official Remarks Callout */}
+            <View style={styles.remarksCallout}>
+              <Ionicons name="chatbox-ellipses-outline" size={17} color="#059669" style={{ marginTop: 2, marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.remarksCalloutLabel}>
+                  {language === 'hi' ? 'आधिकारिक आदेश / टिप्पणी:' : 'Official Action Note / Order:'}
+                </Text>
+                <Text style={styles.remarksCalloutText}>
+                  {complaint.actionRemarks ||
+                    (complaint.status === 'RESOLVED' || complaint.status === 'CLOSED'
+                      ? (language === 'hi'
+                          ? 'संबंधित विभाग एवं अधिकारियों द्वारा स्थल निरीक्षण उपरांत समस्या का निराकरण कर दिया गया है।'
+                          : 'The issue has been resolved following site inspection and departmental intervention.')
+                      : (language === 'hi'
+                          ? 'सक्षम अधिकारी द्वारा समस्या पर संज्ञान लेते हुए आवश्यक कार्रवाई की जा रही है।'
+                          : 'Action initiated by competent authority.'))}
+                </Text>
+              </View>
+            </View>
+
+            {/* Prompt for citizen if resolved/action taken but not closed */}
+            {userRole === 'citizen' && (complaint.status === 'RESOLVED' || complaint.status === 'ACTION_TAKEN') && (
+              <TouchableOpacity
+                style={styles.citizenConfirmFixedBtn}
+                onPress={handleProblemFixed}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
+                <Text style={styles.citizenConfirmFixedBtnText}>
+                  {language === 'hi' ? 'हाँ, मेरी समस्या हल हो गई है (बंद करें)' : 'Confirm & Close Ticket'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* OFFICIAL ACTION PANEL (SARPANCH / SECRETARY / BDO / DM) */}
+        {(userRole === 'sarpanch' || userRole === 'secretary' || userRole === 'bdo' || userRole === 'dm') && (
           <View style={styles.officialActionCard}>
             <View style={styles.cardHeadingRow}>
-              <View style={[styles.cardHeadingBadge, { backgroundColor: '#EEF2FF' }]}>
+              <View style={[
+                styles.cardHeadingBadge,
+                {
+                  backgroundColor: userRole === 'dm' ? '#F3E8FF' : userRole === 'bdo' ? '#E0E7FF' : '#EEF2FF'
+                }
+              ]}>
                 <Ionicons
                   name="shield-checkmark"
                   size={18}
-                  color="#000080"
+                  color={userRole === 'dm' ? '#7C3AED' : userRole === 'bdo' ? '#4338CA' : '#000080'}
                 />
               </View>
               <Text style={styles.officialCardTitle}>
-                {language === 'hi'
-                  ? 'अधिकारी कार्रवाई पैनल'
-                  : 'Official Action Panel'}
+                {userRole === 'dm'
+                  ? (language === 'hi' ? 'जिलाधिकारी (DM) प्रशासनिक कार्रवाई' : 'District Magistrate Action Panel')
+                  : userRole === 'bdo'
+                  ? (language === 'hi' ? 'प्रखंड विकास अधिकारी (BDO) कार्रवाई' : 'Block Development Officer Action Panel')
+                  : (language === 'hi' ? 'ग्राम पंचायत अधिकारी कार्रवाई पैनल' : 'Panchayat Action Panel')}
               </Text>
             </View>
 
             <Text style={styles.officialSubtitle}>
-              {language === 'hi'
-                ? 'शिकायत की स्थिति बदलें और अपनी टिप्पणी दर्ज करें:'
-                : 'Update complaint status and add your official remarks:'}
+              {userRole === 'dm'
+                ? (language === 'hi' ? 'कलेक्टर स्तर पर अंतिम निर्णय, निर्देश अथवा समस्या समाधान दर्ज करें:' : 'Issue apex directives or resolve grievance at district level:')
+                : userRole === 'bdo'
+                ? (language === 'hi' ? 'ब्लॉक स्तर पर जांच, नोटिस या समस्या समाधान दर्ज करें:' : 'Issue block-level notice, review, or resolve grievance:')
+                : (language === 'hi' ? 'शिकायत की स्थिति बदलें और अपनी टिप्पणी दर्ज करें:' : 'Update complaint status and add your official remarks:')}
             </Text>
 
             {/* Status Selection Pills */}
             <View style={styles.statusPillsContainer}>
               {[
-                { id: 'IN_PROGRESS', hi: 'प्रगति में', en: 'In Progress', icon: 'time-outline' },
-                { id: 'ACTION_TAKEN', hi: 'कार्रवाई की गई', en: 'Action Taken', icon: 'construct-outline' },
-                { id: 'RESOLVED', hi: 'समाधान हुआ', en: 'Resolved', icon: 'checkmark-circle-outline' },
+                {
+                  id: 'IN_PROGRESS',
+                  hi: userRole === 'dm' ? 'फ्लाइंग स्क्वाड' : userRole === 'bdo' ? 'ब्लॉक जांच' : 'प्रगति में',
+                  en: userRole === 'dm' ? 'Squad Deployed' : userRole === 'bdo' ? 'Block Team' : 'In Progress',
+                  icon: 'time-outline'
+                },
+                {
+                  id: 'ACTION_TAKEN',
+                  hi: userRole === 'dm' ? 'कारण बताओ नोटिस' : userRole === 'bdo' ? 'पंचायत को नोटिस' : 'कार्रवाई की गई',
+                  en: userRole === 'dm' ? 'Show-Cause Notice' : userRole === 'bdo' ? 'Panchayat Notice' : 'Action Taken',
+                  icon: 'construct-outline'
+                },
+                {
+                  id: 'RESOLVED',
+                  hi: 'समाधान हुआ',
+                  en: 'Resolved',
+                  icon: 'checkmark-circle-outline'
+                },
               ].map((st) => (
                 <TouchableOpacity
                   key={st.id}
@@ -1913,14 +2053,16 @@ export default function ComplaintDetailsScreen() {
 
             {/* Remarks Input */}
             <Text style={styles.remarksInputLabel}>
-              {language === 'hi' ? 'टिप्पणी / विवरण (वैकल्पिक)' : 'Remarks / Note (Optional)'}
+              {language === 'hi' ? 'आधिकारिक टिप्पणी / आदेश (वैकल्पिक)' : 'Official Remarks / Directives (Optional)'}
             </Text>
             <TextInput
               style={styles.remarksInputField}
               placeholder={
-                language === 'hi'
-                  ? 'कार्रवाई का विवरण दर्ज करें (उदा. टीम को भेजा गया है)...'
-                  : 'Enter action details (e.g. repair team dispatched)...'
+                userRole === 'dm'
+                  ? (language === 'hi' ? 'जिलाधिकारी कार्यालय आदेश / टिप्पणी दर्ज करें...' : 'Enter DM directives or orders...')
+                  : userRole === 'bdo'
+                  ? (language === 'hi' ? 'प्रखंड कार्यालय आदेश / टिप्पणी दर्ज करें...' : 'Enter BDO directives or orders...')
+                  : (language === 'hi' ? 'कार्रवाई का विवरण दर्ज करें (उदा. टीम को भेजा गया है)...' : 'Enter action details (e.g. repair team dispatched)...')
               }
               placeholderTextColor="#9AA4B2"
               value={remarks}
@@ -1945,11 +2087,54 @@ export default function ComplaintDetailsScreen() {
                 <>
                   <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.officialSubmitBtnText}>
-                    {language === 'hi' ? 'स्थिति अपडेट करें' : 'Update Status Now'}
+                    {language === 'hi' ? 'स्थिति व आदेश अपडेट करें' : 'Update Status & Order'}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
+
+            {/* BDO Direct Escalate to DM Button */}
+            {userRole === 'bdo' && Number(complaint.escalationLevel || 1) < 3 && (
+              <TouchableOpacity
+                style={styles.bdoEscalateBtn}
+                onPress={() => {
+                  Alert.alert(
+                    language === 'hi' ? 'DM को अग्रेषित करें?' : 'Escalate to DM?',
+                    language === 'hi'
+                      ? 'क्या आप इस शिकायत को जिलाधिकारी (DM / Apex Authority) के समक्ष प्रस्तुत करना चाहते हैं?'
+                      : 'Do you want to escalate this complaint directly to the District Magistrate (DM)?',
+                    [
+                      { text: language === 'hi' ? 'रद्द करें' : 'Cancel', style: 'cancel' },
+                      {
+                        text: language === 'hi' ? 'हाँ, DM को भेजें' : 'Yes, Escalate to DM',
+                        onPress: async () => {
+                          try {
+                            setUpdatingStatus(true);
+                            const rawId = complaint.rawId || complaint.complaintId;
+                            await escalationApi.escalateComplaint(Number(rawId), 'प्रखंड विकास अधिकारी (BDO) द्वारा उच्च प्रशासनिक हस्तक्षेप हेतु जिलाधिकारी को अग्रेषित।');
+                            Alert.alert(
+                              language === 'hi' ? 'सफलतापूर्वक अग्रेषित' : 'Escalated to DM',
+                              language === 'hi' ? 'शिकायत जिलाधिकारी स्तर (Tier 3) पर अग्रेषित कर दी गई है।' : 'Complaint forwarded to District Magistrate.'
+                            );
+                            loadComplaint();
+                          } catch (err: any) {
+                            Alert.alert('Error', err?.message || 'Escalation failed');
+                          } finally {
+                            setUpdatingStatus(false);
+                          }
+                        }
+                      }
+                    ]
+                  );
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="arrow-up-circle-outline" size={18} color="#7C3AED" />
+                <Text style={styles.bdoEscalateBtnText}>
+                  {language === 'hi' ? 'जिलाधिकारी (DM) को एस्केलेट करें' : 'Escalate Directly to DM (Apex)'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -3112,5 +3297,95 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#64748B',
     fontWeight: '500',
+  },
+  redressalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    ...SHADOWS.small,
+  },
+  officerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  officerRoleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  officerRoleBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  officerNameText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  remarksCallout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  remarksCalloutLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  remarksCalloutText: {
+    fontSize: 13,
+    color: '#047857',
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  citizenConfirmFixedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 11,
+    borderRadius: 10,
+    gap: 8,
+    marginTop: 4,
+    ...SHADOWS.small,
+  },
+  citizenConfirmFixedBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  bdoEscalateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1.5,
+    borderColor: '#DDD6FE',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 10,
+  },
+  bdoEscalateBtnText: {
+    color: '#7C3AED',
+    fontSize: 13.5,
+    fontWeight: '700',
   },
 });

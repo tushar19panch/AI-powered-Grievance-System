@@ -228,8 +228,10 @@ public class SarpanchComplaintController {
             User user,
             Complaint complaint) {
 
-        // Super Admin and District Officers have access to all villages
-        if (user.getRole() == Role.SUPER_ADMIN || user.getRole() == Role.DISTRICT_OFFICER) {
+        // Super Admin, District Officers, and Block Officers have jurisdiction over broader areas
+        if (user.getRole() == Role.SUPER_ADMIN || 
+            user.getRole() == Role.DISTRICT_OFFICER || 
+            user.getRole() == Role.BLOCK_OFFICER) {
             return;
         }
 
