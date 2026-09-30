@@ -573,6 +573,7 @@ export interface ChatMessagePayload {
   wardId?: number;
   villageId?: number;
   photo?: string;
+  audioBase64?: string;
   sessionContext?: Record<string, any>;
 }
 
@@ -591,6 +592,7 @@ export interface ChatMessageResult {
     sentiment?: string;
     department?: string;
   };
+  transcribedText?: string;
   status?: string;
 }
 
@@ -599,6 +601,13 @@ export const chatApi = {
     return await request<ChatMessageResult>('/api/chat', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  transcribeAudio: async (audioBase64: string, language?: string): Promise<{ status: string; text: string; language?: string }> => {
+    return await request<{ status: string; text: string; language?: string }>('/api/chat/transcribe', {
+      method: 'POST',
+      body: JSON.stringify({ audio: audioBase64, language }),
     });
   },
 };

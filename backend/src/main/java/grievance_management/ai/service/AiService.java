@@ -97,6 +97,33 @@ public class AiService {
         return Collections.emptyMap();
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> transcribeAudio(String audioBase64, String language) {
+        if (audioBase64 == null || audioBase64.isBlank()) {
+            return Collections.emptyMap();
+        }
+        try {
+            String url = aiServiceUrl.replace("/analyze", "/transcribe");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("audio", audioBase64);
+            if (language != null && !language.isBlank()) {
+                payload.put("language", language);
+            }
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                log.info("Whisper transcription success: status={}", response.getBody().get("status"));
+                return (Map<String, Object>) response.getBody();
+            }
+        } catch (Exception e) {
+            log.warn("Whisper audio transcription failed at [{}]: {}", aiServiceUrl, e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
+
     private AiAnalysisResult fallback(String text) {
         String lower = text != null ? text.toLowerCase().trim() : "";
 

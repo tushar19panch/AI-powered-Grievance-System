@@ -68,6 +68,19 @@ public class ChatbotService {
         String rawMsg = request.getMessage() != null ? request.getMessage().trim() : "";
         Map<String, Object> session = request.getSessionContext() != null ? new HashMap<>(request.getSessionContext()) : new HashMap<>();
 
+        // Voice audio transcription if audioBase64 is provided
+        String transcribedVoice = null;
+        if ((rawMsg.isEmpty()) && request.getAudioBase64() != null && !request.getAudioBase64().isBlank()) {
+            Map<String, Object> sttResult = aiService.transcribeAudio(request.getAudioBase64(), request.getLanguage());
+            if (sttResult != null && sttResult.get("text") != null) {
+                transcribedVoice = String.valueOf(sttResult.get("text")).trim();
+                if (!transcribedVoice.isEmpty()) {
+                    rawMsg = transcribedVoice;
+                    request.setMessage(rawMsg);
+                }
+            }
+        }
+
         // 1. Language detection
         String lang = detectLanguage(rawMsg, request.getLanguage(), session);
         session.put("language", lang);
@@ -78,10 +91,10 @@ public class ChatbotService {
 
         // 3. Determine Intent with state awareness
         String intent = determineIntent(rawMsg, activeIntent, nluResult);
-        log.info("Citizen Chat: rawMsg='{}', detectedIntent='{}', lang='{}'", rawMsg, intent, lang);
+        log.info("Citizen Chat: rawMsg='{}', detectedIntent='{}', lang='{}', wasVoice={}", rawMsg, intent, lang, (transcribedVoice != null));
 
         // 4. Dispatch to controlled intent handler
-        return switch (intent) {
+        ChatMessageResponse response = switch (intent) {
             case "SUBMIT_COMPLAINT" -> handleSubmitComplaint(rawMsg, request, session, lang, authenticatedUsername, nluResult);
             case "TRACK_COMPLAINT" -> handleTrackComplaint(rawMsg, request, session, lang, nluResult);
             case "COMPLAINT_STATUS" -> handleComplaintStatusExplanation(rawMsg, session, lang);
@@ -92,6 +105,11 @@ public class ChatbotService {
             case "UNKNOWN" -> handleUnknownOrHelp(rawMsg, session, lang);
             default -> handleUnknownOrHelp(rawMsg, session, lang);
         };
+
+        if (transcribedVoice != null && response != null) {
+            response.setTranscribedText(transcribedVoice);
+        }
+        return response;
     }
 
     // =========================================================================

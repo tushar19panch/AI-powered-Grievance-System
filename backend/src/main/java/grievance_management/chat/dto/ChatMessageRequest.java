@@ -53,6 +53,11 @@ public class ChatMessageRequest {
     private String photo;
 
     /**
+     * Optional voice audio base64 for speech transcription
+     */
+    private String audioBase64;
+
+    /**
      * Multi-step dialog context state (slot filling)
      */
     private Map<String, Object> sessionContext;

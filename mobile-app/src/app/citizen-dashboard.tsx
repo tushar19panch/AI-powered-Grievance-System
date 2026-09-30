@@ -639,13 +639,14 @@ export default function CitizenDashboard() {
         isHindi={isHindi}
       />
 
-      {/* FLOATING ACTION BUTTON (GRAM MITRA AI) */}
+      {/* FLOATING ACTION BUTTON (GRAM MITRA AI VOICE & CHAT) */}
       <TouchableOpacity
         style={styles.floatingMitraBtn}
         onPress={() => setGramMitraVisible(true)}
         activeOpacity={0.85}
       >
-        <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
+        <Ionicons name="mic" size={17} color="#FDE047" style={{ marginRight: -2 }} />
+        <Ionicons name="chatbubble-ellipses" size={19} color="#FFFFFF" />
         <Text style={styles.floatingMitraLabel}>
           {isHindi ? 'ग्राम मित्र' : 'Gram Mitra'}
         </Text>

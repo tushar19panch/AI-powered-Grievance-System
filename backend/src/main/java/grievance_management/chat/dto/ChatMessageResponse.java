@@ -61,6 +61,11 @@ public class ChatMessageResponse {
     private AiAnalysisResult aiAnalysis;
 
     /**
+     * Transcribed user voice text (if message was sent as speech/audio)
+     */
+    private String transcribedText;
+
+    /**
      * Status indicator: SUCCESS, WAITING_FOR_INPUT, ERROR
      */
     private String status;

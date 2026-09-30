@@ -12,16 +12,28 @@ import {
   Platform,
   SafeAreaView,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import { chatApi, ChatMessageResult } from '../services/api';
+import {
+  voiceAssistant,
+  SupportedVoiceLanguage,
+} from '../services/voiceAssistantService';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../theme';
 
 interface GramMitraModalProps {
   visible: boolean;
   onClose: () => void;
-  initialLanguage?: 'hi' | 'en' | 'hinglish';
+  initialLanguage?: SupportedVoiceLanguage;
   initialComplaintId?: number | string;
 }
 
@@ -34,6 +46,7 @@ interface MessageItem {
   complaintData?: any;
   aiAnalysis?: any;
   quickReplies?: string[];
+  wasVoice?: boolean;
 }
 
 export function GramMitraModal({
@@ -45,36 +58,99 @@ export function GramMitraModal({
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [language, setLanguage] = useState<'hi' | 'en' | 'hinglish'>(initialLanguage);
+  const [language, setLanguage] = useState<SupportedVoiceLanguage>(initialLanguage);
   const [sessionContext, setSessionContext] = useState<Record<string, any>>({});
   const [conversationId] = useState<string>(() => 'chat_' + Date.now());
 
+  // Voice Assistance State
+  const [voiceMode, setVoiceMode] = useState<boolean>(true); // Auto-read aloud when ON
+  const [activeSpeakingId, setActiveSpeakingId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [interimTranscript, setInterimTranscript] = useState<string>('');
+
   const scrollViewRef = useRef<ScrollView>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
+
+  // Pulse animation for recording mic
+  useEffect(() => {
+    let animLoop: Animated.CompositeAnimation | null = null;
+    if (isListening) {
+      animLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.25,
+            duration: 650,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 650,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animLoop.start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+
+    return () => {
+      if (animLoop) animLoop.stop();
+    };
+  }, [isListening]);
+
+  // Load voice mode preference from storage
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('@gram_mitra_voice_mode');
+        if (saved !== null) {
+          setVoiceMode(saved === 'true');
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // Stop speech if modal is closed
+  useEffect(() => {
+    if (!visible) {
+      voiceAssistant.stop();
+      voiceAssistant.stopListening();
+      setActiveSpeakingId(null);
+      setIsListening(false);
+      setInterimTranscript('');
+    }
+  }, [visible]);
 
   // Initialize Welcome Message
   useEffect(() => {
     if (visible && messages.length === 0) {
-      const welcomeText = language === 'hi'
-        ? 'नमस्ते! मैं आपका **ग्राम मित्र** AI नागरिक सहायक हूँ। 🙏\n\nमैं आपकी क्या सहायता कर सकता हूँ?\n• नई शिकायत दर्ज करना\n• शिकायत की स्थिति जांचना (जैसे #38)\n• समाधान समय सीमा व नियम\n• लंबित मामलों को आगे बढ़ाना (Escalation)'
-        : language === 'hinglish'
-        ? 'Namaste! Main aapka **Gram Mitra** AI Assistant hu. 🙏\n\nAap mujhse nayi complaint register karwa sakte hain, purani complaint ka status check kar sakte hain (#38), ya rules pooch sakte hain.'
-        : 'Hello! I am **Gram Mitra**, your AI Citizen Grievance Assistant. 🙏\n\nHow can I help you today?\n• File a new civic grievance\n• Track complaint status (e.g. #38)\n• Check resolution timelines\n• Escalate delayed complaints';
+      const welcomeText =
+        language === 'hi'
+          ? 'नमस्ते! मैं आपका **ग्राम मित्र** AI आवाज़ व नागरिक सहायक हूँ। 🙏\n\nआप मुझसे बोलकर या लिखकर बात कर सकते हैं:\n• नई शिकायत दर्ज करना ("नल खराब है")\n• शिकायत की स्थिति जांचना ("#38 का स्टेटस")\n• समाधान समय सीमा व नियम\n• लंबित मामलों को आगे बढ़ाना'
+          : language === 'hinglish'
+          ? 'Namaste! Main aapka **Gram Mitra** AI Voice Assistant hu. 🙏\n\nAap bolkar ya likhkar complaint register kar sakte hain, purani complaint ka status pooch sakte hain (#38), ya rules jaan sakte hain.'
+          : 'Hello! I am **Gram Mitra**, your AI Voice & Grievance Assistant. 🙏\n\nYou can speak or type:\n• File a grievance ("Broken water pipe")\n• Track complaint status ("Status of #38")\n• Check resolution timelines\n• Escalate delayed complaints';
 
-      const initialQuickReplies = language === 'hi'
-        ? ['📝 शिकायत दर्ज करें', '🔍 स्थिति जांचें (#38)', '⏱️ समाधान समय सीमा (SLA)', '⚡ शिकायत एस्केलेट करें']
-        : language === 'hinglish'
-        ? ['📝 Report Problem', '🔍 Track Status (#38)', '⏱️ Resolution Time', '⚡ Escalate Complaint']
-        : ['📝 File Complaint', '🔍 Track Status (#38)', '⏱️ Resolution Time', '⚡ Escalate Issue'];
+      const initialQuickReplies =
+        language === 'hi'
+          ? ['🎤 आवाज़ से शिकायत दर्ज करें', '🔍 स्थिति जांचें (#38)', '⏱️ समाधान समय सीमा (SLA)', '⚡ शिकायत एस्केलेट करें']
+          : language === 'hinglish'
+          ? ['🎤 Voice Complaint', '🔍 Track Status (#38)', '⏱️ Resolution Time', '⚡ Escalate Complaint']
+          : ['🎤 Speak Grievance', '🔍 Track Status (#38)', '⏱️ Resolution Time', '⚡ Escalate Issue'];
 
-      setMessages([
-        {
-          id: 'welcome_1',
-          sender: 'bot',
-          text: welcomeText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          quickReplies: initialQuickReplies,
-        },
-      ]);
+      const welcomeMsg: MessageItem = {
+        id: 'welcome_1',
+        sender: 'bot',
+        text: welcomeText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        quickReplies: initialQuickReplies,
+      };
+
+      setMessages([welcomeMsg]);
 
       if (initialComplaintId) {
         handleSend(`Track complaint #${initialComplaintId}`);
@@ -82,15 +158,188 @@ export function GramMitraModal({
     }
   }, [visible, language]);
 
-  const handleSend = async (textToSend?: string) => {
+  // Stop speech helper
+  const handleStopSpeech = async () => {
+    await voiceAssistant.stop();
+    setActiveSpeakingId(null);
+  };
+
+  // Speak a specific bot message
+  const speakMessage = (id: string, text: string) => {
+    if (activeSpeakingId === id) {
+      handleStopSpeech();
+      return;
+    }
+
+    setActiveSpeakingId(id);
+    voiceAssistant.speak(text, {
+      id,
+      language,
+      onDone: () => setActiveSpeakingId(null),
+      onError: () => setActiveSpeakingId(null),
+    });
+  };
+
+  // ==========================================
+  // SPEECH-TO-TEXT (VOICE INPUT)
+  // ==========================================
+  const startVoiceInput = async () => {
+    // 1. Immediately stop any bot speech playing so it doesn't talk over user
+    await handleStopSpeech();
+
+    // 2. Try Web Speech API (Chrome, Edge, Safari, Firefox web simulator)
+    if (voiceAssistant.isWebSpeechRecognitionSupported()) {
+      setIsListening(true);
+      setInterimTranscript('');
+
+      const started = voiceAssistant.startWebSpeechRecognition({
+        language,
+        onStart: () => {
+          setIsListening(true);
+        },
+        onInterim: (text) => {
+          setInterimTranscript(text);
+          setInputText(text);
+        },
+        onFinal: (finalText) => {
+          setIsListening(false);
+          setInterimTranscript('');
+          if (finalText && finalText.trim()) {
+            setInputText(finalText.trim());
+            handleSend(finalText.trim(), true);
+          }
+        },
+        onEnd: () => {
+          setIsListening(false);
+        },
+        onError: (err) => {
+          console.log('Web speech error:', err);
+          setIsListening(false);
+        },
+      });
+
+      if (started) return;
+    }
+
+    // 3. Fallback: Native audio recording via expo-audio
+    try {
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          language === 'hi' ? 'माइक्रोफ़ोन अनुमति' : 'Microphone Permission',
+          language === 'hi'
+            ? 'आवाज़ से बोलने के लिए माइक्रोफ़ोन की अनुमति आवश्यक है।'
+            : 'Microphone permission is required to record audio.'
+        );
+        return;
+      }
+
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsListening(true);
+      setInterimTranscript(
+        language === 'hi' ? 'सुन रहा हूँ... बोलिए' : 'Listening... Speak now'
+      );
+    } catch (error) {
+      console.log('Audio recording error:', error);
+      Alert.alert(
+        language === 'hi' ? 'रिकॉर्डिंग त्रुटि' : 'Recording Error',
+        language === 'hi'
+          ? 'माइक्रोफ़ोन शुरू नहीं हो सका।'
+          : 'Unable to start audio recording.'
+      );
+    }
+  };
+
+  const stopVoiceInputAndSend = async () => {
+    setIsListening(false);
+    voiceAssistant.stopListening();
+
+    // If native audio recorder was used:
+    if (recorderState.isRecording) {
+      try {
+        await audioRecorder.stop();
+        if (audioRecorder.uri) {
+          setLoading(true);
+          try {
+            let base64Audio = '';
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              const res = await fetch(audioRecorder.uri);
+              const blob = await res.blob();
+              const reader = new FileReader();
+              base64Audio = await new Promise((resolve) => {
+                reader.onloadend = () => {
+                  const dataUrl = reader.result as string;
+                  resolve(dataUrl.split(',')[1] || dataUrl);
+                };
+                reader.readAsDataURL(blob);
+              });
+            }
+
+            if (base64Audio) {
+              const transcribeRes = await chatApi.transcribeAudio(base64Audio, language);
+              if (transcribeRes && transcribeRes.text && transcribeRes.text.trim()) {
+                handleSend(transcribeRes.text.trim(), true);
+                setInterimTranscript('');
+                return;
+              }
+            }
+          } catch (e) {
+            console.log('Transcription call failed:', e);
+          } finally {
+            setLoading(false);
+          }
+        }
+      } catch (err) {
+        console.log('Error stopping native audio recorder:', err);
+      }
+    }
+
+    // If live transcript exists:
+    if (
+      interimTranscript.trim() &&
+      interimTranscript !== 'सुन रहा हूँ... बोलिए' &&
+      interimTranscript !== 'Listening... Speak now'
+    ) {
+      handleSend(interimTranscript.trim(), true);
+      setInterimTranscript('');
+    } else if (inputText.trim()) {
+      handleSend(inputText.trim(), true);
+    }
+  };
+
+  const cancelVoiceInput = async () => {
+    setIsListening(false);
+    setInterimTranscript('');
+    voiceAssistant.stopListening();
+    if (recorderState.isRecording) {
+      try {
+        await audioRecorder.stop();
+      } catch {}
+    }
+  };
+
+  // ==========================================
+  // SEND MESSAGE HANDLER
+  // ==========================================
+  const handleSend = async (textToSend?: string, wasSpoken: boolean = false) => {
     const text = (textToSend || inputText).trim();
     if (!text || loading) return;
+
+    // Stop speaking when user sends a new message
+    await handleStopSpeech();
 
     const userMsg: MessageItem = {
       id: 'usr_' + Date.now(),
       sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      wasVoice: wasSpoken,
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -107,9 +356,13 @@ export function GramMitraModal({
           const parsedSession = userSessionData ? JSON.parse(userSessionData) : null;
           const parsedCitizen = storedCitizen ? JSON.parse(storedCitizen) : null;
           const parsedVillage = villageSession ? JSON.parse(villageSession) : null;
-          const mob = parsedSession?.mobile || parsedSession?.mobileNumber ||
-                      parsedCitizen?.mobile || parsedCitizen?.mobileNumber ||
-                      parsedVillage?.mobile || parsedVillage?.mobileNumber;
+          const mob =
+            parsedSession?.mobile ||
+            parsedSession?.mobileNumber ||
+            parsedCitizen?.mobile ||
+            parsedCitizen?.mobileNumber ||
+            parsedVillage?.mobile ||
+            parsedVillage?.mobileNumber;
           if (mob) {
             activeSession.citizen_mobile = mob;
           }
@@ -139,13 +392,19 @@ export function GramMitraModal({
       };
 
       setMessages((prev) => [...prev, botMsg]);
+
+      // Automatically speak reply if Voice Mode is active
+      if (voiceMode && res.reply) {
+        speakMessage(botMsg.id, res.reply);
+      }
     } catch (err: any) {
       const errorMsg: MessageItem = {
         id: 'bot_err_' + Date.now(),
         sender: 'bot',
-        text: language === 'hi'
-          ? 'क्षमा करें, संदेश भेजने में समस्या आई। कृपया पुनः प्रयास करें।'
-          : 'Sorry, there was an issue communicating with Gram Mitra. Please try again.',
+        text:
+          language === 'hi'
+            ? 'क्षमा करें, संदेश भेजने में समस्या आई। कृपया पुनः प्रयास करें।'
+            : 'Sorry, there was an issue communicating with Gram Mitra. Please try again.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         quickReplies: ['Try Again', 'Main Menu'],
       };
@@ -188,8 +447,14 @@ export function GramMitraModal({
     }
   };
 
+  const handleCloseModal = async () => {
+    await handleStopSpeech();
+    cancelVoiceInput();
+    onClose();
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={handleCloseModal}>
       <SafeAreaView style={styles.safeArea}>
         {/* TRICOLOR TOP HEADER */}
         <View style={styles.tricolorHeader}>
@@ -209,16 +474,49 @@ export function GramMitraModal({
                 <Text style={styles.headerTitle}>ग्राम मित्र (Gram Mitra)</Text>
                 <View style={styles.onlineDot} />
               </View>
-              <Text style={styles.headerSubtitle}>AI Citizen Assistant • 24/7 Active</Text>
+              <Text style={styles.headerSubtitle}>AI Voice Assistant • 24/7 Active</Text>
             </View>
           </View>
 
-          {/* LANGUAGE TOGGLE & CLOSE */}
+          {/* ACTIONS: VOICE TOGGLE, LANGUAGE & CLOSE */}
           <View style={styles.headerActions}>
+            {/* Auto-Voice Output Toggle */}
+            <TouchableOpacity
+              style={[styles.voiceToggleBadge, voiceMode && styles.voiceToggleBadgeActive]}
+              onPress={() => {
+                const next = !voiceMode;
+                setVoiceMode(next);
+                AsyncStorage.setItem('@gram_mitra_voice_mode', String(next));
+                if (!next) {
+                  handleStopSpeech();
+                }
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Voice Mode Toggle"
+            >
+              <Ionicons
+                name={voiceMode ? 'volume-high' : 'volume-mute'}
+                size={14}
+                color={voiceMode ? '#16A34A' : COLORS.textMuted}
+              />
+              <Text style={[styles.voiceToggleText, voiceMode && styles.voiceToggleTextActive]}>
+                {voiceMode
+                  ? language === 'hi'
+                    ? 'आवाज़ ऑन'
+                    : 'Voice ON'
+                  : language === 'hi'
+                  ? 'आवाज़ बंद'
+                  : 'Voice OFF'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Language toggle */}
             <TouchableOpacity
               style={styles.langBadge}
               onPress={() => {
-                const nextLang = language === 'hi' ? 'hinglish' : language === 'hinglish' ? 'en' : 'hi';
+                handleStopSpeech();
+                const nextLang: SupportedVoiceLanguage =
+                  language === 'hi' ? 'hinglish' : language === 'hinglish' ? 'en' : 'hi';
                 setLanguage(nextLang);
               }}
               activeOpacity={0.7}
@@ -228,7 +526,7 @@ export function GramMitraModal({
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.closeButton} onPress={handleCloseModal} activeOpacity={0.7}>
               <Ionicons name="close" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
@@ -276,16 +574,54 @@ export function GramMitraModal({
                       {item.text}
                     </Text>
 
-                    <Text
-                      style={[
-                        styles.timestampText,
-                        item.sender === 'user' ? styles.userTimestamp : styles.botTimestamp,
-                      ]}
-                    >
-                      {item.timestamp}
-                    </Text>
-                  </View>
+                    {/* BUBBLE FOOTER: SPEAKER BUTTON + TIMESTAMP */}
+                    <View style={styles.bubbleFooter}>
+                      {item.sender === 'bot' && (
+                        <TouchableOpacity
+                          style={[
+                            styles.ttsButton,
+                            activeSpeakingId === item.id && styles.ttsButtonActive,
+                          ]}
+                          onPress={() => speakMessage(item.id, item.text)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name={activeSpeakingId === item.id ? 'pause-circle' : 'volume-high-outline'}
+                            size={14}
+                            color={activeSpeakingId === item.id ? COLORS.primary : COLORS.textMuted}
+                          />
+                          <Text
+                            style={[
+                              styles.ttsButtonLabel,
+                              activeSpeakingId === item.id && styles.ttsButtonLabelActive,
+                            ]}
+                          >
+                            {activeSpeakingId === item.id
+                              ? language === 'hi'
+                                ? 'रुकें'
+                                : 'Stop'
+                              : language === 'hi'
+                              ? 'सुनें'
+                              : 'Listen'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
 
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {item.wasVoice && (
+                          <Ionicons name="mic" size={11} color="rgba(255,255,255,0.7)" />
+                        )}
+                        <Text
+                          style={[
+                            styles.timestampText,
+                            item.sender === 'user' ? styles.userTimestamp : styles.botTimestamp,
+                          ]}
+                        >
+                          {item.timestamp}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
 
                   {/* COMPLAINT STATUS CARD */}
                   {item.complaintData && (
@@ -324,7 +660,10 @@ export function GramMitraModal({
                         <Text
                           style={[
                             styles.cardDetailVal,
-                            { color: getPriorityBadgeColor(item.complaintData.priority).text, fontWeight: '700' },
+                            {
+                              color: getPriorityBadgeColor(item.complaintData.priority).text,
+                              fontWeight: '700',
+                            },
                           ]}
                         >
                           {item.complaintData.priority}
@@ -371,16 +710,84 @@ export function GramMitraModal({
             )}
           </ScrollView>
 
+          {/* ACTIVE VOICE LISTENING BANNER */}
+          {isListening && (
+            <View style={styles.listeningOverlay}>
+              <View style={styles.listeningIndicatorRow}>
+                <Animated.View
+                  style={[
+                    styles.pulsingMicOuter,
+                    { transform: [{ scale: pulseAnim }] },
+                  ]}
+                >
+                  <View style={styles.pulsingMicInner}>
+                    <Ionicons name="mic" size={18} color={COLORS.white} />
+                  </View>
+                </Animated.View>
+
+                <View style={{ flex: 1, marginHorizontal: 10 }}>
+                  <Text style={styles.listeningTitle}>
+                    {language === 'hi'
+                      ? '🎙️ सुन रहा हूँ... अपनी शिकायत बोलिए'
+                      : '🎙️ Listening... Speak your grievance'}
+                  </Text>
+                  <Text style={styles.listeningSubtitle} numberOfLines={2}>
+                    {interimTranscript ||
+                      (language === 'hi'
+                        ? 'आवाज़ पहचानी जा रही है...'
+                        : 'Listening to your voice...')}
+                  </Text>
+                </View>
+
+                {/* CANCEL & SEND BUTTONS */}
+                <TouchableOpacity
+                  style={styles.cancelListeningBtn}
+                  onPress={cancelVoiceInput}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Cancel voice input"
+                >
+                  <Ionicons name="close" size={18} color="#EF4444" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.sendListeningBtn}
+                  onPress={stopVoiceInputAndSend}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Send spoken voice input"
+                >
+                  <Ionicons name="checkmark" size={18} color={COLORS.white} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* INPUT BAR */}
           <View style={styles.inputBar}>
+            {/* MICROPHONE BUTTON */}
+            <TouchableOpacity
+              style={[
+                styles.micButton,
+                isListening && styles.micButtonActive,
+              ]}
+              onPress={isListening ? stopVoiceInputAndSend : startVoiceInput}
+              activeOpacity={0.8}
+              accessibilityLabel="Microphone Voice Input"
+            >
+              <Ionicons
+                name={isListening ? 'stop' : 'mic'}
+                size={20}
+                color={isListening ? COLORS.white : COLORS.primary}
+              />
+            </TouchableOpacity>
+
             <TextInput
               style={styles.textInput}
               placeholder={
                 language === 'hi'
-                  ? 'अपनी शिकायत या प्रश्न यहाँ लिखें...'
+                  ? 'लिखें या 🎤 दबाकर बोलें...'
                   : language === 'hinglish'
-                  ? 'Apni complaint ya sawal likhein...'
-                  : 'Type your grievance or question here...'
+                  ? 'Likhain ya 🎤 dabakar bolein...'
+                  : 'Type or tap 🎤 to speak...'
               }
               placeholderTextColor={COLORS.textMuted}
               value={inputText}
@@ -425,8 +832,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -435,19 +842,19 @@ const styles = StyleSheet.create({
   botHeaderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   botAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     ...SHADOWS.small,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: COLORS.textPrimary,
   },
@@ -459,17 +866,40 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   headerSubtitle: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: COLORS.textMuted,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
+  },
+  voiceToggleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: RADIUS.round,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  voiceToggleBadgeActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  voiceToggleText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  voiceToggleTextActive: {
+    color: '#15803D',
   },
   langBadge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: RADIUS.round,
     backgroundColor: '#EFF6FF',
@@ -477,7 +907,7 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
   },
   langBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: COLORS.primary,
   },
@@ -489,8 +919,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 24,
+    padding: 14,
+    paddingBottom: 20,
   },
   messageRow: {
     flexDirection: 'row',
@@ -541,10 +971,40 @@ const styles = StyleSheet.create({
   botBubbleText: {
     color: COLORS.textPrimary,
   },
+
+  bubbleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    gap: 8,
+  },
+  ttsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  ttsButtonActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  ttsButtonLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  ttsButtonLabelActive: {
+    color: COLORS.primary,
+  },
+
   timestampText: {
     fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end',
   },
   userTimestamp: {
     color: 'rgba(255,255,255,0.7)',
@@ -573,31 +1033,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textPrimary,
     flex: 1,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  categoryPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.round,
-    backgroundColor: '#EFF6FF',
-  },
-  categoryPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  priorityPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.round,
-  },
-  priorityPillText: {
-    fontSize: 12,
-    fontWeight: '700',
   },
   statusPill: {
     paddingHorizontal: 8,
@@ -644,6 +1079,62 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
+  // ACTIVE LISTENING OVERLAY
+  listeningOverlay: {
+    backgroundColor: '#EFF6FF',
+    borderTopWidth: 1,
+    borderTopColor: '#BFDBFE',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  listeningIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pulsingMicOuter: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pulsingMicInner: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listeningTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  listeningSubtitle: {
+    fontSize: 11,
+    color: '#3B82F6',
+    fontWeight: '500',
+  },
+  cancelListeningBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  sendListeningBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -653,6 +1144,21 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     gap: 8,
+  },
+  micButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    ...SHADOWS.small,
+  },
+  micButtonActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#DC2626',
   },
   textInput: {
     flex: 1,
@@ -664,9 +1170,9 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
