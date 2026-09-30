@@ -304,6 +304,9 @@ export default function LoginScreen() {
         : 'citizen';
 
       const userMobileOrId = loginData?.mobileNumber || cleanIdentifier;
+      const resolvedOfficialId = loginData?.officialId || (selectedRole !== 'CITIZEN' ? cleanIdentifier : undefined);
+      const resolvedBlock = loginData?.block || '';
+      const resolvedDistrict = loginData?.district || '';
 
       // Save user session
       const validToken = loginData?.token && isValidJwt(loginData.token) ? loginData.token : '';
@@ -320,6 +323,11 @@ export default function LoginScreen() {
           password: password,
           village: loginData?.villageName || '',
           ward: loginData?.wardNumber || '',
+          officialId: resolvedOfficialId,
+          bdoId: resolvedOfficialId,
+          dmId: resolvedOfficialId,
+          block: resolvedBlock,
+          district: resolvedDistrict,
           token: validToken,
           loginAt: new Date().toISOString(),
         })
@@ -333,7 +341,8 @@ export default function LoginScreen() {
             name: loginData?.name || '',
             mobile: userMobileOrId,
             village: loginData?.villageName || '',
-            adminId: cleanIdentifier,
+            adminId: resolvedOfficialId,
+            officialId: resolvedOfficialId,
           })
         );
         router.replace('/admin');
@@ -344,7 +353,8 @@ export default function LoginScreen() {
             name: loginData?.name || '',
             mobile: userMobileOrId,
             village: loginData?.villageName || '',
-            secretaryId: cleanIdentifier,
+            secretaryId: resolvedOfficialId,
+            officialId: resolvedOfficialId,
           })
         );
         router.replace('/secretary');
@@ -354,9 +364,10 @@ export default function LoginScreen() {
           JSON.stringify({
             name: loginData?.name || '',
             mobile: userMobileOrId,
-            bdoId: cleanIdentifier,
-            district: loginData?.district || '',
-            block: loginData?.block || '',
+            bdoId: resolvedOfficialId,
+            officialId: resolvedOfficialId,
+            district: resolvedDistrict,
+            block: resolvedBlock,
           })
         );
         router.replace('/bdo-dashboard' as any);
@@ -366,8 +377,9 @@ export default function LoginScreen() {
           JSON.stringify({
             name: loginData?.name || '',
             mobile: userMobileOrId,
-            dmId: cleanIdentifier,
-            district: loginData?.district || '',
+            dmId: resolvedOfficialId,
+            officialId: resolvedOfficialId,
+            district: resolvedDistrict,
           })
         );
         router.replace('/dm-dashboard' as any);

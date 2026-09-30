@@ -43,7 +43,7 @@ export function DashboardBottomBar({
   };
 
   const openProfile = () => {
-    if (role === 'sarpanch' || role === 'secretary' || role === 'admin') {
+    if (role === 'sarpanch' || role === 'secretary' || role === 'admin' || role === 'bdo' || role === 'dm') {
       router.push('/admin-profile');
     } else {
       router.push('/profile');

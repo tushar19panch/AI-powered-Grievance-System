@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authApi, setAuthToken } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTheme } from '../theme/ThemeContext';
+import { LocationHierarchyPicker } from '../components/LocationHierarchyPicker';
 
 export default function BdoRegisterScreen() {
   const router = useRouter();
@@ -176,6 +177,7 @@ export default function BdoRegisterScreen() {
           district: district.trim(),
           block: block.trim(),
           bdoId: bdoId.trim(),
+          officialId: bdoId.trim(),
         })
       );
 
@@ -188,6 +190,8 @@ export default function BdoRegisterScreen() {
           mobile: cleanMobile,
           district: district.trim(),
           block: block.trim(),
+          officialId: bdoId.trim(),
+          bdoId: bdoId.trim(),
           token: loginData?.token || '',
           loginAt: new Date().toISOString(),
         })
@@ -305,40 +309,20 @@ export default function BdoRegisterScreen() {
               </View>
             </View>
 
-            {/* District & Block Row */}
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>
-                  {isHindi ? 'जिला' : 'District'} <Text style={styles.req}>*</Text>
-                </Text>
-                <View style={[styles.inputWrapper, { backgroundColor: isDark ? '#1F2937' : '#F8FAFC', borderColor: colors.border }]}>
-                  <Ionicons name="map-outline" size={16} color="#1E40AF" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.textPrimary }]}
-                    placeholder={isHindi ? 'उदा. इंदौर' : 'e.g. Indore'}
-                    placeholderTextColor={colors.textSecondary}
-                    value={district}
-                    onChangeText={setDistrict}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>
-                  {isHindi ? 'प्रखंड / ब्लॉक' : 'Block / Taluka'} <Text style={styles.req}>*</Text>
-                </Text>
-                <View style={[styles.inputWrapper, { backgroundColor: isDark ? '#1F2937' : '#F8FAFC', borderColor: colors.border }]}>
-                  <Ionicons name="business-outline" size={16} color="#1E40AF" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.textInput, { color: colors.textPrimary }]}
-                    placeholder={isHindi ? 'उदा. सांवर' : 'e.g. Sanwer'}
-                    placeholderTextColor={colors.textSecondary}
-                    value={block}
-                    onChangeText={setBlock}
-                  />
-                </View>
-              </View>
-            </View>
+            {/* Location Hierarchy Picker for District & Block */}
+            <LocationHierarchyPicker
+              isHindi={isHindi}
+              selectedState={state}
+              selectedDistrict={district}
+              selectedBlock={block}
+              onDistrictChange={(d) => setDistrict(d)}
+              onBlockChange={(b) => setBlock(b)}
+              showBlock={true}
+              showVillage={false}
+              showWard={false}
+              districtLabel={isHindi ? 'जिला' : 'District'}
+              blockLabel={isHindi ? 'विकासखंड / ब्लॉक / तहसील' : 'Vikas Khand / Block / Taluka'}
+            />
 
             {/* BDO Official ID */}
             <View style={styles.inputGroup}>

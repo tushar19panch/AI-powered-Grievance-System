@@ -23,6 +23,8 @@ interface PanchayatShowcaseCardProps {
   villageName?: string;
   isHindi?: boolean;
   canManagePhotos?: boolean;
+  role?: 'citizen' | 'sarpanch' | 'secretary' | 'admin' | 'bdo' | 'dm';
+  jurisdictionLabel?: string;
 }
 
 export function PanchayatShowcaseCard({
@@ -30,11 +32,16 @@ export function PanchayatShowcaseCard({
   villageName = 'मुख्य ग्राम',
   isHindi = true,
   canManagePhotos = true,
+  role = 'sarpanch',
+  jurisdictionLabel,
 }: PanchayatShowcaseCardProps) {
   const [photos, setPhotos] = useState<string[]>([DEFAULT_VILLAGE_IMAGE]);
   const [activeIdx, setActiveIdx] = useState<number>(0);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [managerVisible, setManagerVisible] = useState(false);
+
+  const isBdo = role === 'bdo';
+  const isDm = role === 'dm';
 
   const displayUserName = localizeName(userName, isHindi);
   const displayVillageName = localizeVillageName(villageName, isHindi);
@@ -43,8 +50,19 @@ export function PanchayatShowcaseCard({
     let isMounted = true;
     const loadVillagePhotos = async () => {
       try {
+        const storageKey = isBdo
+          ? `block_photos_gallery_${villageName || 'default'}`
+          : isDm
+          ? `district_photos_gallery_${villageName || 'default'}`
+          : `village_photos_gallery_${villageName || 'default'}`;
+        const singleKey = isBdo
+          ? `block_photo_${villageName}`
+          : isDm
+          ? `district_photo_${villageName}`
+          : `village_photo_${villageName}`;
+        const coverKey = isBdo ? 'block_cover_photo' : isDm ? 'district_cover_photo' : 'village_cover_photo';
+
         // 1. Instant Cache Check for zero screen-blink
-        const storageKey = `village_photos_gallery_${villageName || 'default'}`;
         const savedGallery = await AsyncStorage.getItem(storageKey);
         if (savedGallery && isMounted) {
           try {
@@ -55,8 +73,8 @@ export function PanchayatShowcaseCard({
           } catch {}
         } else {
           const single =
-            (await AsyncStorage.getItem(`village_photo_${villageName}`)) ||
-            (await AsyncStorage.getItem('village_cover_photo')) ||
+            (await AsyncStorage.getItem(singleKey)) ||
+            (await AsyncStorage.getItem(coverKey)) ||
             (await AsyncStorage.getItem('village_photos_gallery_default'));
           if (single && single.trim().length > 0 && isMounted) {
             try {
@@ -72,7 +90,7 @@ export function PanchayatShowcaseCard({
           }
         }
 
-        // 2. LIVE SERVER SYNC: Fetch the official photo uploaded by Sarpanch / Admin
+        // 2. LIVE SERVER SYNC: Fetch the official photo uploaded by Sarpanch / Admin / BDO / DM
         try {
           const res = await villageApi.getPhoto(villageName);
           const serverPhoto = res?.photoUrl;
@@ -81,12 +99,12 @@ export function PanchayatShowcaseCard({
               if (prev[0] === serverPhoto) return prev;
               return [serverPhoto, ...prev.filter((p) => p !== serverPhoto && p !== DEFAULT_VILLAGE_IMAGE)];
             });
-            await AsyncStorage.setItem(`village_photo_${villageName}`, serverPhoto);
-            await AsyncStorage.setItem('village_cover_photo', serverPhoto);
+            await AsyncStorage.setItem(singleKey, serverPhoto);
+            await AsyncStorage.setItem(coverKey, serverPhoto);
             return;
           }
         } catch (apiErr) {
-          console.log('Error fetching live village photo from server:', apiErr);
+          console.log('Error fetching live photo from server:', apiErr);
         }
 
         // 3. Fallback if no photo anywhere
@@ -100,22 +118,26 @@ export function PanchayatShowcaseCard({
 
     loadVillagePhotos();
 
-    const handleWebPhotoChange = () => {
+    const handlePhotoChange = () => {
       loadVillagePhotos();
     };
+    const eventName = isBdo ? 'block_photo_changed' : isDm ? 'district_photo_changed' : 'village_photo_changed';
+
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof (window as any).addEventListener === 'function') {
-      (window as any).addEventListener('village_photo_changed', handleWebPhotoChange);
+      (window as any).addEventListener(eventName, handlePhotoChange);
+      (window as any).addEventListener('village_photo_changed', handlePhotoChange);
     }
 
     return () => {
       isMounted = false;
       if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof (window as any).removeEventListener === 'function') {
-        (window as any).removeEventListener('village_photo_changed', handleWebPhotoChange);
+        (window as any).removeEventListener(eventName, handlePhotoChange);
+        (window as any).removeEventListener('village_photo_changed', handlePhotoChange);
       }
     };
-  }, [villageName]);
+  }, [villageName, role]);
 
-  // Slideshow cycle only when multiple photos are added by Admin
+  // Slideshow cycle only when multiple photos are added
   useEffect(() => {
     if (photos.length <= 1) return;
     const timer = setInterval(() => {
@@ -126,9 +148,15 @@ export function PanchayatShowcaseCard({
 
   const currentPhoto = photos.length > 0 ? photos[activeIdx] || photos[0] : DEFAULT_VILLAGE_IMAGE;
 
+  const defaultJurisdictionLabel = isBdo
+    ? (isHindi ? 'प्रखंड / उप-प्रभाग: ' : 'Sub-Division / Block: ')
+    : isDm
+    ? (isHindi ? 'जिला क्षेत्राधिकार: ' : 'District Jurisdiction: ')
+    : (isHindi ? 'ग्राम पंचायत: ' : 'Panchayat: ');
+
   return (
     <View style={styles.card}>
-      {/* 1. TOP GREETING & VILLAGE HEADER */}
+      {/* 1. TOP GREETING & JURISDICTION HEADER */}
       <View style={styles.greetingHeader}>
         <View style={styles.greetingTextWrap}>
           <Text style={styles.greetingTitle} numberOfLines={1}>
@@ -137,7 +165,7 @@ export function PanchayatShowcaseCard({
           <View style={styles.villageLocationRow}>
             <Ionicons name="location" size={13} color={COLORS.primary} />
             <Text style={styles.villageLocationText} numberOfLines={1}>
-              {isHindi ? 'ग्राम पंचायत: ' : 'Panchayat: '}
+              {jurisdictionLabel || defaultJurisdictionLabel}
               <Text style={{ fontWeight: '800', color: COLORS.navy }}>
                 {displayVillageName}
               </Text>
@@ -153,7 +181,7 @@ export function PanchayatShowcaseCard({
         </View>
       </View>
 
-      {/* 2. DYNAMIC PANCHAYAT PHOTO BANNER OR CLEAN EMPTY STATE */}
+      {/* 2. DYNAMIC JURISDICTION PHOTO BANNER OR CLEAN EMPTY STATE */}
       {currentPhoto ? (
         <TouchableOpacity
           activeOpacity={0.92}
@@ -167,26 +195,50 @@ export function PanchayatShowcaseCard({
           />
         </TouchableOpacity>
       ) : (
-        /* CLEAN EMPTY PROFILE STATE (NO RANDOM STOCK IMAGES) */
+        /* CLEAN EMPTY PROFILE STATE */
         <TouchableOpacity
           style={styles.emptyContainer}
           activeOpacity={canManagePhotos ? 0.85 : 1}
           onPress={() => canManagePhotos && setManagerVisible(true)}
         >
           <View style={styles.emptyIconCircle}>
-            <Ionicons name="business-outline" size={28} color={COLORS.primary} />
+            <Ionicons
+              name={isDm ? 'ribbon-outline' : isBdo ? 'business-outline' : 'business-outline'}
+              size={28}
+              color={COLORS.primary}
+            />
           </View>
           <Text style={styles.emptyTitle}>
-            {isHindi ? 'ग्राम पंचायत प्रोफाइल' : 'Gram Panchayat Profile'}
+            {isBdo
+              ? (isHindi ? 'विकासखंड / उप-प्रभाग प्रोफाइल' : 'Block / Sub-Division Profile')
+              : isDm
+              ? (isHindi ? 'जिला प्रशासन प्रोफाइल' : 'District Administration Profile')
+              : (isHindi ? 'ग्राम पंचायत प्रोफाइल' : 'Gram Panchayat Profile')}
           </Text>
           <Text style={styles.emptySubtitle}>
-            {isHindi
-              ? canManagePhotos
-                ? 'पंचायत भवन की फोटो जोड़ने हेतु यहां टैप करें'
-                : 'पंचायत फोटो एडमिन द्वारा अपडेट की जाएगी'
-              : canManagePhotos
-                ? 'Tap to add Panchayat Bhavan photos'
-                : 'Panchayat photo will be updated by Admin'}
+            {isBdo
+              ? (isHindi
+                  ? canManagePhotos
+                    ? 'विकासखंड कार्यालय की फोटो जोड़ने हेतु यहां टैप करें'
+                    : 'विकासखंड फोटो अधिकारी द्वारा अपडेट की जाएगी'
+                  : canManagePhotos
+                    ? 'Tap to add Block headquarters photos'
+                    : 'Block photo will be updated by official')
+              : isDm
+              ? (isHindi
+                  ? canManagePhotos
+                    ? 'जिला कलेक्ट्रेट की फोटो जोड़ने हेतु यहां टैप करें'
+                    : 'कलेक्ट्रेट फोटो जिलाधिकारी द्वारा अपडेट की जाएगी'
+                  : canManagePhotos
+                    ? 'Tap to add District Collectorate photos'
+                    : 'District photo will be updated by DM')
+              : (isHindi
+                  ? canManagePhotos
+                    ? 'पंचायत भवन की फोटो जोड़ने हेतु यहां टैप करें'
+                    : 'पंचायत फोटो एडमिन द्वारा अपडेट की जाएगी'
+                  : canManagePhotos
+                    ? 'Tap to add Panchayat Bhavan photos'
+                    : 'Panchayat photo will be updated by Admin')}
           </Text>
           {canManagePhotos && (
             <View style={styles.emptyAddBtn}>
@@ -204,7 +256,13 @@ export function PanchayatShowcaseCard({
         <PhotoPreviewModal
           visible={previewVisible}
           imageUri={currentPhoto}
-          userName={isHindi ? `ग्राम पंचायत: ${displayVillageName}` : `Gram Panchayat: ${displayVillageName}`}
+          userName={
+            isBdo
+              ? (isHindi ? `विकासखंड: ${displayVillageName}` : `Block: ${displayVillageName}`)
+              : isDm
+              ? (isHindi ? `जिला: ${displayVillageName}` : `District: ${displayVillageName}`)
+              : (isHindi ? `ग्राम पंचायत: ${displayVillageName}` : `Gram Panchayat: ${displayVillageName}`)
+          }
           userRole={isHindi ? `फोटो ${activeIdx + 1} / ${photos.length}` : `Photo ${activeIdx + 1} of ${photos.length}`}
           onClose={() => setPreviewVisible(false)}
           onChangePhoto={canManagePhotos ? () => setManagerVisible(true) : undefined}
@@ -219,6 +277,7 @@ export function PanchayatShowcaseCard({
           onClose={() => setManagerVisible(false)}
           villageName={villageName}
           photos={photos}
+          role={role}
           onPhotosUpdated={(updated) => {
             setPhotos(updated);
             setActiveIdx(0);

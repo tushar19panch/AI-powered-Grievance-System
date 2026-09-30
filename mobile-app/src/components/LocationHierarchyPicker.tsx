@@ -21,9 +21,14 @@ interface LocationHierarchyPickerProps {
   selectedVillage?: string;
   selectedWard?: string;
   onDistrictChange: (district: string) => void;
-  onBlockChange: (block: string) => void;
-  onVillageChange: (village: string) => void;
-  onWardChange: (ward: string) => void;
+  onBlockChange?: (block: string) => void;
+  onVillageChange?: (village: string) => void;
+  onWardChange?: (ward: string) => void;
+  showBlock?: boolean;
+  showVillage?: boolean;
+  showWard?: boolean;
+  districtLabel?: string;
+  blockLabel?: string;
 }
 
 export function LocationHierarchyPicker({
@@ -34,9 +39,14 @@ export function LocationHierarchyPicker({
   selectedVillage = '',
   selectedWard = '',
   onDistrictChange,
-  onBlockChange,
-  onVillageChange,
-  onWardChange,
+  onBlockChange = () => {},
+  onVillageChange = () => {},
+  onWardChange = () => {},
+  showBlock = true,
+  showVillage = true,
+  showWard = true,
+  districtLabel,
+  blockLabel,
 }: LocationHierarchyPickerProps) {
   // Modal state
   const [modalType, setModalType] = useState<'district' | 'block' | 'village' | 'ward' | null>(null);
@@ -196,7 +206,7 @@ export function LocationHierarchyPicker({
 
       {/* 2. DISTRICT */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'जिला' : 'District'}</Text>
+        <Text style={styles.label}>{districtLabel || (isHindi ? 'जिला' : 'District')}</Text>
         <TouchableOpacity
           style={styles.inputBox}
           onPress={() => openPicker('district')}
@@ -218,126 +228,132 @@ export function LocationHierarchyPicker({
         </TouchableOpacity>
       </View>
 
-      {/* 3. BLOCK */}
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'विकासखंड' : 'Block'}</Text>
-        <TouchableOpacity
-          style={[styles.inputBox, !selectedDistrict && styles.disabledBox]}
-          onPress={() => openPicker('block')}
-          activeOpacity={0.8}
-          disabled={!selectedDistrict}
-        >
-          <View style={styles.inputIconBox}>
-            <Ionicons
-              name="git-network-outline"
-              size={20}
-              color={!selectedDistrict ? COLORS.textMuted : COLORS.navy}
-            />
-          </View>
-          <Text
-            style={[
-              styles.dropdownValueText,
-              !selectedBlock && styles.placeholderText,
-            ]}
-            numberOfLines={1}
+      {/* 3. BLOCK / VIKAS KHAND / TEHSIL */}
+      {showBlock && (
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>{blockLabel || (isHindi ? 'विकासखंड / ब्लॉक' : 'Block / Taluka')}</Text>
+          <TouchableOpacity
+            style={[styles.inputBox, !selectedDistrict && styles.disabledBox]}
+            onPress={() => openPicker('block')}
+            activeOpacity={0.8}
+            disabled={!selectedDistrict}
           >
-            {selectedBlock ||
-              (selectedDistrict
-                ? isHindi
-                  ? 'ब्लॉक चुनें'
-                  : 'Select Block'
-                : isHindi
-                ? 'पहले जिला चुनें'
-                : 'Select District first')}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={18}
-            color={!selectedDistrict ? '#CBD5E1' : COLORS.textMuted}
-          />
-        </TouchableOpacity>
-      </View>
+            <View style={styles.inputIconBox}>
+              <Ionicons
+                name="git-network-outline"
+                size={20}
+                color={!selectedDistrict ? COLORS.textMuted : COLORS.navy}
+              />
+            </View>
+            <Text
+              style={[
+                styles.dropdownValueText,
+                !selectedBlock && styles.placeholderText,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedBlock ||
+                (selectedDistrict
+                  ? isHindi
+                    ? 'विकासखंड चुनें'
+                    : 'Select Block'
+                  : isHindi
+                  ? 'पहले जिला चुनें'
+                  : 'Select District first')}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color={!selectedDistrict ? '#CBD5E1' : COLORS.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* 4. VILLAGE */}
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'गाँव' : 'Village'}</Text>
-        <TouchableOpacity
-          style={[styles.inputBox, !selectedBlock && styles.disabledBox]}
-          onPress={() => openPicker('village')}
-          activeOpacity={0.8}
-          disabled={!selectedBlock}
-        >
-          <View style={styles.inputIconBox}>
-            <Ionicons
-              name="home-outline"
-              size={20}
-              color={!selectedBlock ? COLORS.textMuted : COLORS.navy}
-            />
-          </View>
-          <Text
-            style={[
-              styles.dropdownValueText,
-              !selectedVillage && styles.placeholderText,
-            ]}
-            numberOfLines={1}
+      {showVillage && (
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>{isHindi ? 'गाँव' : 'Village'}</Text>
+          <TouchableOpacity
+            style={[styles.inputBox, !selectedBlock && styles.disabledBox]}
+            onPress={() => openPicker('village')}
+            activeOpacity={0.8}
+            disabled={!selectedBlock}
           >
-            {selectedVillage ||
-              (selectedBlock
-                ? isHindi
-                  ? 'अपना गाँव चुनें'
-                  : 'Select Village'
-                : isHindi
-                ? 'पहले ब्लॉक चुनें'
-                : 'Select Block first')}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={18}
-            color={!selectedBlock ? '#CBD5E1' : COLORS.textMuted}
-          />
-        </TouchableOpacity>
-      </View>
+            <View style={styles.inputIconBox}>
+              <Ionicons
+                name="home-outline"
+                size={20}
+                color={!selectedBlock ? COLORS.textMuted : COLORS.navy}
+              />
+            </View>
+            <Text
+              style={[
+                styles.dropdownValueText,
+                !selectedVillage && styles.placeholderText,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedVillage ||
+                (selectedBlock
+                  ? isHindi
+                    ? 'अपना गाँव चुनें'
+                    : 'Select Village'
+                  : isHindi
+                  ? 'पहले ब्लॉक चुनें'
+                  : 'Select Block first')}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color={!selectedBlock ? '#CBD5E1' : COLORS.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* 5. WARD */}
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>{isHindi ? 'वार्ड' : 'Ward'}</Text>
-        <TouchableOpacity
-          style={[styles.inputBox, !selectedVillage && styles.disabledBox]}
-          onPress={() => openPicker('ward')}
-          activeOpacity={0.8}
-          disabled={!selectedVillage}
-        >
-          <View style={styles.inputIconBox}>
-            <Ionicons
-              name="grid-outline"
-              size={20}
-              color={!selectedVillage ? COLORS.textMuted : COLORS.navy}
-            />
-          </View>
-          <Text
-            style={[
-              styles.dropdownValueText,
-              !selectedWard && styles.placeholderText,
-            ]}
-            numberOfLines={1}
+      {showWard && (
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>{isHindi ? 'वार्ड' : 'Ward'}</Text>
+          <TouchableOpacity
+            style={[styles.inputBox, !selectedVillage && styles.disabledBox]}
+            onPress={() => openPicker('ward')}
+            activeOpacity={0.8}
+            disabled={!selectedVillage}
           >
-            {selectedWard
-              ? `${isHindi ? 'वार्ड' : 'Ward'} ${selectedWard}`
-              : selectedVillage
-              ? isHindi
-                ? 'अपना वार्ड चुनें'
-                : 'Select Ward'
-              : isHindi
-              ? 'पहले गाँव चुनें'
-              : 'Select Village first'}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={18}
-            color={!selectedVillage ? '#CBD5E1' : COLORS.textMuted}
-          />
-        </TouchableOpacity>
-      </View>
+            <View style={styles.inputIconBox}>
+              <Ionicons
+                name="grid-outline"
+                size={20}
+                color={!selectedVillage ? COLORS.textMuted : COLORS.navy}
+              />
+            </View>
+            <Text
+              style={[
+                styles.dropdownValueText,
+                !selectedWard && styles.placeholderText,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedWard
+                ? `${isHindi ? 'वार्ड' : 'Ward'} ${selectedWard}`
+                : selectedVillage
+                ? isHindi
+                  ? 'अपना वार्ड चुनें'
+                  : 'Select Ward'
+                : isHindi
+                ? 'पहले गाँव चुनें'
+                : 'Select Village first'}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color={!selectedVillage ? '#CBD5E1' : COLORS.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* SEARCHABLE SELECTION MODAL */}
       <Modal

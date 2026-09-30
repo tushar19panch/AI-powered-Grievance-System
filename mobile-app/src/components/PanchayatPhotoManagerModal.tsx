@@ -24,6 +24,7 @@ interface PanchayatPhotoManagerModalProps {
   photos: string[];
   onPhotosUpdated: (updatedPhotos: string[]) => void;
   isHindi: boolean;
+  role?: 'citizen' | 'sarpanch' | 'secretary' | 'admin' | 'bdo' | 'dm';
 }
 
 export function PanchayatPhotoManagerModal({
@@ -33,11 +34,27 @@ export function PanchayatPhotoManagerModal({
   photos,
   onPhotosUpdated,
   isHindi,
+  role = 'sarpanch',
 }: PanchayatPhotoManagerModalProps) {
   const [selectedIdx, setSelectedIdx] = useState<number>(0);
   const [rotation, setRotation] = useState<number>(0);
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '4:3' | '1:1'>('16:9');
   const [uploading, setUploading] = useState<boolean>(false);
+
+  const isBdo = role === 'bdo';
+  const isDm = role === 'dm';
+  const storageKey = isBdo
+    ? `block_photos_gallery_${villageName || 'default'}`
+    : isDm
+    ? `district_photos_gallery_${villageName || 'default'}`
+    : `village_photos_gallery_${villageName || 'default'}`;
+  const coverKey = isBdo ? 'block_cover_photo' : isDm ? 'district_cover_photo' : 'village_cover_photo';
+  const singleKey = isBdo
+    ? `block_photo_${villageName || 'default'}`
+    : isDm
+    ? `district_photo_${villageName || 'default'}`
+    : `village_photo_${villageName || 'default'}`;
+  const eventName = isBdo ? 'block_photo_changed' : isDm ? 'district_photo_changed' : 'village_photo_changed';
 
   const activePhoto = photos[selectedIdx] || photos[0] || null;
 
@@ -173,16 +190,15 @@ export function PanchayatPhotoManagerModal({
 
     try {
       setUploading(true);
-      const storageKey = `village_photos_gallery_${villageName || 'default'}`;
       await AsyncStorage.setItem(storageKey, JSON.stringify(photos));
       if (photos.length > 0) {
-        await AsyncStorage.setItem('village_cover_photo', photos[0]);
+        await AsyncStorage.setItem(coverKey, photos[0]);
         if (villageName) {
-          await AsyncStorage.setItem(`village_photo_${villageName}`, photos[0]);
+          await AsyncStorage.setItem(singleKey, photos[0]);
         }
         // Sync with backend server
         try {
-          await villageApi.updatePhoto(villageName || 'Gram Panchayat', photos[0]);
+          await villageApi.updatePhoto(villageName || (isBdo ? 'Block' : isDm ? 'District' : 'Gram Panchayat'), photos[0]);
         } catch (serverErr) {
           console.log('Backend sync error:', serverErr);
         }
@@ -191,14 +207,20 @@ export function PanchayatPhotoManagerModal({
       onPhotosUpdated(photos);
 
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: photos[0] }));
         window.dispatchEvent(new CustomEvent('village_photo_changed', { detail: photos[0] }));
       }
 
+      const successTitle = isHindi ? '✅ अपलोड सफल' : '✅ Upload Successful';
+      const successMsg = isBdo
+        ? (isHindi ? 'विकासखंड फोटो सफलतापूर्वक अपलोड और अपडेट हो गई हैं!' : 'Block showcase photos have been uploaded and updated successfully!')
+        : isDm
+        ? (isHindi ? 'जिला कलेक्ट्रेट फोटो सफलतापूर्वक अपलोड और अपडेट हो गई हैं!' : 'District showcase photos have been uploaded and updated successfully!')
+        : (isHindi ? 'ग्राम पंचायत फोटो सफलतापूर्वक अपलोड और अपडेट हो गई हैं!' : 'Panchayat showcase photos have been uploaded and updated successfully!');
+
       Alert.alert(
-        isHindi ? '✅ अपलोड सफल' : '✅ Upload Successful',
-        isHindi
-          ? 'ग्राम पंचायत फोटो सफलतापूर्वक अपलोड और अपडेट हो गई हैं!'
-          : 'Panchayat showcase photos have been uploaded and updated successfully!',
+        successTitle,
+        successMsg,
         [{ text: 'OK', onPress: onClose }]
       );
     } catch (e) {
@@ -210,12 +232,11 @@ export function PanchayatPhotoManagerModal({
 
   const savePhotos = async (list: string[]) => {
     try {
-      const storageKey = `village_photos_gallery_${villageName || 'default'}`;
       await AsyncStorage.setItem(storageKey, JSON.stringify(list));
       if (list.length > 0) {
-        await AsyncStorage.setItem('village_cover_photo', list[0]);
+        await AsyncStorage.setItem(coverKey, list[0]);
         if (villageName) {
-          await AsyncStorage.setItem(`village_photo_${villageName}`, list[0]);
+          await AsyncStorage.setItem(singleKey, list[0]);
         }
       }
       onPhotosUpdated(list);
@@ -238,12 +259,24 @@ export function PanchayatPhotoManagerModal({
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>
-                {isHindi ? '📷 ग्राम पंचायत फोटो गैलरी' : '📷 Panchayat Photo Gallery'}
+                {isBdo
+                  ? (isHindi ? '📷 विकासखंड / उप-प्रभाग फोटो गैलरी' : '📷 Block / Sub-Division Photo Gallery')
+                  : isDm
+                  ? (isHindi ? '📷 जिला कलेक्ट्रेट फोटो गैलरी' : '📷 District Collectorate Photo Gallery')
+                  : (isHindi ? '📷 ग्राम पंचायत फोटो गैलरी' : '📷 Panchayat Photo Gallery')}
               </Text>
               <Text style={styles.subTitle}>
-                {isHindi
-                  ? `${photos.length} फोटो जोड़ी गईं • कम से कम 4 फोटो जोड़ सकते हैं`
-                  : `${photos.length} photos added • Recommended at least 4 photos`}
+                {isBdo
+                  ? (isHindi
+                      ? `${photos.length} फोटो जोड़ी गईं • विकासखंड कार्यालय`
+                      : `${photos.length} photos added • Block Headquarters`)
+                  : isDm
+                  ? (isHindi
+                      ? `${photos.length} फोटो जोड़ी गईं • जिला कलेक्ट्रेट व प्रशासनिक मुख्यालय`
+                      : `${photos.length} photos added • District Administration`)
+                  : (isHindi
+                      ? `${photos.length} फोटो जोड़ी गईं • कम से कम 4 फोटो जोड़ सकते हैं`
+                      : `${photos.length} photos added • Recommended at least 4 photos`)}
               </Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
@@ -269,7 +302,11 @@ export function PanchayatPhotoManagerModal({
                 <View style={[styles.placeholderBox, getAspectRatioStyle()]}>
                   <Ionicons name="images-outline" size={48} color={COLORS.textMuted} />
                   <Text style={styles.placeholderText}>
-                    {isHindi ? 'कोई फोटो अपलोड नहीं है (कम से कम 4 जोड़ें)' : 'No photos uploaded (Add at least 4)'}
+                    {isBdo
+                      ? (isHindi ? 'कोई फोटो अपलोड नहीं है (विकासखंड कार्यालय की फोटो जोड़ें)' : 'No photos uploaded (Add Block photos)')
+                      : isDm
+                      ? (isHindi ? 'कोई फोटो अपलोड नहीं है (जिला कलेक्ट्रेट की फोटो जोड़ें)' : 'No photos uploaded (Add District photos)')
+                      : (isHindi ? 'कोई फोटो अपलोड नहीं है (कम से कम 4 जोड़ें)' : 'No photos uploaded (Add at least 4)')}
                   </Text>
                 </View>
               )}

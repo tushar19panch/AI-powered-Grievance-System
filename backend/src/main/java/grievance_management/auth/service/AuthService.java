@@ -68,6 +68,8 @@ public class AuthService {
 
         String villageName = user.getVillage() != null ? user.getVillage().getName() : null;
         String wardNumber = user.getWard() != null ? user.getWard().getWardNumber() : null;
+        String district = user.getDistrict() != null ? user.getDistrict() : (user.getVillage() != null ? user.getVillage().getDistrict() : null);
+        String block = user.getBlock();
 
         // Return response without password
         return new LoginResponse(
@@ -77,7 +79,10 @@ public class AuthService {
                 user.getMobileNumber(),
                 user.getRole(),
                 villageName,
-                wardNumber
+                wardNumber,
+                user.getOfficialId(),
+                district,
+                block
         );
     }
 

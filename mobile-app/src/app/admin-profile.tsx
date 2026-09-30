@@ -35,8 +35,10 @@ type OfficialProfile = {
   name: string;
   mobile: string;
   village: string;
+  block?: string;
+  district?: string;
   officialId: string;
-  role: 'sarpanch' | 'secretary' | 'admin';
+  role: 'sarpanch' | 'secretary' | 'admin' | 'bdo' | 'dm';
   profileImage?: string | null;
 };
 
@@ -50,6 +52,8 @@ export default function AdminProfile() {
     name: '',
     mobile: '',
     village: '',
+    block: '',
+    district: '',
     officialId: '',
     role: 'sarpanch',
     profileImage: null,
@@ -69,20 +73,36 @@ export default function AdminProfile() {
       const sessionData = await AsyncStorage.getItem('user_session');
       const adminData = await AsyncStorage.getItem('admin');
       const secretaryData = await AsyncStorage.getItem('secretary');
+      const bdoData = await AsyncStorage.getItem('bdo');
+      const dmData = await AsyncStorage.getItem('dm');
 
       const session = sessionData ? JSON.parse(sessionData) : null;
       const adminParsed = adminData ? JSON.parse(adminData) : null;
       const secretaryParsed = secretaryData ? JSON.parse(secretaryData) : null;
+      const bdoParsed = bdoData ? JSON.parse(bdoData) : null;
+      const dmParsed = dmData ? JSON.parse(dmData) : null;
 
-      const isSec = session?.role === 'secretary'
-        ? true
-        : session?.role === 'sarpanch' || session?.role === 'admin'
-        ? false
-        : !adminParsed && !!secretaryParsed;
+      let determinedRole: 'sarpanch' | 'secretary' | 'admin' | 'bdo' | 'dm' = 'sarpanch';
+      if (session?.role === 'bdo' || (!session?.role && bdoParsed)) {
+        determinedRole = 'bdo';
+      } else if (session?.role === 'dm' || (!session?.role && dmParsed)) {
+        determinedRole = 'dm';
+      } else if (session?.role === 'secretary' || (!session?.role && secretaryParsed)) {
+        determinedRole = 'secretary';
+      } else if (session?.role === 'sarpanch' || session?.role === 'admin' || (!session?.role && adminParsed)) {
+        determinedRole = 'sarpanch';
+      }
 
-      const activeData = isSec
-        ? { ...(secretaryParsed || {}), ...(session || {}) }
-        : { ...(adminParsed || {}), ...(session || {}) };
+      let activeData: any = {};
+      if (determinedRole === 'bdo') {
+        activeData = { ...(bdoParsed || {}), ...(session || {}) };
+      } else if (determinedRole === 'dm') {
+        activeData = { ...(dmParsed || {}), ...(session || {}) };
+      } else if (determinedRole === 'secretary') {
+        activeData = { ...(secretaryParsed || {}), ...(session || {}) };
+      } else {
+        activeData = { ...(adminParsed || {}), ...(session || {}) };
+      }
 
       const currentMobile = activeData.mobile || session?.mobile || '';
       let photoUri = activeData.profileImage || null;
@@ -91,14 +111,27 @@ export default function AdminProfile() {
         if (savedPhoto) photoUri = savedPhoto;
       }
 
+      const blockVal = activeData.block || session?.block || '';
+      const districtVal = activeData.district || session?.district || '';
+      const villageVal = activeData.village || session?.village || '';
+
+      const officialIdVal =
+        determinedRole === 'bdo'
+          ? (activeData.officialId || activeData.bdoId || session?.officialId || session?.bdoId || '')
+          : determinedRole === 'dm'
+          ? (activeData.officialId || activeData.dmId || session?.officialId || session?.dmId || '')
+          : determinedRole === 'secretary'
+          ? (activeData.secretaryId || activeData.officialId || session?.secretaryId || '')
+          : (activeData.adminId || activeData.officialId || session?.adminId || '');
+
       setAdmin({
         name: activeData.name || '',
         mobile: activeData.mobile || currentMobile || '',
-        village: activeData.village || '',
-        officialId: isSec
-          ? (activeData.secretaryId || activeData.officialId || session?.secretaryId || '')
-          : (activeData.adminId || activeData.officialId || session?.adminId || ''),
-        role: isSec ? 'secretary' : 'sarpanch',
+        village: villageVal,
+        block: blockVal,
+        district: districtVal,
+        officialId: officialIdVal,
+        role: determinedRole,
         profileImage: photoUri,
       });
     } catch {
@@ -139,7 +172,21 @@ export default function AdminProfile() {
         await AsyncStorage.setItem('user_session', JSON.stringify(session));
       }
 
-      if (admin.role === 'secretary') {
+      if (admin.role === 'bdo') {
+        const bdoData = await AsyncStorage.getItem('bdo');
+        const prevBdo = bdoData ? JSON.parse(bdoData) : {};
+        await AsyncStorage.setItem(
+          'bdo',
+          JSON.stringify({ ...prevBdo, ...admin, profileImage: photoUri })
+        );
+      } else if (admin.role === 'dm') {
+        const dmData = await AsyncStorage.getItem('dm');
+        const prevDm = dmData ? JSON.parse(dmData) : {};
+        await AsyncStorage.setItem(
+          'dm',
+          JSON.stringify({ ...prevDm, ...admin, profileImage: photoUri })
+        );
+      } else if (admin.role === 'secretary') {
         const secData = await AsyncStorage.getItem('secretary');
         const prevSec = secData ? JSON.parse(secData) : {};
         await AsyncStorage.setItem(
@@ -291,34 +338,49 @@ export default function AdminProfile() {
 
   const applyVillagePhoto = async (photoUri: string | null) => {
     try {
-      if (admin.village && photoUri) {
-        await AsyncStorage.setItem(`village_photo_${admin.village}`, photoUri);
-      } else if (admin.village && !photoUri) {
-        await AsyncStorage.removeItem(`village_photo_${admin.village}`);
+      const isBdo = admin.role === 'bdo';
+      const isDm = admin.role === 'dm';
+      const entityName = isBdo ? admin.block : isDm ? admin.district : admin.village;
+      const storageKey = isBdo
+        ? `block_photo_${entityName || 'default'}`
+        : isDm
+        ? `district_photo_${entityName || 'default'}`
+        : `village_photo_${entityName || 'default'}`;
+      const coverKey = isBdo ? 'block_cover_photo' : isDm ? 'district_cover_photo' : 'village_cover_photo';
+      const eventName = isBdo ? 'block_photo_changed' : isDm ? 'district_photo_changed' : 'village_photo_changed';
+
+      if (entityName && photoUri) {
+        await AsyncStorage.setItem(storageKey, photoUri);
+      } else if (entityName && !photoUri) {
+        await AsyncStorage.removeItem(storageKey);
       }
 
       if (photoUri) {
-        await AsyncStorage.setItem('village_cover_photo', photoUri);
+        await AsyncStorage.setItem(coverKey, photoUri);
       } else {
-        await AsyncStorage.removeItem('village_cover_photo');
+        await AsyncStorage.removeItem(coverKey);
       }
 
-      // Sync with backend server so all citizen, secretary & admin devices display it
-      await villageApi.updatePhoto(admin.village || 'Gram Panchayat', photoUri);
+      // Sync with backend server
+      if (entityName) {
+        await villageApi.updatePhoto(entityName, photoUri);
+      }
 
       // Broadcast event for active screens
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: photoUri }));
         window.dispatchEvent(new CustomEvent('village_photo_changed', { detail: photoUri }));
       }
 
-      Alert.alert(
-        isHindi ? 'सफल' : 'Success',
-        isHindi
-          ? 'ग्राम पंचायत फोटो सफलतापूर्वक अपडेट हो गई।'
-          : 'Gram Panchayat photo updated successfully.'
-      );
+      const successMsg = isBdo
+        ? (isHindi ? 'विकासखंड फोटो सफलतापूर्वक अपडेट हो गई।' : 'Block photo updated successfully.')
+        : isDm
+        ? (isHindi ? 'जिला कलेक्ट्रेट फोटो सफलतापूर्वक अपडेट हो गई।' : 'District photo updated successfully.')
+        : (isHindi ? 'ग्राम पंचायत फोटो सफलतापूर्वक अपडेट हो गई।' : 'Gram Panchayat photo updated successfully.');
+
+      Alert.alert(isHindi ? 'सफल' : 'Success', successMsg);
     } catch (err) {
-      console.log('Error saving village cover photo:', err);
+      console.log('Error saving cover photo:', err);
     }
   };
 
@@ -347,7 +409,7 @@ export default function AdminProfile() {
         await applyVillagePhoto(uri);
       }
     } catch (error) {
-      console.log('Village camera error:', error);
+      console.log('Camera error:', error);
     }
   };
 
@@ -376,11 +438,43 @@ export default function AdminProfile() {
         await applyVillagePhoto(uri);
       }
     } catch (error) {
-      console.log('Village gallery error:', error);
+      console.log('Gallery error:', error);
     }
   };
 
-  const pickVillageCoverPhoto = () => {
+  const pickVillageCoverPhoto = async () => {
+    try {
+      const isBdo = admin.role === 'bdo';
+      const isDm = admin.role === 'dm';
+      const entityKey = isBdo
+        ? `block_photos_gallery_${admin.block || 'default'}`
+        : isDm
+        ? `district_photos_gallery_${admin.district || 'default'}`
+        : `village_photos_gallery_${admin.village || 'default'}`;
+      const saved = await AsyncStorage.getItem(entityKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setGalleryPhotos(parsed);
+        } else {
+          setGalleryPhotos([]);
+        }
+      } else {
+        const singleKey = isBdo
+          ? `block_photo_${admin.block}`
+          : isDm
+          ? `district_photo_${admin.district}`
+          : `village_photo_${admin.village}`;
+        const single = await AsyncStorage.getItem(singleKey);
+        if (single) {
+          setGalleryPhotos([single]);
+        } else {
+          setGalleryPhotos([]);
+        }
+      }
+    } catch {
+      setGalleryPhotos([]);
+    }
     setPhotoManagerVisible(true);
   };
 
@@ -408,19 +502,48 @@ export default function AdminProfile() {
     try {
       const cleanName = admin.name.trim();
       const cleanMobile = admin.mobile.trim();
-      const cleanVillage = admin.village.trim();
-      const cleanId = admin.officialId.trim();
+      const cleanVillage = (admin.village || '').trim();
+      const cleanBlock = (admin.block || '').trim();
+      const cleanDistrict = (admin.district || '').trim();
+      const cleanId = (admin.officialId || '').trim();
 
       const sessionData = await AsyncStorage.getItem('user_session');
       if (sessionData) {
         const session = JSON.parse(sessionData);
         session.name = cleanName;
         session.mobile = cleanMobile;
-        session.village = cleanVillage;
+        if (cleanVillage) session.village = cleanVillage;
+        if (cleanBlock) session.block = cleanBlock;
+        if (cleanDistrict) session.district = cleanDistrict;
         await AsyncStorage.setItem('user_session', JSON.stringify(session));
       }
 
-      if (admin.role === 'secretary') {
+      if (admin.role === 'bdo') {
+        const bdoData = {
+          name: cleanName,
+          mobile: cleanMobile,
+          block: cleanBlock,
+          district: cleanDistrict,
+          village: cleanBlock,
+          officialId: cleanId,
+          bdoId: cleanId,
+          role: 'bdo',
+          profileImage: admin.profileImage,
+        };
+        await AsyncStorage.setItem('bdo', JSON.stringify(bdoData));
+      } else if (admin.role === 'dm') {
+        const dmData = {
+          name: cleanName,
+          mobile: cleanMobile,
+          district: cleanDistrict,
+          village: cleanDistrict,
+          officialId: cleanId,
+          dmId: cleanId,
+          role: 'dm',
+          profileImage: admin.profileImage,
+        };
+        await AsyncStorage.setItem('dm', JSON.stringify(dmData));
+      } else if (admin.role === 'secretary') {
         const secData = {
           name: cleanName,
           mobile: cleanMobile,
@@ -471,6 +594,8 @@ export default function AdminProfile() {
       try {
         await AsyncStorage.removeItem('admin');
         await AsyncStorage.removeItem('secretary');
+        await AsyncStorage.removeItem('bdo');
+        await AsyncStorage.removeItem('dm');
         await AsyncStorage.removeItem('user_session');
         await AsyncStorage.removeItem('@village_jwt_token');
         await AsyncStorage.removeItem('@village_user_session');
@@ -599,25 +724,49 @@ export default function AdminProfile() {
               {admin.name
                 ? localizeName(admin.name, isHindi)
                 : (isHindi
-                    ? (admin.role === 'secretary' ? 'ग्राम पंचायत सचिव' : 'सरपंच / एडमिन')
-                    : (admin.role === 'secretary' ? 'Panchayat Secretary' : 'Sarpanch / Admin'))}
+                    ? (admin.role === 'bdo'
+                        ? 'प्रखंड विकास अधिकारी'
+                        : admin.role === 'dm'
+                        ? 'जिलाधिकारी (DM)'
+                        : admin.role === 'secretary'
+                        ? 'ग्राम पंचायत सचिव'
+                        : 'सरपंच / एडमिन')
+                    : (admin.role === 'bdo'
+                        ? 'Block Development Officer'
+                        : admin.role === 'dm'
+                        ? 'District Magistrate (DM)'
+                        : admin.role === 'secretary'
+                        ? 'Panchayat Secretary'
+                        : 'Sarpanch / Admin'))}
             </Text>
 
             <View
               style={[
                 styles.roleBadge,
                 admin.role === 'secretary' && { backgroundColor: COLORS.successLight },
+                admin.role === 'bdo' && { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1 },
+                admin.role === 'dm' && { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE', borderWidth: 1 },
               ]}
             >
               <Ionicons
                 name={
-                  admin.role === 'secretary'
+                  admin.role === 'bdo'
+                    ? 'business-outline'
+                    : admin.role === 'dm'
+                    ? 'ribbon-outline'
+                    : admin.role === 'secretary'
                     ? 'briefcase-outline'
                     : 'shield-checkmark-outline'
                 }
                 size={15}
                 color={
-                  admin.role === 'secretary' ? COLORS.success : COLORS.accent
+                  admin.role === 'bdo'
+                    ? '#2563EB'
+                    : admin.role === 'dm'
+                    ? '#7C3AED'
+                    : admin.role === 'secretary'
+                    ? COLORS.success
+                    : COLORS.accent
                 }
               />
 
@@ -625,9 +774,15 @@ export default function AdminProfile() {
                 style={[
                   styles.roleText,
                   admin.role === 'secretary' && { color: COLORS.success },
+                  admin.role === 'bdo' && { color: '#1D4ED8' },
+                  admin.role === 'dm' && { color: '#6D28D9' },
                 ]}
               >
-                {admin.role === 'secretary'
+                {admin.role === 'bdo'
+                  ? (isHindi ? 'प्रखंड विकास अधिकारी (BDO)' : 'Block Development Officer')
+                  : admin.role === 'dm'
+                  ? (isHindi ? 'जिलाधिकारी (DM / कलेक्टर)' : 'District Magistrate (DM)')
+                  : admin.role === 'secretary'
                   ? (isHindi ? 'ग्राम पंचायत सचिव / सुपरवाइजर' : 'Secretary / Supervisor')
                   : (isHindi ? 'ग्राम प्रधान / सरपंच' : 'Village Head / Sarpanch')}
               </Text>
@@ -762,48 +917,171 @@ export default function AdminProfile() {
               </View>
             </View>
 
-            {/* VILLAGE */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                {isHindi ? 'गांव' : 'Village'}
-              </Text>
+            {/* JURISDICTION / LOCATION */}
+            {admin.role === 'bdo' ? (
+              <>
+                {/* SUB-DIVISION / BLOCK */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    {isHindi ? 'विकासखंड / उप-प्रभाग (Block / Sub-Division)' : 'Block / Sub-Division'}
+                  </Text>
 
-              <View
-                style={[
-                  styles.inputBox,
-                  !editing && styles.disabledBox,
-                ]}
-              >
-                <Ionicons
-                  name="location-outline"
-                  size={20}
-                  color={COLORS.textMuted}
-                />
+                  <View
+                    style={[
+                      styles.inputBox,
+                      !editing && styles.disabledBox,
+                    ]}
+                  >
+                    <Ionicons
+                      name="business-outline"
+                      size={20}
+                      color={COLORS.textMuted}
+                    />
 
-                <TextInput
-                  style={styles.input}
-                  value={admin.village || ''}
-                  onChangeText={(text) =>
-                    setAdmin({
-                      ...admin,
-                      village: text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''),
-                    })
-                  }
-                  editable={editing}
-                  placeholder={
-                    isHindi
-                      ? 'गांव का नाम'
-                      : 'Village name'
-                  }
-                  placeholderTextColor={COLORS.textMuted}
-                />
+                    <TextInput
+                      style={styles.input}
+                      value={admin.block || ''}
+                      onChangeText={(text) =>
+                        setAdmin({
+                          ...admin,
+                          block: text.replace(/[^a-zA-Z0-9\u0900-\u097F\s-]/g, ''),
+                        })
+                      }
+                      editable={editing}
+                      placeholder={
+                        isHindi
+                          ? 'विकासखंड / उप-प्रभाग का नाम'
+                          : 'Block / Sub-Division name'
+                      }
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                </View>
+
+                {/* DISTRICT */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    {isHindi ? 'जिला (District)' : 'District'}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.inputBox,
+                      !editing && styles.disabledBox,
+                    ]}
+                  >
+                    <Ionicons
+                      name="location-outline"
+                      size={20}
+                      color={COLORS.textMuted}
+                    />
+
+                    <TextInput
+                      style={styles.input}
+                      value={admin.district || ''}
+                      onChangeText={(text) =>
+                        setAdmin({
+                          ...admin,
+                          district: text.replace(/[^a-zA-Z0-9\u0900-\u097F\s-]/g, ''),
+                        })
+                      }
+                      editable={editing}
+                      placeholder={
+                        isHindi
+                          ? 'जिले का नाम'
+                          : 'District name'
+                      }
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : admin.role === 'dm' ? (
+              /* DISTRICT JURISDICTION FOR DM */
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  {isHindi ? 'जिला क्षेत्राधिकार (District Jurisdiction)' : 'District Jurisdiction'}
+                </Text>
+
+                <View
+                  style={[
+                    styles.inputBox,
+                    !editing && styles.disabledBox,
+                  ]}
+                >
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={COLORS.textMuted}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    value={admin.district || ''}
+                    onChangeText={(text) =>
+                      setAdmin({
+                        ...admin,
+                        district: text.replace(/[^a-zA-Z0-9\u0900-\u097F\s-]/g, ''),
+                      })
+                    }
+                    editable={editing}
+                    placeholder={
+                      isHindi
+                        ? 'जिले का नाम'
+                        : 'District name'
+                    }
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
               </View>
-            </View>
+            ) : (
+              /* GRAM PANCHAYAT FOR SARPANCH / SECRETARY */
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  {isHindi ? 'ग्राम पंचायत (Gram Panchayat)' : 'Gram Panchayat'}
+                </Text>
 
-            {/* ADMIN / SECRETARY ID */}
+                <View
+                  style={[
+                    styles.inputBox,
+                    !editing && styles.disabledBox,
+                  ]}
+                >
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={COLORS.textMuted}
+                  />
+
+                  <TextInput
+                    style={styles.input}
+                    value={admin.village || ''}
+                    onChangeText={(text) =>
+                      setAdmin({
+                        ...admin,
+                        village: text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, ''),
+                      })
+                    }
+                    editable={editing}
+                    placeholder={
+                      isHindi
+                        ? 'गांव का नाम'
+                        : 'Village name'
+                    }
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* OFFICIAL ID */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                {admin.role === 'secretary'
+                {admin.role === 'bdo'
+                  ? (isHindi ? 'BDO पहचान कोड (Official ID)' : 'BDO Official ID')
+                  : admin.role === 'dm'
+                  ? (isHindi ? 'DM पहचान कोड (Official ID)' : 'DM Official ID')
+                  : admin.role === 'secretary'
                   ? (isHindi ? 'सचिव आईडी' : 'Secretary ID')
                   : (isHindi ? 'सरपंच आईडी' : 'Sarpanch ID')}
               </Text>
@@ -824,7 +1102,15 @@ export default function AdminProfile() {
                   style={styles.input}
                   value={admin.officialId || ''}
                   editable={false}
-                  placeholder={admin.role === 'secretary' ? 'Secretary ID' : 'Sarpanch ID'}
+                  placeholder={
+                    admin.role === 'bdo'
+                      ? 'BDO Official ID'
+                      : admin.role === 'dm'
+                      ? 'DM Official ID'
+                      : admin.role === 'secretary'
+                      ? 'Secretary ID'
+                      : 'Sarpanch ID'
+                  }
                   placeholderTextColor={COLORS.textMuted}
                 />
 
@@ -836,7 +1122,11 @@ export default function AdminProfile() {
               </View>
 
               <Text style={styles.helperText}>
-                {admin.role === 'secretary'
+                {admin.role === 'bdo'
+                  ? (isHindi ? 'BDO पहचान कोड बदला नहीं जा सकता।' : 'BDO ID cannot be changed.')
+                  : admin.role === 'dm'
+                  ? (isHindi ? 'DM पहचान कोड बदला नहीं जा सकता।' : 'DM ID cannot be changed.')
+                  : admin.role === 'secretary'
                   ? (isHindi ? 'सचिव आईडी बदली नहीं जा सकती।' : 'Secretary ID cannot be changed.')
                   : (isHindi ? 'सरपंच आईडी बदली नहीं जा सकती।' : 'Sarpanch ID cannot be changed.')}
               </Text>
@@ -886,7 +1176,7 @@ export default function AdminProfile() {
           </View>
 
           <View style={styles.accountCard}>
-            {/* GRAM PANCHAYAT COVER PHOTO OPTION */}
+            {/* SHOWCASE COVER PHOTO OPTION */}
             <TouchableOpacity
               style={styles.accountRow}
               onPress={pickVillageCoverPhoto}
@@ -894,7 +1184,7 @@ export default function AdminProfile() {
             >
               <View style={styles.accountIconBox}>
                 <Ionicons
-                  name="business-outline"
+                  name={admin.role === 'dm' ? 'ribbon-outline' : 'business-outline'}
                   size={20}
                   color={COLORS.primary}
                 />
@@ -902,10 +1192,18 @@ export default function AdminProfile() {
 
               <View style={styles.accountTextWrapper}>
                 <Text style={styles.accountTitle}>
-                  {isHindi ? 'ग्राम पंचायत फोटो गैलरी व प्रबंधन' : 'Panchayat Photo Gallery & Management'}
+                  {admin.role === 'bdo'
+                    ? (isHindi ? 'विकासखंड / उप-प्रभाग फोटो गैलरी व प्रबंधन' : 'Block Photo Gallery & Management')
+                    : admin.role === 'dm'
+                    ? (isHindi ? 'जिला कलेक्ट्रेट फोटो गैलरी व प्रबंधन' : 'Collectorate Photo Gallery & Management')
+                    : (isHindi ? 'ग्राम पंचायत फोटो गैलरी व प्रबंधन' : 'Panchayat Photo Gallery & Management')}
                 </Text>
                 <Text style={styles.accountSubtitle}>
-                  {isHindi ? 'पंचायत फोटो बदलें, जोड़ें, क्रॉप करें या हटाएं' : 'Add, edit, crop, rotate or delete showcase photos'}
+                  {admin.role === 'bdo'
+                    ? (isHindi ? 'विकासखंड कार्यालय की फोटो बदलें, जोड़ें, क्रॉप करें या हटाएं' : 'Add, edit, crop, rotate or delete block photos')
+                    : admin.role === 'dm'
+                    ? (isHindi ? 'कलेक्ट्रेट व जिला प्रशासन की फोटो बदलें, जोड़ें या हटाएं' : 'Add, edit, crop, rotate or delete district photos')
+                    : (isHindi ? 'पंचायत फोटो बदलें, जोड़ें, क्रॉप करें या हटाएं' : 'Add, edit, crop, rotate or delete showcase photos')}
                 </Text>
               </View>
 
@@ -1024,7 +1322,15 @@ export default function AdminProfile() {
         visible={previewVisible}
         imageUri={admin.profileImage}
         userName={admin.name || (isHindi ? 'प्रोफाइल' : 'Profile')}
-        userRole={admin.role === 'secretary' ? (isHindi ? 'ग्राम सचिव' : 'Secretary') : (isHindi ? 'सरपंच / एडमिन' : 'Sarpanch')}
+        userRole={
+          admin.role === 'bdo'
+            ? (isHindi ? 'प्रखंड विकास अधिकारी (BDO)' : 'Block Development Officer')
+            : admin.role === 'dm'
+            ? (isHindi ? 'जिलाधिकारी (DM)' : 'District Magistrate')
+            : admin.role === 'secretary'
+            ? (isHindi ? 'ग्राम सचिव' : 'Secretary')
+            : (isHindi ? 'सरपंच / एडमिन' : 'Sarpanch')
+        }
         onClose={() => setPreviewVisible(false)}
         onChangePhoto={() => {
           setPreviewVisible(false);
@@ -1033,11 +1339,18 @@ export default function AdminProfile() {
         isHindi={isHindi}
       />
 
-      {/* PANCHAYAT MULTI-PHOTO GALLERY & CROP/ROTATE MANAGER MODAL */}
+      {/* PHOTO GALLERY & CROP/ROTATE MANAGER MODAL */}
       <PanchayatPhotoManagerModal
         visible={photoManagerVisible}
         onClose={() => setPhotoManagerVisible(false)}
-        villageName={admin.village || (isHindi ? 'मुख्य ग्राम पंचायत' : 'Gram Panchayat')}
+        role={admin.role}
+        villageName={
+          admin.role === 'bdo'
+            ? (admin.block || (isHindi ? 'विकासखंड' : 'Block'))
+            : admin.role === 'dm'
+            ? (admin.district || (isHindi ? 'जिला' : 'District'))
+            : (admin.village || (isHindi ? 'मुख्य ग्राम पंचायत' : 'Gram Panchayat'))
+        }
         photos={galleryPhotos}
         onPhotosUpdated={(updated) => {
           setGalleryPhotos(updated);

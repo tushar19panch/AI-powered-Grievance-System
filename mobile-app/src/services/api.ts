@@ -257,6 +257,7 @@ export interface LoginResponseData {
   role: 'CITIZEN' | 'SARPANCH' | 'SECRETARY' | 'BLOCK_OFFICER' | 'DISTRICT_OFFICER';
   villageName?: string;
   wardNumber?: string;
+  officialId?: string;
   district?: string;
   block?: string;
 }

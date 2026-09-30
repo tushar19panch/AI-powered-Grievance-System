@@ -44,4 +44,10 @@ public class User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ward_id")
     private Ward ward;
+
+    @Column
+    private String block;
+
+    @Column
+    private String district;
 }

@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authApi, setAuthToken } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useTheme } from '../theme/ThemeContext';
+import { LocationHierarchyPicker } from '../components/LocationHierarchyPicker';
 
 export default function DmRegisterScreen() {
   const router = useRouter();
@@ -165,6 +166,7 @@ export default function DmRegisterScreen() {
           mobile: cleanMobile,
           district: district.trim(),
           dmId: dmId.trim(),
+          officialId: dmId.trim(),
         })
       );
 
@@ -176,6 +178,8 @@ export default function DmRegisterScreen() {
           name: name.trim(),
           mobile: cleanMobile,
           district: district.trim(),
+          officialId: dmId.trim(),
+          dmId: dmId.trim(),
           token: loginData?.token || '',
           loginAt: new Date().toISOString(),
         })
@@ -293,22 +297,17 @@ export default function DmRegisterScreen() {
               </View>
             </View>
 
-            {/* District Jurisdiction */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: colors.textPrimary }]}>
-                {isHindi ? 'जिला अधिकार क्षेत्र' : 'District Jurisdiction'} <Text style={styles.req}>*</Text>
-              </Text>
-              <View style={[styles.inputWrapper, { backgroundColor: isDark ? '#1F2937' : '#F8FAFC', borderColor: colors.border }]}>
-                <Ionicons name="map-outline" size={18} color="#991B1B" style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.textInput, { color: colors.textPrimary }]}
-                  placeholder={isHindi ? 'उदा. भोपाल / Indore / Sehore' : 'e.g. Bhopal / Indore / Sehore'}
-                  placeholderTextColor={colors.textSecondary}
-                  value={district}
-                  onChangeText={setDistrict}
-                />
-              </View>
-            </View>
+            {/* District Jurisdiction Picker */}
+            <LocationHierarchyPicker
+              isHindi={isHindi}
+              selectedState={state}
+              selectedDistrict={district}
+              onDistrictChange={(d) => setDistrict(d)}
+              showBlock={false}
+              showVillage={false}
+              showWard={false}
+              districtLabel={isHindi ? 'जिला / संभागीय क्षेत्राधिकार' : 'District Jurisdiction'}
+            />
 
             {/* DM Official ID */}
             <View style={styles.inputGroup}>

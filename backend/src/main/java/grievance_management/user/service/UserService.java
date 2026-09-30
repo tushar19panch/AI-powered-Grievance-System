@@ -120,12 +120,21 @@ public class UserService {
         // 6. Create user
         // -----------------------------------------
 
+        String userDistrict = request.getDistrict() != null && !request.getDistrict().isBlank()
+                ? request.getDistrict().trim()
+                : (village != null ? village.getDistrict() : null);
+        String userBlock = request.getBlock() != null && !request.getBlock().isBlank()
+                ? request.getBlock().trim()
+                : null;
+
         User user = User.builder()
                 .name(request.getName().trim())
                 .mobileNumber(request.getMobileNumber().trim())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .officialId(officialId)
+                .district(userDistrict)
+                .block(userBlock)
                 .village(village)
                 .ward(ward)
                 .build();

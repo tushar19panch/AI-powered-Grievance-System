@@ -19,6 +19,9 @@ public class LoginResponse {
     private Role role;
     private String villageName;
     private String wardNumber;
+    private String officialId;
+    private String district;
+    private String block;
 
     public LoginResponse(String token, Long userId, String name, String mobileNumber, Role role) {
         this.token = token;
@@ -26,5 +29,15 @@ public class LoginResponse {
         this.name = name;
         this.mobileNumber = mobileNumber;
         this.role = role;
+    }
+
+    public LoginResponse(String token, Long userId, String name, String mobileNumber, Role role, String villageName, String wardNumber) {
+        this.token = token;
+        this.userId = userId;
+        this.name = name;
+        this.mobileNumber = mobileNumber;
+        this.role = role;
+        this.villageName = villageName;
+        this.wardNumber = wardNumber;
     }
 }
