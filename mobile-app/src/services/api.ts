@@ -235,7 +235,7 @@ async function request<T>(
             'Request timed out. Please check if your backend server is running and reachable.'
           )
         ),
-      30000
+      60000
     )
   );
 

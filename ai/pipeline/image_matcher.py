@@ -320,8 +320,9 @@ def compute_image_fingerprint(image_input):
     if norm > 0:
         color_vec = color_vec / norm
 
-    # Blank / Corrupted / Single Solid Color (Zero variance, zero edges)
-    is_blank = (std_dev < 1.8 and edge_energy < 0.8) or (entropy < 0.35)
+    # Blank / Corrupted / Pitch Dark / Single Solid Color (Zero variance, zero edges, or no light)
+    is_pitch_dark = (mean_val < 25.0) or (mean_val < 40.0 and std_dev < 12.0 and edge_energy < 3.0)
+    is_blank = is_pitch_dark or (std_dev < 2.5 and edge_energy < 1.2) or (entropy < 0.45)
 
     # 4. Scene Classifier
     scene_info = classify_visual_scene(img)
@@ -449,25 +450,37 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
     scene = new_fingerprint.get("scene") or {}
     dominant_scene = scene.get("dominant_scene", "GENERAL_OUTDOOR_SCENE")
 
-    # 2. Quality & Detail Verification -> NEEDS_VERIFICATION (Run before Duplicate)
+    # 2. Extreme Darkness / Obstructed Lens Check -> FAKE (Instant Rejection)
     entropy_val = new_fingerprint.get("entropy", 5.0)
     edge_val = new_fingerprint.get("edge_energy", 10.0)
     mean_bright = new_fingerprint.get("mean_brightness", 128.0)
     std_dev_val = new_fingerprint.get("std_dev", 30.0)
 
-    is_underexposed = (mean_bright <= 20.0) # Night shot with near zero illumination
+    is_pitch_dark = (mean_bright <= 25.0) or (mean_bright <= 38.0 and std_dev_val < 15.0 and edge_val < 4.0)
+    is_obstructed = (scene.get("skin_ratio", 0) > 0.35 and std_dev_val < 6.0) # Lens blocked by thumb/finger
+
+    if is_pitch_dark or is_obstructed:
+        reason_msg = "कैमरा लेंस हाथ या उंगली से ढका हुआ है (Obstructed Lens)" if is_obstructed else "फोटो में अत्यधिक अंधेरा (Black/Dark image) है और समस्या स्थल दिखाई नहीं दे रहा है"
+        return {
+            "classification": "FAKE",
+            "reason": f"अमान्य फोटो: {reason_msg}। कृपया पर्याप्त रोशनी में वास्तविक समस्या की स्पष्ट फोटो लगाएं।",
+            "confidence": 0.98,
+            "duplicate_of_id": None,
+            "similarity_score": 0.0,
+            "is_valid": False,
+            "detected_scene": "DARK_OR_BLANK"
+        }
+
+    # 2B. Quality & Blur Verification -> NEEDS_VERIFICATION (Run before Duplicate)
     is_overexposed = (mean_bright >= 246.0) or (mean_bright >= 238.0 and std_dev_val < 10.0) # Blinding glare / flash washout
     is_blurry = (edge_val < 4.2 and not scene.get("is_screenshot_or_doc") and not scene.get("is_clean_indoor"))
-    is_obstructed = (scene.get("skin_ratio", 0) > 0.35 and std_dev_val < 6.0) # Lens blocked by thumb/finger
     is_foggy_or_smudged = (std_dev_val < 5.0 and entropy_val < 3.8 and mean_bright > 40.0 and mean_bright < 220.0 and not scene.get("is_screenshot_or_doc") and not scene.get("is_clean_indoor"))
 
-    if is_blurry or is_underexposed or is_overexposed or is_obstructed or is_foggy_or_smudged:
-        reason_msg = "Camera lens is obstructed by hand/finger" if is_obstructed else (
+    if is_blurry or is_overexposed or is_foggy_or_smudged:
+        reason_msg = (
             "Heavy fog, smudged lens, or low contrast scene" if is_foggy_or_smudged else (
-                "Image is blurry or motion-distorted" if is_blurry else (
-                    "Extreme low-light night capture with insufficient visibility" if is_underexposed else
-                    "Extreme sun glare / overexposure with washed out scene details"
-                )
+                "Image is blurry or motion-distorted" if is_blurry else
+                "Extreme sun glare / overexposure with washed out scene details"
             )
         )
         return {
