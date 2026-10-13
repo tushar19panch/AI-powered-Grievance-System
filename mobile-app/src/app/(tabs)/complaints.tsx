@@ -787,7 +787,7 @@ export default function ComplaintsScreen() {
               {filterInfo.emptyDesc}
             </Text>
 
-            {(selectedWard || (selectedStatus && selectedStatus !== 'all') || selectedPriority) && (
+            {Boolean(selectedWard || (selectedStatus && selectedStatus !== 'all') || selectedPriority) ? (
               <TouchableOpacity
                 style={styles.viewAllBtn}
                 onPress={() => router.setParams({ filter: undefined, status: undefined, priority: undefined, ward: undefined })}
@@ -798,9 +798,9 @@ export default function ComplaintsScreen() {
                   {isHindi ? 'सभी शिकायतें देखें' : 'View All Complaints'}
                 </Text>
               </TouchableOpacity>
-            )}
+            ) : null}
 
-            {userRole === 'citizen' && (
+            {userRole === 'citizen' ? (
               <TouchableOpacity
                 style={styles.reportButton}
                 onPress={() => router.push('/report' as any)}
@@ -811,7 +811,7 @@ export default function ComplaintsScreen() {
                   {isHindi ? 'नई शिकायत दर्ज करें' : 'Register New Complaint'}
                 </Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         ) : (
           /* ================= COMPLAINT LIST ================= */
