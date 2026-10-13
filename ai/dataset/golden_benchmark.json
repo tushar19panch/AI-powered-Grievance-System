@@ -1,0 +1,51 @@
+[
+  {
+    "text_en": "There has been no water supply for five days",
+    "text_hi": "पाँच दिनों से पानी की सप्लाई नहीं आ रही है।",
+    "text_hinglish": "5 din se paani nahi aa raha hai",
+    "department": "Public Health Engineering / Water Supply",
+    "priority": "HIGH"
+  },
+  {
+    "text_en": "The main road has many potholes",
+    "text_hi": "मुख्य सड़क पर बहुत सारे गड्ढे हैं",
+    "text_hinglish": "Main road par bahut saare gaddhe hain",
+    "department": "Public Works / Roads",
+    "priority": "MEDIUM"
+  },
+  {
+    "text_en": "A live electric wire has fallen on the road",
+    "text_hi": "सड़क पर बिजली का चालू तार गिर गया है, जानलेवा करंट का खतरा है",
+    "text_hinglish": "Sadak par bijli ka live taar gir gaya hai current lag sakta hai",
+    "department": "Electricity / Energy",
+    "priority": "CRITICAL"
+  },
+  {
+    "text_en": "There is a serious fire near the market",
+    "text_hi": "बाजार के पास भीषण आग लग गई है, तुरंत दमकल भेजें",
+    "text_hinglish": "Market ke paas aag lag gayi hai emergency hai",
+    "department": "Urban Development & Municipal Services",
+    "priority": "CRITICAL"
+  },
+  {
+    "text_en": "The government hospital has no medicines",
+    "text_hi": "सरकारी अस्पताल में जरूरी दवाइयां उपलब्ध नहीं हैं",
+    "text_hinglish": "Sarkari hospital me dawai aur medicines nahi mil rahi hain",
+    "department": "Public Health & Family Welfare",
+    "priority": "HIGH"
+  },
+  {
+    "text_en": "Garbage has not been collected for a week",
+    "text_hi": "एक हफ्ते से इलाके का कचरा नहीं उठाया गया है",
+    "text_hinglish": "Ek hafte se kachra nahi uthaya gaya hai",
+    "department": "Urban Development & Municipal Services",
+    "priority": "MEDIUM"
+  },
+  {
+    "text_en": "The park needs maintenance",
+    "text_hi": "पार्क में घास की कटाई और बेंच की मरम्मत की जरूरत है",
+    "text_hinglish": "Park me maintenance aur bench repair ki zarurat hai",
+    "department": "Urban Development & Municipal Services",
+    "priority": "LOW"
+  }
+]

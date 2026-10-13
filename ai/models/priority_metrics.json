@@ -1,0 +1,215 @@
+{
+  "accuracy_ml": 0.9928594612138916,
+  "macro_f1_ml": 0.9864723634110877,
+  "accuracy_hybrid": 0.9931840311587147,
+  "macro_f1_hybrid": 0.9901455009376353,
+  "critical_misses_hybrid": 0,
+  "by_language": {
+    "en": {
+      "accuracy": 0.9958819492107069,
+      "macro_f1": 0.9916947979281945,
+      "samples": 2914
+    },
+    "hi": {
+      "accuracy": 0.9340659340659341,
+      "macro_f1": 0.9453324808184143,
+      "samples": 91
+    },
+    "hinglish": {
+      "accuracy": 0.9605263157894737,
+      "macro_f1": 0.9716981132075473,
+      "samples": 76
+    }
+  },
+  "golden_benchmark": [
+    {
+      "language": "en",
+      "text": "There has been no water supply for five days",
+      "expected": "HIGH",
+      "predicted": "HIGH",
+      "confidence": 0.6868170540354871,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "पाँच दिनों से पानी की सप्लाई नहीं आ रही है।",
+      "expected": "HIGH",
+      "predicted": "HIGH",
+      "confidence": 0.6236915696397434,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "5 din se paani nahi aa raha hai",
+      "expected": "HIGH",
+      "predicted": "HIGH",
+      "confidence": 0.8489757220198373,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "The main road has many potholes",
+      "expected": "MEDIUM",
+      "predicted": "MEDIUM",
+      "confidence": 0.964474997259453,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "मुख्य सड़क पर बहुत सारे गड्ढे हैं",
+      "expected": "MEDIUM",
+      "predicted": "MEDIUM",
+      "confidence": 0.6846717388146387,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Main road par bahut saare gaddhe hain",
+      "expected": "MEDIUM",
+      "predicted": "HIGH",
+      "confidence": 0.49954999941978045,
+      "source": "ML_MODEL",
+      "correct": false
+    },
+    {
+      "language": "en",
+      "text": "A live electric wire has fallen on the road",
+      "expected": "CRITICAL",
+      "predicted": "CRITICAL",
+      "confidence": 1.0,
+      "source": "SAFETY_RULE (ELECTROCUTION_HAZARD)",
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "सड़क पर बिजली का चालू तार गिर गया है, जानलेवा करंट का खतरा है",
+      "expected": "CRITICAL",
+      "predicted": "CRITICAL",
+      "confidence": 1.0,
+      "source": "SAFETY_RULE (ELECTROCUTION_HAZARD)",
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Sadak par bijli ka live taar gir gaya hai current lag sakta hai",
+      "expected": "CRITICAL",
+      "predicted": "CRITICAL",
+      "confidence": 1.0,
+      "source": "SAFETY_RULE (ELECTROCUTION_HAZARD)",
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "There is a serious fire near the market",
+      "expected": "CRITICAL",
+      "predicted": "CRITICAL",
+      "confidence": 1.0,
+      "source": "SAFETY_RULE (FIRE_OR_EXPLOSION)",
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "बाजार के पास भीषण आग लग गई है, तुरंत दमकल भेजें",
+      "expected": "CRITICAL",
+      "predicted": "CRITICAL",
+      "confidence": 1.0,
+      "source": "SAFETY_RULE (FIRE_OR_EXPLOSION)",
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Market ke paas aag lag gayi hai emergency hai",
+      "expected": "CRITICAL",
+      "predicted": "CRITICAL",
+      "confidence": 1.0,
+      "source": "SAFETY_RULE (FIRE_OR_EXPLOSION)",
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "The government hospital has no medicines",
+      "expected": "HIGH",
+      "predicted": "HIGH",
+      "confidence": 0.4893662564393554,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "सरकारी अस्पताल में जरूरी दवाइयां उपलब्ध नहीं हैं",
+      "expected": "HIGH",
+      "predicted": "MEDIUM",
+      "confidence": 0.5137120170576794,
+      "source": "ML_MODEL",
+      "correct": false
+    },
+    {
+      "language": "hinglish",
+      "text": "Sarkari hospital me dawai aur medicines nahi mil rahi hain",
+      "expected": "HIGH",
+      "predicted": "HIGH",
+      "confidence": 0.9370682797004806,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "Garbage has not been collected for a week",
+      "expected": "MEDIUM",
+      "predicted": "MEDIUM",
+      "confidence": 0.9146299934469998,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "एक हफ्ते से इलाके का कचरा नहीं उठाया गया है",
+      "expected": "MEDIUM",
+      "predicted": "MEDIUM",
+      "confidence": 0.8847412941142677,
+      "source": "ML_MODEL",
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Ek hafte se kachra nahi uthaya gaya hai",
+      "expected": "MEDIUM",
+      "predicted": "HIGH",
+      "confidence": 0.542414765316228,
+      "source": "ML_MODEL",
+      "correct": false
+    },
+    {
+      "language": "en",
+      "text": "The park needs maintenance",
+      "expected": "LOW",
+      "predicted": "MEDIUM",
+      "confidence": 0.9877915890875384,
+      "source": "ML_MODEL",
+      "correct": false
+    },
+    {
+      "language": "hi",
+      "text": "पार्क में घास की कटाई और बेंच की मरम्मत की जरूरत है",
+      "expected": "LOW",
+      "predicted": "MEDIUM",
+      "confidence": 0.45059873247138293,
+      "source": "ML_MODEL",
+      "correct": false
+    },
+    {
+      "language": "hinglish",
+      "text": "Park me maintenance aur bench repair ki zarurat hai",
+      "expected": "LOW",
+      "predicted": "MEDIUM",
+      "confidence": 0.7236804347787864,
+      "source": "ML_MODEL",
+      "correct": false
+    }
+  ]
+}

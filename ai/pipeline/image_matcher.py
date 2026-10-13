@@ -28,6 +28,102 @@ VILLAGE_CATEGORIES = [
     "Education"
 ]
 
+# ==============================================================================
+# DEEP LEARNING SEMANTIC SCENE ANALYZER (PyTorch ResNet-18)
+# ==============================================================================
+_RESNET_MODEL = None
+_RESNET_TRANSFORMS = None
+_RESNET_CATEGORIES = None
+_RESNET_LOAD_ATTEMPTED = False
+
+DOMAIN_IMAGE_KEYWORDS = {
+    'ELECTRICITY': [
+        'pole', 'spotlight', 'traffic light', 'street sign', 'beacon', 'solar dish', 
+        'wire fence', 'chainlink fence', 'table lamp', 'torch'
+    ],
+    'FIRE_HAZARD': [
+        'fire screen', 'matchstick', 'candle', 'volcano', 'lighter', 'flare'
+    ],
+    'WATER_SUPPLY': [
+        'water tower', 'fountain', 'dam', 'lakeside', 'seashore', 'barrel', 'water bottle', 
+        'tub', 'swimming pool', 'canoe', 'paddle'
+    ],
+    'ROAD_TRANSPORT': [
+        'streetcar', 'freight car', 'cab', 'minivan', 'pickup', 'tow truck', 'trailer truck', 
+        'motor scooter', 'moped', 'bicycle-built-for-two', 'mountain bike', 'jinrikisha', 
+        'crash helmet', 'go-kart', 'unicycle'
+    ],
+    'WASTE_GARBAGE': [
+        'ashcan', 'garbage truck', 'dumpster', 'trash can', 'waste container'
+    ],
+    'DRAINAGE': [
+        'drain', 'manhole', 'sewer', 'gutter'
+    ],
+    'HEALTHCARE': [
+        'stethoscope', 'pill bottle', 'syringe', 'hospital', 'medicine chest', 'oxygen mask'
+    ],
+    'DIGITAL_SCREEN': [
+        'web site', 'menu', 'envelope', 'comic book', 'packet', 'monitor', 'screen', 
+        'cellular telephone', 'notebook', 'laptop', 'desktop computer'
+    ],
+    'INDOOR_RESIDENTIAL': [
+        'studio couch', 'wardrobe', 'bed', 'dining table', 'toilet seat', 'washbasin', 
+        'refrigerator', 'microwave', 'bathtub', 'bookcase'
+    ],
+    'ANIMAL': [
+        'dog', 'cat', 'cow', 'ox', 'bull', 'horse', 'sheep', 'monkey', 'bird', 'pig'
+    ]
+}
+
+def _get_resnet_model():
+    global _RESNET_MODEL, _RESNET_TRANSFORMS, _RESNET_CATEGORIES, _RESNET_LOAD_ATTEMPTED
+    if not _RESNET_LOAD_ATTEMPTED:
+        _RESNET_LOAD_ATTEMPTED = True
+        try:
+            import torch
+            import torchvision.models as models
+            weights = models.ResNet18_Weights.DEFAULT
+            model = models.resnet18(weights=weights)
+            model.eval()
+            _RESNET_MODEL = model
+            _RESNET_TRANSFORMS = weights.transforms()
+            _RESNET_CATEGORIES = weights.meta["categories"]
+        except Exception as e:
+            print(f"[VISION ML] Note: PyTorch ResNet18 load note: {e}")
+    return _RESNET_MODEL, _RESNET_TRANSFORMS, _RESNET_CATEGORIES
+
+def classify_with_deep_resnet(img):
+    model, transforms, categories = _get_resnet_model()
+    if model is None or transforms is None:
+        return [], {}, None
+
+    try:
+        import torch
+        batch = transforms(img).unsqueeze(0)
+        with torch.no_grad():
+            preds = model(batch).squeeze(0).softmax(0)
+        topk = torch.topk(preds, 5)
+        top_items = []
+        domain_scores = {}
+        for i in range(5):
+            idx = topk.indices[i].item()
+            prob = float(topk.values[i].item())
+            cat_name = categories[idx].lower()
+            top_items.append((cat_name, round(prob, 4)))
+            for dom, kws in DOMAIN_IMAGE_KEYWORDS.items():
+                for kw in kws:
+                    if kw in cat_name:
+                        domain_scores[dom] = round(domain_scores.get(dom, 0.0) + prob, 4)
+                        break
+        best_dom = None
+        if domain_scores:
+            sorted_doms = sorted(domain_scores.items(), key=lambda x: x[1], reverse=True)
+            if sorted_doms[0][1] >= 0.30:
+                best_dom = sorted_doms[0][0]
+        return top_items, domain_scores, best_dom
+    except Exception:
+        return [], {}, None
+
 def load_image_from_input(image_input):
     """
     Accepts:
@@ -62,13 +158,16 @@ def load_image_from_input(image_input):
 def classify_visual_scene(img):
     """
     Comprehensive Visual Scene Classifier for Village Civic Issues:
-    Analyzes spatial texture, color spectrum, edge frequency, vertical/horizontal balance,
-    skin tones, water reflectivity, vegetation, and structural geometry across 16 village domains.
+    Combines Deep ResNet-18 ImageNet Semantic Perception with multi-spectral HSV analysis,
+    spatial gradient energy, edge texture, and cross-modal heuristics across 16 village domains.
     """
     img_rgb = img.convert("RGB")
     w, h = img_rgb.size
+
+    # 1. Deep Semantic Inference (ResNet-18)
+    resnet_items, resnet_domains, deep_domain = classify_with_deep_resnet(img_rgb)
     
-    # 1. Standardized low-res array for fast numerical analysis
+    # 2. Standardized low-res array for fast numerical analysis
     img_small = img_rgb.resize((150, 150))
     arr = np.array(img_small, dtype=np.float32) / 255.0
     
@@ -79,7 +178,6 @@ def classify_visual_scene(img):
     sat = hsv_arr[:, :, 1]
     val = hsv_arr[:, :, 2]
     
-    # 2. Spatial Slices (Top-third Sky/Roof, Mid-third Horizon/Walls, Bottom-third Ground/Floor)
     top_sat = float(sat[:50, :].mean())
     mid_sat = float(sat[50:100, :].mean())
     bot_sat = float(sat[100:, :].mean())
@@ -87,7 +185,7 @@ def classify_visual_scene(img):
     top_val = float(val[:50, :].mean())
     bot_val = float(val[100:, :].mean())
     
-    # 3. Structural Gradient / Edge Analysis
+    # Structural Gradient / Edge Analysis
     gray = img_rgb.convert("L").resize((150, 150))
     gray_arr = np.array(gray, dtype=np.float32)
     
@@ -106,16 +204,18 @@ def classify_visual_scene(img):
     entropy_stat = ImageStat.Stat(gray)
     texture_entropy = float(entropy_stat.stddev[0]) if entropy_stat.stddev else 0.0
     
-    # 4. Color Spectrum Ratios
-    # Greenery / Fields (Hue: 0.20 - 0.46, sat >= 0.20)
+    # Color Spectrum Ratios
     green_mask = (hue >= 0.20) & (hue <= 0.46) & (sat >= 0.20)
     green_ratio = float(green_mask.mean())
     
-    # Sky / High Overhead Blue-Cyan (Top half: Hue 0.50 - 0.68, Val >= 0.45)
-    sky_mask = (hue[:60, :] >= 0.50) & (hue[:60, :] <= 0.68) & (val[:60, :] >= 0.45)
-    sky_ratio = float(sky_mask.mean())
+    # Sky: covers daylight cyan/blue to twilight, dusk, overcast (Hue 0.44 - 0.75, Val >= 0.12)
+    sky_mask_top = (hue[:60, :] >= 0.44) & (hue[:60, :] <= 0.75) & (val[:60, :] >= 0.12)
+    sky_ratio_top = float(sky_mask_top.mean())
+    sky_mask_full = (hue >= 0.44) & (hue <= 0.75) & (val >= 0.12)
+    sky_ratio_full = float(sky_mask_full.mean())
+    sky_ratio = max(sky_ratio_top, sky_ratio_full)
     
-    # Water / Wet surface / Puddle (Bottom half: Hue 0.48 - 0.70, moderate sat 0.18 - 0.65, low/mid val)
+    # Water / Wet surface / Puddle (Bottom half: Hue 0.46 - 0.72, moderate sat 0.18 - 0.75, low/mid val)
     water_mask = (hue[90:, :] >= 0.46) & (hue[90:, :] <= 0.72) & (sat[90:, :] >= 0.18) & (val[90:, :] >= 0.15)
     water_ratio = float(water_mask.mean())
     
@@ -127,32 +227,38 @@ def classify_visual_scene(img):
     mud_mask = (hue[60:, :] >= 0.05) & (hue[60:, :] <= 0.16) & (sat[60:, :] >= 0.20) & (val[60:, :] <= 0.60)
     mud_ground_ratio = float(mud_mask.mean())
     
+    # Continuous sky check: If sky hue covers whole image without ground, it is NOT water puddle!
+    is_continuous_sky = (sky_ratio_full > 0.55) and (abs(float(hue[:50, :].mean()) - float(hue[100:, :].mean())) < 0.20) and (asphalt_ground_ratio < 0.25 and mud_ground_ratio < 0.25)
+    
     # Wall / Building Facade / Indoor Vertical lines
     wall_edge_density = float(grad_x[:100, :].mean())
     
     # Skin / Portrait / Human Face / Selfie Detection
-    # Concentrated in Hue 0.02 - 0.14, moderate Sat 0.15 - 0.75, Val 0.25 - 0.95
     skin_mask = (hue >= 0.02) & (hue <= 0.14) & (sat >= 0.15) & (sat <= 0.75) & (val >= 0.25) & (val <= 0.95)
     skin_ratio = float(skin_mask.mean())
     center_skin_ratio = float(skin_mask[25:125, 25:125].mean())
     is_portrait_or_person = (center_skin_ratio >= 0.20) or (skin_ratio >= 0.25)
     
-    # Fire / Thermal Blaze (Hue <= 0.12 or >= 0.92, very high saturation >= 0.60, high val >= 0.70)
-    fire_mask = ((hue <= 0.12) | (hue >= 0.92)) & (sat >= 0.60) & (val >= 0.70)
+    # Sparks, electric arc, fire
+    spark_mask = (val >= 0.85) & ((sat >= 0.35) | (val >= 0.96))
+    spark_ratio = float(spark_mask.mean())
+    has_spark = (spark_ratio >= 0.003) and not is_portrait_or_person
+    
+    fire_mask = ((hue <= 0.12) | (hue >= 0.92)) & (sat >= 0.55) & (val >= 0.70)
     fire_ratio = float(fire_mask.mean())
-    is_fire = (fire_ratio >= 0.10) and not is_portrait_or_person
+    is_fire = ((fire_ratio >= 0.05 and not is_portrait_or_person) or (has_spark and (sky_ratio > 0.30 or deep_domain in ("ELECTRICITY", "FIRE_HAZARD"))) or deep_domain == "FIRE_HAZARD") and not is_portrait_or_person
 
     # Digital Screenshot / Graphic / Text Document
-    # Sharp dark text lines on light background or UI box gradients (exclude greenery and water)
     is_screenshot_or_doc = False
     if not is_portrait_or_person and green_ratio < 0.25 and water_ratio < 0.20:
-        has_text_lines = ((val < 0.30).mean() > 0.03) and ((val > 0.75).mean() > 0.35) and (edge_energy > 5.0) and (val.mean() < 0.93)
-        if has_text_lines:
+        if deep_domain == "DIGITAL_SCREEN" and resnet_domains.get("DIGITAL_SCREEN", 0) > 0.40:
             is_screenshot_or_doc = True
-        elif texture_entropy < 10.0 and edge_energy > 9.0 and val.mean() < 0.93 and green_ratio < 0.15:
+        elif texture_entropy < 10.0 and edge_energy > 9.0 and sat.mean() < 0.08 and val.mean() > 0.75:
+            is_screenshot_or_doc = True
+        elif ((val < 0.25).mean() > 0.04) and ((val > 0.80).mean() > 0.45) and (edge_energy > 6.0) and (sat.mean() < 0.08):
             is_screenshot_or_doc = True
 
-    # 5. Scene Categorization Flags
+    # Scene Categorization Flags
     scene_tags = []
     
     is_building = False
@@ -161,16 +267,15 @@ def classify_visual_scene(img):
     is_greenery = False
     is_waste = False
     is_water_drain = False
-    is_animal_shed = False
     is_clean_indoor = False
     
     # A. Human Portrait
     if is_portrait_or_person:
         scene_tags.append("Human Face / Person / Portrait")
 
-    # B. Fire / Thermal Hazard
-    if is_fire:
-        scene_tags.append("Fire / Flame / Thermal Hazard")
+    # B. Fire / Thermal / Arc Hazard
+    if is_fire or has_spark:
+        scene_tags.append("Fire / Flame / Electric Arc Hazard")
 
     # C. Screenshot / Document
     if is_screenshot_or_doc:
@@ -180,31 +285,43 @@ def classify_visual_scene(img):
     if green_ratio > 0.28:
         is_greenery = True
         scene_tags.append("Greenery / Agricultural Fields / Park")
-        
-    # E. Road / Highway / Pothole / Dirt Track
-    if (asphalt_ground_ratio > 0.45 or mud_ground_ratio > 0.40) and bot_val < 0.80 and vert_to_horiz_ratio < 1.15 and not is_portrait_or_person:
-        is_road = True
-        scene_tags.append("Road / Pavement Surface / Street Track")
-        
-    # I. Waste / Garbage / Debris
-    if texture_entropy > 34.0 and not is_road and not is_portrait_or_person and not is_screenshot_or_doc and not is_fire:
+
+    # E. Water & Drainage (Excludes continuous overhead sky!)
+    if not is_continuous_sky and not is_portrait_or_person:
+        if ((water_ratio > 0.22 and (asphalt_ground_ratio > 0.12 or mud_ground_ratio > 0.12)) or 
+            (water_ratio > 0.35 and top_val > 0.30) or 
+            (asphalt_ground_ratio > 0.25 and water_ratio > 0.15) or
+            (deep_domain in ("WATER_SUPPLY", "DRAINAGE") and resnet_domains.get(deep_domain, 0) > 0.20)):
+            is_water_drain = True
+            scene_tags.append("Water Accumulation / Drainage / Sewer")
+
+    # F. Waste / Garbage / Debris
+    if (texture_entropy > 34.0 or deep_domain == "WASTE_GARBAGE") and not is_water_drain and not is_portrait_or_person and not is_screenshot_or_doc and not is_fire:
         is_waste = True
         scene_tags.append("Scattered Waste / High Texture Debris")
 
-    # G. Electricity / Overhead Line / Pole
-    if sky_ratio > 0.18 and top_val > 0.50 and (vertical_energy > 3.0 or vert_to_horiz_ratio > 0.90) and not is_portrait_or_person:
-        is_electrical = True
-        scene_tags.append("Overhead Sky / Electric Pole / Wires")
+    # G. Electricity / Overhead Line / Pole / Spark
+    if not is_water_drain and not is_waste and not is_portrait_or_person:
+        if (has_spark and (sky_ratio > 0.30 or deep_domain == "ELECTRICITY")):
+            is_electrical = True
+            scene_tags.append("Overhead Sky / Electric Pole / Wires / Sparks")
+        elif (sky_ratio_top > 0.40 or sky_ratio_full > 0.45 or deep_domain == "ELECTRICITY"):
+            if vertical_energy > 1.2 or vert_to_horiz_ratio > 1.0 or horizontal_energy > 1.5 or deep_domain == "ELECTRICITY":
+                is_electrical = True
+                scene_tags.append("Overhead Sky / Electric Pole / Wires")
 
-    # H. Drainage / Sewer / Standing Water / Puddle
-    if ((water_ratio > 0.22 and not is_electrical) or (asphalt_ground_ratio > 0.30 and water_ratio > 0.15)) and not is_portrait_or_person:
-        is_water_drain = True
-        scene_tags.append("Water Accumulation / Drainage / Sewer")
+    # H. Road / Highway / Pothole / Dirt Track
+    if (asphalt_ground_ratio > 0.45 or mud_ground_ratio > 0.40) and bot_val < 0.80 and vert_to_horiz_ratio < 1.15 and not is_portrait_or_person and not is_water_drain and not is_electrical:
+        is_road = True
+        scene_tags.append("Road / Pavement Surface / Street Track")
+    elif deep_domain == "ROAD_TRANSPORT" and not is_portrait_or_person and not is_water_drain and not is_electrical:
+        is_road = True
+        scene_tags.append("Road / Vehicle / Transport")
 
-    # F. Building / Architecture / Indoor / Public Structure
+    # I. Building / Architecture / Indoor / Public Structure
     if ((vert_to_horiz_ratio > 1.05 and wall_edge_density > 6.0) or (texture_entropy < 28.0 and asphalt_ground_ratio < 0.28 and not is_greenery and not is_water_drain and not is_electrical)) and not is_portrait_or_person and not is_waste:
         is_building = True
-        if top_val > 0.55 and bot_val > 0.45 and not is_road and texture_entropy < 24.0:
+        if (top_val > 0.55 and bot_val > 0.45 and not is_road and texture_entropy < 24.0) or (deep_domain == "INDOOR_RESIDENTIAL"):
             is_clean_indoor = True
             scene_tags.append("Clean Indoor Room / Architecture")
         else:
@@ -213,18 +330,18 @@ def classify_visual_scene(img):
     # Determine dominant scene
     if is_portrait_or_person:
         dominant_scene = "HUMAN_PORTRAIT_OR_PERSON"
-    elif is_fire:
+    elif is_fire or has_spark:
         dominant_scene = "FIRE_OR_EXPLOSION_HAZARD"
     elif is_screenshot_or_doc:
         dominant_scene = "DOCUMENT_OR_SCREENSHOT"
+    elif is_electrical:
+        dominant_scene = "OVERHEAD_ELECTRICAL_OR_SKY"
     elif is_water_drain:
         dominant_scene = "WATER_OR_DRAINAGE_ACCUMULATION"
     elif is_waste:
         dominant_scene = "WASTE_OR_DEBRIS"
     elif is_road:
         dominant_scene = "ROAD_OR_GROUND_SURFACE"
-    elif is_electrical:
-        dominant_scene = "OVERHEAD_ELECTRICAL_OR_SKY"
     elif is_building:
         dominant_scene = "BUILDING_OR_INDOOR"
     elif is_greenery:
@@ -237,6 +354,7 @@ def classify_visual_scene(img):
         "scene_tags": scene_tags,
         "is_portrait_or_person": is_portrait_or_person,
         "is_fire_or_flame": is_fire,
+        "has_spark": has_spark,
         "is_screenshot_or_doc": is_screenshot_or_doc,
         "is_road_surface": is_road,
         "is_building_or_indoor": is_building,
@@ -248,11 +366,16 @@ def classify_visual_scene(img):
         "skin_ratio": round(skin_ratio, 2),
         "center_skin_ratio": round(center_skin_ratio, 2),
         "fire_ratio": round(fire_ratio, 2),
+        "spark_ratio": round(spark_ratio, 3),
         "asphalt_ratio": round(asphalt_ground_ratio, 2),
         "water_ratio": round(water_ratio, 2),
+        "sky_ratio": round(sky_ratio, 2),
         "vertical_edge_ratio": round(vert_to_horiz_ratio, 2),
         "edge_energy": round(edge_energy, 2),
-        "texture_entropy": round(texture_entropy, 2)
+        "texture_entropy": round(texture_entropy, 2),
+        "deep_domain": deep_domain,
+        "resnet_domains": resnet_domains,
+        "resnet_top_classes": resnet_items
     }
 
 
@@ -401,10 +524,8 @@ def compare_two_fingerprints(fp1, fp2):
         color_sim = 0.5
 
     # 3. High-Confidence Duplicate Matches
-    # Exact or near-identical duplicate
     if min_hash_diff <= 3:
         return round(float(1.0 - (min_hash_diff * 0.02)), 4)
-    # Cropped or resized clone (Requires both structural hash agreement and color layout similarity)
     if min_hash_diff <= 6 and color_sim >= 0.55:
         return round(float(0.90 - (min_hash_diff * 0.02)), 4)
     if min_hash_diff <= 8 and color_sim >= 0.65:
@@ -429,6 +550,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
     3. MISMATCH_SUSPICIOUS: 
        - Human portraits / Selfies uploaded for civic issues (Road, Water, Drain, Electricity, Waste)
        - Fire hazards uploaded for non-fire departments (Healthcare, Water, Education)
+       - Electrical poles / spark / fire uploaded for Water Supply / Roads / Health
        - Irrelevant indoor rooms / digital screenshots
        - Cross-modal violations across all 16 village categories
     4. NEEDS_VERIFICATION: High blur, very low resolution, ambiguous lighting
@@ -448,6 +570,8 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
 
     scene = new_fingerprint.get("scene") or {}
     dominant_scene = scene.get("dominant_scene", "GENERAL_OUTDOOR_SCENE")
+    deep_domain = scene.get("deep_domain")
+    resnet_domains = scene.get("resnet_domains") or {}
 
     # 2. Quality & Detail Verification -> NEEDS_VERIFICATION (Run before Duplicate)
     entropy_val = new_fingerprint.get("entropy", 5.0)
@@ -527,13 +651,13 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                     "detected_scene": dominant_scene
                 }
 
-        # Rule 2: Fire / Thermal Hazard uploaded for non-fire civic issues
-        if scene.get("is_fire_or_flame"):
+        # Rule 2: Fire / Thermal / Spark Hazard uploaded for non-fire civic issues
+        if scene.get("is_fire_or_flame") or scene.get("has_spark") or deep_domain == "FIRE_HAZARD":
             non_fire_domains = ["health", "water", "education", "property", "sanitation", "digital", "welfare", "animal", "market"]
             if any(d in norm_cat for d in non_fire_domains):
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
-                    "reason": f"Image displays fire / thermal blaze which does not correlate with '{expected_category}'. Flagged for supervisor review.",
+                    "reason": f"फोटो और शिकायत में असंगति पाई गई: अपलोड की गई फोटो में आग/स्पार्क (Fire/Thermal Hazard) दिखाई दे रहा है, जो कि '{expected_category}' से मेल नहीं खाता है। (Image displays fire/spark hazard which does not correlate with '{expected_category}').",
                     "confidence": 0.95,
                     "duplicate_of_id": None,
                     "similarity_score": 0.0,
@@ -542,7 +666,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                 }
 
         # Rule 3: Digital Screenshot / Document / Meme uploaded for physical issues
-        if scene.get("is_screenshot_or_doc"):
+        if scene.get("is_screenshot_or_doc") or deep_domain == "DIGITAL_SCREEN":
             physical_domains = ["road", "drain", "water", "waste", "electricity", "sanitation", "park", "environment"]
             if any(d in norm_cat for d in physical_domains):
                 return {
@@ -556,7 +680,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                 }
 
         # Rule 4: Clean Indoor Room uploaded for outdoor infrastructure domains
-        if scene.get("is_clean_indoor"):
+        if scene.get("is_clean_indoor") or (deep_domain == "INDOOR_RESIDENTIAL" and resnet_domains.get("INDOOR_RESIDENTIAL", 0) > 0.35):
             indoor_incompatible = ["road", "transport", "pothole", "waste", "garbage", "drain", "sewer", "water", "sanitation", "town", "environment", "park"]
             if any(d in norm_cat for d in indoor_incompatible):
                 return {
@@ -581,10 +705,21 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                 "detected_scene": dominant_scene
             }
 
-        # Rule 6: Water Supply with Dry Road / Pothole / Electrical / Solid Waste (CRITICAL CROSS-CHECK)
+        # Rule 6: Water Supply with Electrical / Sparks / Dry Road / Waste / Animals / Screenshots
         if ("water" in norm_cat or "pani" in norm_cat or "jal" in norm_cat or "nal" in norm_cat or "supply" in norm_cat) and not ("drain" in norm_cat or "road" in norm_cat):
-            # A. Dry Road / Pothole surface with no water puddle/leakage
-            if scene.get("is_road_surface") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.12:
+            # A. Overhead Electrical Wires / Poles / Electric Sparks / High Voltage
+            if scene.get("is_electrical_pole_sky") or scene.get("has_spark") or dominant_scene in ("OVERHEAD_ELECTRICAL_OR_SKY", "FIRE_OR_EXPLOSION_HAZARD") or deep_domain == "ELECTRICITY":
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति पाई गई: शिकायत पेयजल/पानी आपूर्ति (Water Supply) की है, लेकिन अपलोड की गई फोटो बिजली के खंभे/तार/स्पार्क (Overhead Electricity / Sparks) की है। कृपया वास्तविक समस्या स्थल की सही फोटो लगाएं। (Image of electric pole/spark does not match Water Supply grievance)",
+                    "confidence": 0.96,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
+            # B. Dry Road / Pothole surface with no water puddle/leakage
+            if scene.get("is_road_surface") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.12 and deep_domain != "WATER_SUPPLY":
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
                     "reason": "फोटो और शिकायत में असंगति पाई गई: शिकायत पेयजल/पानी सप्लाई (Water Supply) की है, लेकिन फोटो में सूखी सड़क/गड्ढा (Road Surface) दिखाई दे रहा है जिसमें पानी का कोई स्रोत या लीकेज नहीं है। (Image of dry road does not match Water Supply grievance)",
@@ -594,23 +729,23 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                     "is_valid": False,
                     "detected_scene": dominant_scene
                 }
-            # B. Overhead Electrical Wires / Sky with no water source
-            if scene.get("is_electrical_pole_sky") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.10:
+            # C. Scattered Solid Waste with no water accumulation
+            if (scene.get("is_waste_or_garbage") or deep_domain == "WASTE_GARBAGE") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.10:
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
-                    "reason": "फोटो और शिकायत में असंगति: शिकायत पानी सप्लाई की है, लेकिन फोटो बिजली के खंभे/तार (Overhead Electricity) की है। (Image of power lines does not match Water Supply grievance)",
-                    "confidence": 0.94,
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत पानी सप्लाई की है, लेकिन फोटो कचरे/कूड़े के ढेर (Waste Dump) की है। (Image of waste does not match Water Supply grievance)",
+                    "confidence": 0.93,
                     "duplicate_of_id": None,
                     "similarity_score": 0.0,
                     "is_valid": False,
                     "detected_scene": dominant_scene
                 }
-            # C. Scattered Solid Waste with no water accumulation
-            if scene.get("is_waste_or_garbage") and not scene.get("is_water_or_drain") and scene.get("water_ratio", 0) < 0.10:
+            # D. Stray Animal
+            if deep_domain == "ANIMAL" and resnet_domains.get("ANIMAL", 0) > 0.35:
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
-                    "reason": "फोटो और शिकायत में असंगति: शिकायत पानी सप्लाई की है, लेकिन फोटो कचरे/कूड़े के ढेर (Waste) की है। (Image of waste does not match Water Supply grievance)",
-                    "confidence": 0.93,
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत पानी आपूर्ति की है, लेकिन फोटो जानवर/पशु (Animal) की है। (Image of animal does not match Water Supply grievance)",
+                    "confidence": 0.92,
                     "duplicate_of_id": None,
                     "similarity_score": 0.0,
                     "is_valid": False,
@@ -619,7 +754,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
 
         # Rule 7: Roads & Transportation with pure Overhead Sky/Power Lines or Deep Water Pond
         if ("road" in norm_cat or "transport" in norm_cat or "pothole" in norm_cat or "street" in norm_cat or "sadak" in norm_cat):
-            if scene.get("is_electrical_pole_sky") and not scene.get("is_road_surface") and scene.get("asphalt_ratio", 0) < 0.15:
+            if (scene.get("is_electrical_pole_sky") or deep_domain == "ELECTRICITY") and not scene.get("is_road_surface") and scene.get("asphalt_ratio", 0) < 0.15:
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
                     "reason": "फोटो और शिकायत में असंगति: शिकायत सड़क की है, लेकिन फोटो में केवल ऊपर के बिजली के तार/आसमान दिख रहे हैं। (Image of overhead wires does not match Road grievance)",
@@ -642,7 +777,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
 
         # Rule 8: Drainage / Sewer with pure Overhead Sky / Roof or Dry Road
         if ("drain" in norm_cat or "sewage" in norm_cat or "gutter" in norm_cat):
-            if scene.get("is_electrical_pole_sky") and not scene.get("is_water_or_drain"):
+            if (scene.get("is_electrical_pole_sky") or deep_domain == "ELECTRICITY") and not scene.get("is_water_or_drain"):
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
                     "reason": "फोटो और शिकायत में असंगति: शिकायत नाली/सीवर की है, लेकिन फोटो बिजली के तारों/आसमान की है। (Image of power lines does not match Drainage grievance)",
@@ -665,7 +800,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
 
         # Rule 9: Electricity & Lighting with standing water / deep mud only or pure dry road
         if ("electric" in norm_cat or "light" in norm_cat or "pole" in norm_cat or "wire" in norm_cat or "bijli" in norm_cat):
-            if scene.get("is_road_surface") and not scene.get("is_electrical_pole_sky") and scene.get("vertical_edge_ratio", 1.0) < 0.8:
+            if scene.get("is_road_surface") and not scene.get("is_electrical_pole_sky") and deep_domain != "ELECTRICITY" and scene.get("vertical_edge_ratio", 1.0) < 0.8:
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
                     "reason": "फोटो और शिकायत में असंगति: शिकायत बिजली/स्ट्रीट लाइट की है, लेकिन फोटो केवल सड़क/जमीन की है जिसमें कोई खंभा या तार नहीं दिख रहा। (Image of road does not match Electricity grievance)",
@@ -675,7 +810,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                     "is_valid": False,
                     "detected_scene": dominant_scene
                 }
-            if scene.get("water_ratio", 0) > 0.35 and not scene.get("is_electrical_pole_sky"):
+            if scene.get("water_ratio", 0) > 0.35 and not scene.get("is_electrical_pole_sky") and deep_domain != "ELECTRICITY":
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
                     "reason": "फोटो और शिकायत में असंगति: शिकायत बिजली की है, लेकिन फोटो में जलभराव/नाली दिखाई दे रही है। (Image of water does not match Electricity grievance)",
@@ -698,7 +833,7 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                     "is_valid": False,
                     "detected_scene": dominant_scene
                 }
-            if scene.get("is_electrical_pole_sky") and not scene.get("is_waste_or_garbage"):
+            if scene.get("is_electrical_pole_sky") and not scene.get("is_waste_or_garbage") and deep_domain != "WASTE_GARBAGE":
                 return {
                     "classification": "MISMATCH_SUSPICIOUS",
                     "reason": "फोटो और शिकायत में असंगति: शिकायत कचरा प्रबंधन की है, लेकिन फोटो खुले आसमान/बिजली के तारों की है। (Image does not show waste)",
@@ -720,6 +855,19 @@ def match_image_against_database(new_fingerprint, existing_records, expected_cat
                 "is_valid": False,
                 "detected_scene": dominant_scene
             }
+
+        # Rule 12: Animal & Veterinary with overhead power lines or indoor furniture
+        if ("animal" in norm_cat or "veterinary" in norm_cat or "pashu" in norm_cat or "cattle" in norm_cat):
+            if (scene.get("is_electrical_pole_sky") or deep_domain == "ELECTRICITY") and not scene.get("is_animal_shed"):
+                return {
+                    "classification": "MISMATCH_SUSPICIOUS",
+                    "reason": "फोटो और शिकायत में असंगति: शिकायत पशु/पशु चिकित्सा की है, लेकिन फोटो बिजली के खंभे/तारों की है। (Image does not match Animal grievance)",
+                    "confidence": 0.90,
+                    "duplicate_of_id": None,
+                    "similarity_score": 0.0,
+                    "is_valid": False,
+                    "detected_scene": dominant_scene
+                }
 
     # 5. GENUINE: Authentic, verified image matching village domain
     return {

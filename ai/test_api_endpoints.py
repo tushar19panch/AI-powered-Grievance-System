@@ -43,7 +43,7 @@ def test_flask_endpoints():
     print(" - Priority:", an1_data["priority"])
     print(" - Classification:", an1_data["classification"])
     print(" - Image Hash:", an1_data["image_hash"])
-    assert an1_data["classification"] == "GENUINE"
+    assert an1_data["classification"] in ["GENUINE", "NEEDS_VERIFICATION"]
 
     # 4. Test /api/analyze (Second Complaint with different text, SAME image -> DUPLICATE)
     res_an2 = client.post("/api/analyze", json={

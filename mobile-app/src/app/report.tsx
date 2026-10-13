@@ -148,6 +148,20 @@ export default function ReportScreen() {
         : 'The uploaded photo does not appear to show the grievance site. Please attach a clear on-site photo.';
     }
 
+    // 1. If backend already returned an explicit Hindi/Bilingual explanation, prioritize it
+    if (/[\u0900-\u097F]/.test(rawReason)) {
+      if (isHi) {
+        // Clean up any trailing system tags or supervisor notes
+        return rawReason.replace(/Flagged for supervisor review\.?/gi, '').trim();
+      } else {
+        // If UI is in English and reason contains parenthetical English translation, extract it
+        const englishMatch = rawReason.match(/\(([^)]+)\)/);
+        if (englishMatch && englishMatch[1] && /[a-zA-Z]{4,}/.test(englishMatch[1])) {
+          return englishMatch[1].trim();
+        }
+      }
+    }
+
     const lower = rawReason.toLowerCase();
 
     // Mismatch between problem category and photo (e.g. fire vs water supply)
@@ -183,8 +197,8 @@ export default function ReportScreen() {
         : 'Screenshots are not accepted. Please capture a real live photo of the issue on-site.';
     }
 
-    // If in Hindi and raw reason contains English technical text
-    if (isHi && /[a-zA-Z]{5,}/.test(rawReason)) {
+    // If in Hindi and raw reason contains English technical text without Hindi
+    if (isHi && /[a-zA-Z]{5,}/.test(rawReason) && !/[\u0900-\u097F]/.test(rawReason)) {
       return 'अपलोड की गई फोटो समस्या स्थल से मेल नहीं खाती है। कृपया मौके पर जाकर वास्तविक समस्या की स्पष्ट फोटो लगाएं।';
     }
 
