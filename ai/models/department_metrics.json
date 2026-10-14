@@ -1,0 +1,303 @@
+{
+  "accuracy": 0.9461213891593638,
+  "macro_f1": 0.941823396990062,
+  "weighted_f1": 0.9464827618513101,
+  "by_language": {
+    "en": {
+      "accuracy": 0.9485773054508057,
+      "macro_f1": 0.9455361476076348,
+      "samples": 2917
+    },
+    "hi": {
+      "accuracy": 0.8863636363636364,
+      "macro_f1": 0.8191899735602742,
+      "samples": 88
+    },
+    "hinglish": {
+      "accuracy": 0.9210526315789473,
+      "macro_f1": 0.8217276524644946,
+      "samples": 76
+    }
+  },
+  "classification_report": {
+    "Agriculture & Farmers' Welfare": {
+      "precision": 0.9393939393939394,
+      "recall": 1.0,
+      "f1-score": 0.96875,
+      "support": 31.0
+    },
+    "Animal Husbandry & Veterinary": {
+      "precision": 0.9124087591240876,
+      "recall": 0.9328358208955224,
+      "f1-score": 0.922509225092251,
+      "support": 134.0
+    },
+    "Drainage & Sewerage": {
+      "precision": 1.0,
+      "recall": 0.9708029197080292,
+      "f1-score": 0.9851851851851852,
+      "support": 137.0
+    },
+    "Electricity / Energy": {
+      "precision": 0.8918918918918919,
+      "recall": 0.9635036496350365,
+      "f1-score": 0.9263157894736842,
+      "support": 137.0
+    },
+    "General Administration / Manual Review": {
+      "precision": 0.7906976744186046,
+      "recall": 0.8947368421052632,
+      "f1-score": 0.8395061728395061,
+      "support": 76.0
+    },
+    "IT & Digital Government Services": {
+      "precision": 1.0,
+      "recall": 0.9851851851851852,
+      "f1-score": 0.9925373134328358,
+      "support": 135.0
+    },
+    "Panchayat & Rural Development": {
+      "precision": 0.8888888888888888,
+      "recall": 1.0,
+      "f1-score": 0.9411764705882353,
+      "support": 32.0
+    },
+    "Police / Home": {
+      "precision": 0.8333333333333334,
+      "recall": 0.967741935483871,
+      "f1-score": 0.8955223880597015,
+      "support": 31.0
+    },
+    "Public Health & Family Welfare": {
+      "precision": 0.9222222222222223,
+      "recall": 0.9651162790697675,
+      "f1-score": 0.9431818181818182,
+      "support": 258.0
+    },
+    "Public Health Engineering / Water Supply": {
+      "precision": 0.9927007299270073,
+      "recall": 0.9855072463768116,
+      "f1-score": 0.9890909090909091,
+      "support": 138.0
+    },
+    "Public Works / Roads": {
+      "precision": 0.9375,
+      "recall": 0.9523809523809523,
+      "f1-score": 0.9448818897637795,
+      "support": 378.0
+    },
+    "Revenue & Land Administration": {
+      "precision": 0.8957055214723927,
+      "recall": 0.9733333333333334,
+      "f1-score": 0.9329073482428115,
+      "support": 300.0
+    },
+    "School Education": {
+      "precision": 0.9636363636363636,
+      "recall": 0.9814814814814815,
+      "f1-score": 0.9724770642201835,
+      "support": 54.0
+    },
+    "Social Justice & Welfare": {
+      "precision": 0.9714285714285714,
+      "recall": 0.9714285714285714,
+      "f1-score": 0.9714285714285714,
+      "support": 70.0
+    },
+    "Urban Development & Municipal Services": {
+      "precision": 0.9793427230046948,
+      "recall": 0.918942731277533,
+      "f1-score": 0.9481818181818182,
+      "support": 1135.0
+    },
+    "Women & Child Development": {
+      "precision": 0.9375,
+      "recall": 0.8571428571428571,
+      "f1-score": 0.8955223880597015,
+      "support": 35.0
+    },
+    "accuracy": 0.9461213891593638,
+    "macro avg": {
+      "precision": 0.9285406636713749,
+      "recall": 0.9575087378440135,
+      "f1-score": 0.941823396990062,
+      "support": 3081.0
+    },
+    "weighted avg": {
+      "precision": 0.9485100684252811,
+      "recall": 0.9461213891593638,
+      "f1-score": 0.9464827618513101,
+      "support": 3081.0
+    }
+  },
+  "golden_benchmark": [
+    {
+      "language": "en",
+      "text": "There has been no water supply for five days",
+      "expected": "Public Health Engineering / Water Supply",
+      "predicted": "Public Health Engineering / Water Supply",
+      "confidence": 0.8733969372865932,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "पाँच दिनों से पानी की सप्लाई नहीं आ रही है।",
+      "expected": "Public Health Engineering / Water Supply",
+      "predicted": "Panchayat & Rural Development",
+      "confidence": 0.21290733265706616,
+      "correct": false
+    },
+    {
+      "language": "hinglish",
+      "text": "5 din se paani nahi aa raha hai",
+      "expected": "Public Health Engineering / Water Supply",
+      "predicted": "Public Health Engineering / Water Supply",
+      "confidence": 0.5616721427135994,
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "The main road has many potholes",
+      "expected": "Public Works / Roads",
+      "predicted": "Public Works / Roads",
+      "confidence": 0.9216476614757969,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "मुख्य सड़क पर बहुत सारे गड्ढे हैं",
+      "expected": "Public Works / Roads",
+      "predicted": "Public Works / Roads",
+      "confidence": 0.1838840848141659,
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Main road par bahut saare gaddhe hain",
+      "expected": "Public Works / Roads",
+      "predicted": "Public Works / Roads",
+      "confidence": 0.39378004331591093,
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "A live electric wire has fallen on the road",
+      "expected": "Electricity / Energy",
+      "predicted": "Electricity / Energy",
+      "confidence": 0.9360109191910974,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "सड़क पर बिजली का चालू तार गिर गया है, जानलेवा करंट का खतरा है",
+      "expected": "Electricity / Energy",
+      "predicted": "Electricity / Energy",
+      "confidence": 0.4752246536988361,
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Sadak par bijli ka live taar gir gaya hai current lag sakta hai",
+      "expected": "Electricity / Energy",
+      "predicted": "Electricity / Energy",
+      "confidence": 0.5277219075402865,
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "There is a serious fire near the market",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Urban Development & Municipal Services",
+      "confidence": 0.4375634401362276,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "बाजार के पास भीषण आग लग गई है, तुरंत दमकल भेजें",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Agriculture & Farmers' Welfare",
+      "confidence": 0.7911070104600922,
+      "correct": false
+    },
+    {
+      "language": "hinglish",
+      "text": "Market ke paas aag lag gayi hai emergency hai",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Agriculture & Farmers' Welfare",
+      "confidence": 0.5096240314393573,
+      "correct": false
+    },
+    {
+      "language": "en",
+      "text": "The government hospital has no medicines",
+      "expected": "Public Health & Family Welfare",
+      "predicted": "Public Health & Family Welfare",
+      "confidence": 0.8527475361995691,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "सरकारी अस्पताल में जरूरी दवाइयां उपलब्ध नहीं हैं",
+      "expected": "Public Health & Family Welfare",
+      "predicted": "Public Health & Family Welfare",
+      "confidence": 0.36926898771464484,
+      "correct": true
+    },
+    {
+      "language": "hinglish",
+      "text": "Sarkari hospital me dawai aur medicines nahi mil rahi hain",
+      "expected": "Public Health & Family Welfare",
+      "predicted": "Public Health & Family Welfare",
+      "confidence": 0.44024644270769525,
+      "correct": true
+    },
+    {
+      "language": "en",
+      "text": "Garbage has not been collected for a week",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Urban Development & Municipal Services",
+      "confidence": 0.8768790159650177,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "एक हफ्ते से इलाके का कचरा नहीं उठाया गया है",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Panchayat & Rural Development",
+      "confidence": 0.22217609867218535,
+      "correct": false
+    },
+    {
+      "language": "hinglish",
+      "text": "Ek hafte se kachra nahi uthaya gaya hai",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Panchayat & Rural Development",
+      "confidence": 0.17057446074427873,
+      "correct": false
+    },
+    {
+      "language": "en",
+      "text": "The park needs maintenance",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Urban Development & Municipal Services",
+      "confidence": 0.9788179378933797,
+      "correct": true
+    },
+    {
+      "language": "hi",
+      "text": "पार्क में घास की कटाई और बेंच की मरम्मत की जरूरत है",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "School Education",
+      "confidence": 0.6850705397945555,
+      "correct": false
+    },
+    {
+      "language": "hinglish",
+      "text": "Park me maintenance aur bench repair ki zarurat hai",
+      "expected": "Urban Development & Municipal Services",
+      "predicted": "Urban Development & Municipal Services",
+      "confidence": 0.4277609130721129,
+      "correct": true
+    }
+  ]
+}

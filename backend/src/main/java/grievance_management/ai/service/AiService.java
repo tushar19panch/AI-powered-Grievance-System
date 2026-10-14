@@ -36,7 +36,7 @@ public class AiService {
 
     public AiAnalysisResult analyzeComplaint(String description, String imageBase64, Object existingRecords) {
         if ((description == null || description.trim().isEmpty()) && (imageBase64 == null || imageBase64.trim().isEmpty())) {
-            return fallback("No description or image provided");
+            return fallback("No description or image provided", imageBase64);
         }
 
         try {
@@ -73,7 +73,7 @@ public class AiService {
             log.warn("AI Service connection to [{}] failed: {}. Using fallback prediction.", aiServiceUrl, e.getMessage());
         }
 
-        return fallback(description);
+        return fallback(description, imageBase64);
     }
 
     @SuppressWarnings("unchecked")
@@ -133,45 +133,61 @@ public class AiService {
     }
 
     private AiAnalysisResult fallback(String text) {
+        return fallback(text, null);
+    }
+
+    private AiAnalysisResult fallback(String text, String imageBase64) {
         String lower = text != null ? text.toLowerCase().trim() : "";
 
-        // 1. Determine Category & Department
+        // 1. Determine Category & Department (Madhya Pradesh 15 Departments Taxonomy)
         String category = "Other";
-        String department = "General Grievance / Administration";
+        String department = "General Administration / Manual Review";
 
-        if (containsAny(lower, "fire", "आग", "धुआं", "ब्लास्ट", "cylinder burst", "explosion", "blaze", "flames", "burning")) {
-            category = "Fire & Emergency Services";
-            department = "Fire & Disaster Management Department";
-        } else if (containsAny(lower, "पानी", "जल", "नल", "हैंडपंप", "पाइप", "टंकी", "बोरवेल", "water", "wateer", "watr", "watter", "suply", "supply", "tap", "pipeline", "leakage", "paani", "pani", "tanker")) {
+        if (containsAny(lower, "पानी", "जल", "नल", "हैंडपंप", "पाइप", "टंकी", "बोरवेल", "water", "wateer", "watr", "watter", "suply", "supply", "tap", "pipeline", "leakage", "paani", "pani", "tanker")) {
             category = "Water Supply";
-            department = "Water Supply Department";
+            department = "Public Health Engineering / Water Supply";
         } else if (containsAny(lower, "बिजली", "करंट", "तार", "खंभा", "पोल", "ट्रांसफार्मर", "स्ट्रीट लाइट", "बल्ब", "अंधेरा", "electricity", "power", "light", "wire", "voltage", "blackout", "bijli", "shock")) {
             category = "Electricity";
-            department = "Electricity Department";
+            department = "Electricity / Energy";
         } else if (containsAny(lower, "सड़क", "मार्ग", "रास्ता", "गड्ढा", "गड्ढे", "डामर", "पुलिया", "road", "pothole", "highway", "street", "sadak", "gaddha")) {
             category = "Roads & Transportation";
-            department = "Roads & Transportation Department";
+            department = "Public Works / Roads";
         } else if (containsAny(lower, "नाली", "गंदा पानी", "गटर", "सीवर", "चोक", "drain", "drainage", "sewage", "gutter", "naali", "nali")) {
             category = "Drainage";
-            department = "Drainage Department";
-        } else if (containsAny(lower, "कचरा", "कूड़ा", "गंदगी", "सफाई", "कूड़ेदान", "झाड़ू", "garbage", "waste", "trash", "cleaning", "kachra", "safai", "dustbin")) {
-            category = "Waste Management";
-            department = "Waste Management Department";
-        } else if (containsAny(lower, "शौचालय", "टॉयलेट", "स्वच्छता", "toilet", "sanitation", "shauchalaya")) {
-            category = "Sanitation";
-            department = "Sanitation Department";
-        } else if (containsAny(lower, "अस्पताल", "दवा", "डॉक्टर", "नर्स", "बीमारी", "इलाज", "hospital", "doctor", "medicine", "health", "clinic", "dawai", "ilaj")) {
+            department = "Drainage & Sewerage";
+        } else if (containsAny(lower, "पंचायत", "सचिव", "सरपंच", "रोजगार सहायक", "मनरेगा", "panchayat", "gram", "sarpanch", "sachiv", "nrega", "mgnrega")) {
+            category = "Panchayat & Rural Development";
+            department = "Panchayat & Rural Development";
+        } else if (containsAny(lower, "कचरा", "कूड़ा", "गंदगी", "सफाई", "कूड़ेदान", "झाड़ू", "पार्क", "स्ट्रीटलाइट", "garbage", "waste", "trash", "cleaning", "kachra", "safai", "dustbin", "park", "street light", "vendor", "mandi")) {
+            category = "Urban Civic Services";
+            department = "Urban Development & Municipal Services";
+        } else if (containsAny(lower, "अस्पताल", "दवा", "डॉक्टर", "नर्स", "बीमारी", "इलाज", "hospital", "doctor", "medicine", "health", "clinic", "dawai", "ilaj", "ambulance")) {
             category = "Healthcare";
-            department = "Health Department";
-        } else if (containsAny(lower, "स्कूल", "विद्यालय", "शिक्षक", "किताब", "मास्टर", "school", "teacher", "education", "student", "shiksha")) {
+            department = "Public Health & Family Welfare";
+        } else if (containsAny(lower, "स्कूल", "विद्यालय", "शिक्षक", "किताब", "मास्टर", "मध्याह्न भोजन", "school", "teacher", "education", "student", "shiksha", "midday")) {
             category = "Education";
-            department = "Education Department";
-        } else if (containsAny(lower, "पशु", "कुत्ता", "गाय", "भैंस", "मवेशी", "animal", "dog", "cattle", "cow", "pashu")) {
-            category = "Animal & Veterinary";
-            department = "Animal & Veterinary Department";
-        } else if (containsAny(lower, "राशन", "पेंशन", "कोटा", "ration", "pension", "yojana")) {
+            department = "School Education";
+        } else if (containsAny(lower, "पटवारी", "खसरा", "खतौनी", "नामांतरण", "सीमांकन", "जमीन", "patwari", "khasra", "khatauni", "mutation", "land", "zameen")) {
+            category = "Property & Revenue";
+            department = "Revenue & Land Administration";
+        } else if (containsAny(lower, "पुलिस", "थाना", "चोरी", "एफआईआर", "छेड़छाड़", "शराब", "police", "fir", "theft", "stolen", "crime", "harassment")) {
+            category = "Public Safety / Police";
+            department = "Police / Home";
+        } else if (containsAny(lower, "आंगनवाड़ी", "पोषण", "लाड़ली बहना", "गर्भवती", "anganwadi", "poshan", "ladli behna", "child", "malnutrition")) {
+            category = "Women & Child Development";
+            department = "Women & Child Development";
+        } else if (containsAny(lower, "पेंशन", "वृद्धावस्था", "विधवा", "दिव्यांग", "छात्रवृत्ति", "pension", "scholarship", "samagra", "welfare", "vridhavastha")) {
             category = "Welfare Services";
-            department = "Welfare Services Department";
+            department = "Social Justice & Welfare";
+        } else if (containsAny(lower, "किसान", "खाद", "यूरिया", "डीएपी", "फसल", "बीमा", "मंडी", "farmer", "fertilizer", "urea", "dap", "crop", "fasal bima", "pm kisan")) {
+            category = "Agriculture & Farming";
+            department = "Agriculture & Farmers' Welfare";
+        } else if (containsAny(lower, "पशु", "कुत्ता", "गाय", "भैंस", "मवेशी", "लंपी", "animal", "dog", "cattle", "cow", "pashu", "veterinary")) {
+            category = "Animal & Veterinary";
+            department = "Animal Husbandry & Veterinary";
+        } else if (containsAny(lower, "पोर्टल", "ऑनलाइन", "कियोस्क", "ई-केवाईसी", "सर्वर", "portal", "online", "kiosk", "ekyc", "website", "csc")) {
+            category = "Digital/IT Services";
+            department = "IT & Digital Government Services";
         }
 
         // 2. Determine Priority
@@ -192,12 +208,19 @@ public class AiService {
             sentiment = "POSITIVE";
         }
 
+        boolean hasImage = imageBase64 != null && !imageBase64.trim().isEmpty();
+        String classification = hasImage ? "NEEDS_VERIFICATION" : "GENUINE";
+        String classificationReason = hasImage
+                ? "AI सेवा अनुपलब्ध होने के कारण फोटो का स्वचालित सत्यापन नहीं हो सका (Pending manual verification)."
+                : "No image attached.";
+
         return AiAnalysisResult.builder()
                 .category(category)
                 .department(department)
                 .priority(priority)
                 .sentiment(sentiment)
-                .classification("GENUINE")
+                .classification(classification)
+                .classification_reason(classificationReason)
                 .build();
     }
 

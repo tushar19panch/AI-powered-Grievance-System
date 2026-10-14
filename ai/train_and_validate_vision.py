@@ -10,6 +10,8 @@ Covers all 16 Village Domains across extreme edge cases:
 
 import os
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 

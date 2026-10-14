@@ -132,13 +132,13 @@ public class ComplaintService {
         }
 
         String department = aiResult.getDepartment();
-        if (department == null || department.isBlank() || department.contains("General Grievance")) {
+        if (department == null || department.isBlank() || department.contains("General Grievance") || department.contains("General Administration")) {
             if (request.getDepartment() != null && !request.getDepartment().isBlank()) {
                 department = request.getDepartment();
             }
         }
         if (department == null || department.isBlank()) {
-            department = "General Grievance / Administration";
+            department = "General Administration / Manual Review";
         }
 
         String priority = aiResult.getPriority();

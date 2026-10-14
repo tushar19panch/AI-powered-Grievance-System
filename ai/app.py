@@ -122,7 +122,7 @@ def analyze():
         # 2. Text ML Analysis
         if str(complaint_text).strip():
             for mod_name in list(sys.modules.keys()):
-                if 'category_model' in mod_name or 'department_mapping' in mod_name or 'analyze_complaint' in mod_name or 'urgency_rules' in mod_name:
+                if any(m in mod_name for m in ['route_complaint', 'predict_priority', 'safety_rules', 'text_normalizer', 'department_mapping', 'analyze_complaint', 'urgency_rules']):
                     try:
                         importlib.reload(sys.modules[mod_name])
                     except Exception:
@@ -131,8 +131,13 @@ def analyze():
         else:
             analysis_result = {
                 "category": "Other",
-                "department": "General Grievance / Administration",
+                "department": "General Administration / Manual Review",
+                "department_confidence": 0.0,
+                "is_safe_fallback": True,
                 "priority": "MEDIUM",
+                "priority_confidence": 0.5,
+                "priority_source": "DEFAULT",
+                "language": "en",
                 "sentiment": "NEUTRAL",
                 "priority_indicators": [],
                 "sentiment_indicators": []
@@ -153,10 +158,11 @@ def analyze():
         if image_data:
             try:
                 fp = img_matcher_module.compute_image_fingerprint(image_data)
+                expected_cat = data.get("category") or data.get("expected_category") or analysis_result.get("category")
                 img_match = img_matcher_module.match_image_against_database(
                     fp, 
                     existing_records, 
-                    expected_category=analysis_result.get("category")
+                    expected_category=expected_cat
                 )
                 image_result = {
                     "classification": img_match.get("classification", "GENUINE"),
@@ -172,8 +178,13 @@ def analyze():
         # 4. Formulate clean JSON response
         response_data = {
             "category": analysis_result.get("category") or "Other",
-            "department": analysis_result.get("department") or "General Grievance / Administration",
+            "department": analysis_result.get("department") or "General Administration / Manual Review",
+            "department_confidence": analysis_result.get("department_confidence", 0.0),
+            "is_safe_fallback": analysis_result.get("is_safe_fallback", False),
             "priority": analysis_result.get("priority") or "MEDIUM",
+            "priority_confidence": analysis_result.get("priority_confidence", 0.75),
+            "priority_source": analysis_result.get("priority_source", "ML_MODEL"),
+            "language": analysis_result.get("language", "en"),
             "sentiment": analysis_result.get("sentiment") or "NEUTRAL",
             "classification": image_result["classification"],
             "image_hash": image_result["image_hash"],
@@ -190,8 +201,13 @@ def analyze():
         return jsonify({
             "error": str(e),
             "category": "Other",
-            "department": "General Grievance / Administration",
+            "department": "General Administration / Manual Review",
+            "department_confidence": 0.0,
+            "is_safe_fallback": True,
             "priority": "MEDIUM",
+            "priority_confidence": 0.5,
+            "priority_source": "DEFAULT",
+            "language": "en",
             "sentiment": "NEUTRAL",
             "classification": "GENUINE"
         }), 500
@@ -275,7 +291,7 @@ def transcribe_and_analyze():
         else:
             analysis = {
                 "category": "Other",
-                "department": "General Grievance / Administration",
+                "department": "General Administration / Manual Review",
                 "priority": "MEDIUM",
                 "sentiment": "NEUTRAL"
             }
